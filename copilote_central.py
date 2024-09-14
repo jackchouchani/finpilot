@@ -23,7 +23,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from typing import List
-from tiingo import TiingoClient
+
 from agent_a import document_agent
 from agent_b import sentiment_agent
 from agent_c import financial_modeling_agent
@@ -42,7 +42,7 @@ from generateur_report import generate_report
 # load_dotenv()
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "https://www.finpilot.one", "supports_credentials": True}})
 
 # Initialize OpenAI and Anthropic clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -57,13 +57,6 @@ jwt = JWTManager(app)
 
 # Augmentez la durée de validité du token JWT
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
-
-# Configure Tiingo client
-tiingo_config = {
-    'session': True,
-    'api_key': os.getenv('CLE_API_TIINGO')
-}
-client = TiingoClient(tiingo_config)
 
 functions = [
     {

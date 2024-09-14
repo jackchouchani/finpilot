@@ -51,7 +51,7 @@ function App() {
 
     const fetchSettings = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/settings');
+            const response = await axios.get('${process.env.REACT_APP_API_URL}/settings');
             setSettings(response.data);
         } catch (error) {
             console.error("Error fetching settings:", error);
@@ -82,7 +82,7 @@ function App() {
 
     const fetchChatHistory = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/chat_history');
+            const response = await axios.get('${process.env.REACT_APP_API_URL}/chat_history');
             setMessages(response.data);
         } catch (error) {
             console.error('Error fetching chat history:', error);
@@ -99,7 +99,7 @@ function App() {
         setInput('');
 
         try {
-            const response = await axios.post('http://localhost:5000/chat', {
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/chat', {
                 message: input,
                 conversation_id: conversationId
             });
@@ -114,7 +114,7 @@ function App() {
 
     const fetchPortfolio = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/portfolio');
+            const response = await axios.get('${process.env.REACT_APP_API_URL}/portfolio');
             setPortfolio(response.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du portfolio:", error);
@@ -127,7 +127,7 @@ function App() {
         setLoading(true);
         const tickers = portfolio.map(stock => stock.symbol).join(',');
         try {
-            const response = await axios.get(`http://localhost:5000/news?tickers=${tickers}`);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
             setNews(response.data);
         } catch (error) {
             console.error("Erreur lors de la récupération des nouvelles:", error);
@@ -140,7 +140,7 @@ function App() {
     const fetchLivePrice = useCallback(async (symbol) => {
         if (!symbol) return null;
         try {
-            const response = await axios.get(`http://localhost:5000/live_price?symbol=${symbol}`);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/live_price?symbol=${symbol}`);
             return response.data.price;
         } catch (error) {
             console.error(`Error fetching live price for ${symbol}:`, error);
@@ -211,7 +211,7 @@ function App() {
                 break;
             case 'investment_recommendation':
                 try {
-                    const settingsResponse = await axios.get('http://localhost:5000/settings');
+                    const settingsResponse = await axios.get('${process.env.REACT_APP_API_URL}/settings');
                     data = {
                         portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
                         risk_profile: settingsResponse.data.risk_profile || 'moderate'
@@ -230,7 +230,7 @@ function App() {
         }
 
         try {
-            const response = await axios.post(`http://localhost:5000/agent/${agentName}`, data);
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
             let newMessage;
             if (agentName === 'reporting') {
                 // Traitement spécial pour l'agent de reporting
@@ -250,7 +250,7 @@ function App() {
             setMessages(prevMessages => [...prevMessages, newMessage]);
 
             // Sauvegarder le message dans l'historique du chat
-            await axios.post('http://localhost:5000/chat_history', newMessage);
+            await axios.post('${process.env.REACT_APP_API_URL}/chat_history', newMessage);
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {
@@ -260,7 +260,7 @@ function App() {
             setMessages(prevMessages => [...prevMessages, errorMessage]);
 
             // Sauvegarder le message d'erreur dans l'historique du chat
-            await axios.post('http://localhost:5000/chat_history', errorMessage);
+            await axios.post('${process.env.REACT_APP_API_URL}/chat_history', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -274,7 +274,7 @@ function App() {
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const response = await axios.post('http://localhost:5000/upload_pdf', formData, {
+                const response = await axios.post('${process.env.REACT_APP_API_URL}/upload_pdf', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: JSON.stringify(response.data, null, 2) }]);
@@ -292,7 +292,7 @@ function App() {
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const response = await axios.post('http://localhost:5000/upload_pdf', formData, {
+                const response = await axios.post('${process.env.REACT_APP_API_URL}/upload_pdf', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: JSON.stringify(response.data, null, 2) }]);
@@ -334,6 +334,7 @@ function App() {
             if (token) {
                 config.headers['Authorization'] = `Bearer ${token}`;
             }
+            config.baseURL = process.env.REACT_APP_API_URL;
             return config;
         },
         (error) => {
@@ -362,7 +363,7 @@ function App() {
         }
 
         try {
-            const response = await axios.post('http://localhost:5000/backtest', {
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/backtest', {
                 portfolio: portfolio,
                 start_date: startDate,
                 end_date: endDate
@@ -381,7 +382,7 @@ function App() {
 
     const compareWithBenchmark = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/compare_portfolios', {
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/compare_portfolios', {
                 portfolio: portfolio.stocks, // Assurez-vous que c'est bien un tableau d'objets stock
                 benchmark: benchmark,
                 start_date: comparisonStartDate,
@@ -401,7 +402,7 @@ function App() {
 
     const onClearChat = useCallback(async () => {
         try {
-            await axios.post('http://localhost:5000/clear_chat');
+            await axios.post('${process.env.REACT_APP_API_URL}/clear_chat');
             setMessages([]);
             setConversationId(null);
             alert('Chat history cleared successfully');

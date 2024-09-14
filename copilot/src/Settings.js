@@ -16,7 +16,7 @@ function Settings({ onClearChat }) {
     const fetchSettings = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/settings', {
+            const response = await axios.get('${process.env.REACT_APP_API_URL}/settings', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             setSettings({
@@ -44,7 +44,7 @@ function Settings({ onClearChat }) {
 
     const clearChat = async () => {
         try {
-            await axios.post('http://localhost:5000/clear_chat');
+            await axios.post('${process.env.REACT_APP_API_URL}/clear_chat');
             alert('Chat history cleared successfully');
             onClearChat(); // Appel de la fonction pour mettre à jour l'état dans App.js
         } catch (error) {
@@ -56,7 +56,7 @@ function Settings({ onClearChat }) {
     const saveSettings = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.post('http://localhost:5000/settings', settings, {
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/settings', settings, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.data.message === "Settings updated successfully") {

@@ -24,7 +24,6 @@ PyPDF2
 plotly
 textblob
 bcrypt
-tiingo
 requests
 matplotlib
 gunicorn

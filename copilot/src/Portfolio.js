@@ -116,7 +116,7 @@ function Portfolio() {
             }
             const tickers = portfolio.stocks.map(stock => stock.symbol).join(',');
             try {
-                const response = await axios.get(`http://localhost:5000/news?tickers=${tickers}`);
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
                 setNews(response.data);
             } catch (error) {
                 console.error("Erreur lors de la récupération des nouvelles:", error);
@@ -129,7 +129,7 @@ function Portfolio() {
         if (newStock.symbol) {
             const fetchNewStockPrice = async () => {
                 try {
-                    const response = await axios.get(`http://localhost:5000/latest_price?symbol=${newStock.symbol}`);
+                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
                     if (response.data && response.data.price) {
                         setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
                     }
@@ -144,7 +144,7 @@ function Portfolio() {
     useEffect(() => {
         const fetchPortfolioValue = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/get_portfolio_value', {
+                const response = await axios.get('${process.env.REACT_APP_API_URL}/get_portfolio_value', {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 setPortfolioValue(response.data.portfolio_value);
@@ -157,7 +157,7 @@ function Portfolio() {
 
     const updatePortfolioValue = async (newValue) => {
         try {
-            await axios.post('http://localhost:5000/update_portfolio_value',
+            await axios.post('${process.env.REACT_APP_API_URL}/update_portfolio_value',
                 { portfolio_value: newValue },
                 { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
             );
@@ -169,7 +169,7 @@ function Portfolio() {
 
     const fetchPortfolio = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/portfolio');
+            const response = await axios.get('${process.env.REACT_APP_API_URL}/portfolio');
             setPortfolio(response.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du portfolio:", error);
@@ -193,7 +193,7 @@ function Portfolio() {
         const updatedPrices = { ...livePrices };
         for (const stock of portfolio.stocks) {
             try {
-                const response = await axios.get(`http://localhost:5000/latest_price?symbol=${stock.symbol}`);
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
                 if (response.data && response.data.price) {
                     updatedPrices[stock.symbol] = response.data.price;
                 }
@@ -218,7 +218,7 @@ function Portfolio() {
 
     const savePortfolio = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/portfolio', portfolio);
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/portfolio', portfolio);
             if (response.status === 200) {
                 alert('Portfolio sauvegardé avec succès!');
                 fetchPortfolio();
@@ -233,7 +233,7 @@ function Portfolio() {
 
     const simulateScenario = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/simulate_scenario', {
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/simulate_scenario', {
                 portfolio: {
                     stocks: portfolio.stocks.map(stock => ({
                         symbol: stock.symbol,
@@ -252,7 +252,7 @@ function Portfolio() {
 
     const generateReport = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/generate_report', {
+            const response = await axios.post('${process.env.REACT_APP_API_URL}/generate_report', {
                 portfolio: portfolio
             });
             setReportData(response.data.report);

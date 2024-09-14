@@ -1,3 +1,5 @@
+#!/usr/local/bin/python3
+# -*- coding: utf-8 -*-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
@@ -12,7 +14,7 @@ import random
 from datetime import datetime, timedelta
 import io
 from io import BytesIO
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import os
 import re
 import bcrypt
@@ -37,7 +39,7 @@ from selecteur_modele_ia import SelecteurModeleIA
 from generateur_report import generate_report
 
 # Load environment variables
-load_dotenv()
+# load_dotenv()
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)

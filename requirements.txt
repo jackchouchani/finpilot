@@ -1,19 +1,31 @@
-Flask==2.3.2
-Flask-Cors==3.0.10
-Flask-JWT-Extended==4.4.4
-openai==0.27.8
-anthropic==0.3.4
-yfinance==0.2.22
-scikit-learn==1.2.2
-pandas==2.0.3
-numpy==1.24.3
-scipy==1.10.1
-reportlab==3.6.13
-PyPDF2==3.0.1
-plotly==5.15.0
-textblob==0.15.3
-bcrypt==4.0.1
-tiingo==0.14.0
-requests==2.31.0
-matplotlib==3.7.1
-scikit-learn==0.24.2
+# Forcer l'installation de scikit-learn via un wheel précompilé si disponible
+scikit-learn
+
+# Ou, si vous voulez une version plus récente qui pourrait être compatible avec Python 3.12
+# en supposant qu'elle existe et fonctionne bien:
+# scikit-learn==1.3.0 --only-binary :all:
+
+# Assurez-vous que Cython est à jour, mais cela n'est généralement pas nécessaire dans requirements.txt
+# si vous avez déjà une version compatible installée localement
+Cython
+
+# Les autres dépendances restent inchangées
+Flask
+Flask-Cors
+Flask-JWT-Extended
+openai
+anthropic
+yfinance
+pandas
+numpy
+scipy
+reportlab
+PyPDF2
+plotly
+textblob
+bcrypt
+tiingo
+requests
+matplotlib
+gunicorn
+python-dotenv

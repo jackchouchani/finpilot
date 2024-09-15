@@ -183,9 +183,7 @@ class ReportingAgent:
     def generate_report(self, portfolio):
         if not portfolio:
             return {"error": "Aucun portefeuille trouvé pour cet utilisateur"}
-        
-        agent_name = "Agent de Reporting"
-        
+                
         report = "# Rapport de Portefeuille\n\n"
         
         for stock in portfolio:
@@ -203,7 +201,6 @@ class ReportingAgent:
             images_base64.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
 
         formatted_result = f"""
-# Résultat de l'analyse par l'agent {agent_name}
 
 {report}
 
@@ -3284,7 +3281,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Typography, Paper, Box } from '@mui/material';
 
-const MessageContent = ({ content }) => {
+const MessageContent = ({ content, graphs }) => {
     // Fonction pour vérifier si le contenu est valide
     const isValidContent = (content) => {
         return content !== null && content !== undefined && typeof content === 'string';
@@ -3322,14 +3319,27 @@ const MessageContent = ({ content }) => {
         }
     };
 
-    // // Gestion du contenu invalide
-    // if (!isValidContent(content)) {
-    //     return (
-    //         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-    //             <Typography color="error">Contenu invalide ou non disponible</Typography>
-    //         </Paper>
-    //     );
-    // }
+    // Gestion du contenu invalide
+    if (!isValidContent(content)) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography color="error">Contenu invalide ou non disponible</Typography>
+            </Paper>
+        );
+    }
+
+    // Traitement du contenu pour l'agent de reporting
+    if (typeof content === 'object' && content.content) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography>{content.content}</Typography>
+                {content.graphs && content.graphs.map((graph, index) => (
+                    <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+                ))}
+            </Paper>
+        );
+    }
+
 
     // Traitement du contenu JSON
     if (isJSON(content)) {
@@ -3368,7 +3378,19 @@ const MessageContent = ({ content }) => {
             );
         }
     }
-    // Traitement du contenu Markdown
+    // Traitement pour l'agent de reporting
+    if (typeof content === 'object' && content.hasOwnProperty('report')) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography variant="h6">Rapport généré</Typography>
+                <Box component="a" href={`data:application/pdf;base64,${content.report}`} download="report.pdf">
+                    <Typography color="primary">Télécharger le rapport PDF</Typography>
+                </Box>
+            </Paper>
+        );
+    }
+
+    // Traitement pour les autres types de contenu
     return (
         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
             <ReactMarkdown
@@ -3387,11 +3409,20 @@ const MessageContent = ({ content }) => {
                                 <code {...props} />
                             </Box>
                         ),
-                    img: ({ node, ...props }) => <Box component="img" sx={{ maxWidth: '100%', height: 'auto' }} {...props} />,
+                    img: ({ node, ...props }) => {
+                        if (props.src.startsWith('data:image')) {
+                            return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
+                        }
+                        // Gérer les autres types d'images si nécessaire
+                        return null;
+                    },
                 }}
             >
                 {formatContent(content)}
             </ReactMarkdown>
+            {graphs && graphs.map((graph, index) => (
+                <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+            ))}
         </Paper>
     );
 };
@@ -4578,15 +4609,14 @@ function App() {
                 // Traitement spécial pour l'agent de reporting
                 newMessage = {
                     role: 'assistant',
-                    content: response.data.content,
-                    graphs: response.data.graph
+                    content: response.data,
+                    graphs: response.data.graphs 
                 };
             } else {
                 // Traitement standard pour les autres agents
                 newMessage = {
                     role: 'assistant',
-                    content: JSON.stringify(response.data, null, 2),
-                    graph: response.data.graph
+                    content: JSON.stringify(response.data, null, 2)
                 };
             }
             setMessages(prevMessages => [...prevMessages, newMessage]);

@@ -236,7 +236,8 @@ function App() {
                 // Traitement spécial pour l'agent de reporting
                 newMessage = {
                     role: 'assistant',
-                    content: response.data
+                    content: response.data,
+                    graphs: response.data.graphs  // Assurez-vous que l'agent renvoie les graphiques dans cette propriété
                 };
             } else {
                 // Traitement standard pour les autres agents

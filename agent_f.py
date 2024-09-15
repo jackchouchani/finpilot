@@ -36,18 +36,18 @@ class ReportingAgent:
             buffer.seek(0)
             images_base64.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
 
-        formatted_result = f"""
+        report = f"""
+    # Rapport de Portefeuille
 
-{report}
-
-## Graphiques
-
-![Graphique](data:image/png;base64,{images_base64})
-
----
-*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
+    {report}
     """
-        return formatted_result, 200, {'Content-Type': 'text/markdown; charset=utf-8'}
+
+        formatted_result = {
+            "content": report,
+            "graphs": images_base64  # Assurez-vous que images_base64 est une liste de chaînes base64
+        }
+
+        return formatted_result, 200, {'Content-Type': 'application/json'}
 
     def _generate_stock_report(self, stock):
         symbol = stock['symbol']

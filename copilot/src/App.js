@@ -228,6 +228,13 @@ function App() {
                 data = { input: input };
                 break;
         }
+        const userMessage = { role: 'user', content: input };
+        setMessages(prevMessages => [userMessage, ...prevMessages]);
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
+        } catch (error) {
+            console.error('Error saving user message to chat history:', error);
+        }
 
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
@@ -241,17 +248,25 @@ function App() {
             setMessages(prevMessages => [newMessage, ...prevMessages]);
 
             // Sauvegardez le message de l'agent dans la base de données
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
+            try {
+                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
+            } catch (saveError) {
+                console.error('Error saving agent message to chat history:', saveError);
+            }
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {
                 role: 'assistant',
                 content: `Error: ${error.response?.data?.error || error.message}`
             };
-            setMessages(prevMessages => [...prevMessages, errorMessage]);
+            setMessages(prevMessages => [errorMessage, ...prevMessages]);
 
             // Sauvegarder le message d'erreur dans l'historique du chat
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
+            try {
+                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
+            } catch (saveError) {
+                console.error('Error saving error message to chat history:', saveError);
+            }
         } finally {
             setLoading(false);
         }

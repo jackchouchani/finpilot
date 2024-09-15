@@ -304,6 +304,7 @@ def get_user_by_username(username):
 
 @app.route('/register', methods=['POST'])
 def register():
+    app.logger.info(f"Received registration request: {request.json}")
     data = request.json
     username = data.get('username')
     password = data.get('password')

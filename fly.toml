@@ -7,18 +7,17 @@ primary_region = 'cdg'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = false  # Changé à false pour éviter l'arrêt automatique
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1    # Augmenté à 1 pour garder au moins une instance active
 
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-
+  
   [[services.ports]]
     port = 80
     handlers = ["http"]
-
   [[services.ports]]
     port = 443
     handlers = ["tls", "http"]
@@ -26,3 +25,7 @@ primary_region = 'cdg'
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
+
+[metrics]
+  port = 9091
+  path = "/metrics"

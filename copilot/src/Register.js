@@ -9,12 +9,22 @@ function Register({ onRegisterSuccess }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(process.env.REACT_APP_API_URL + '/register', { username, password });
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/register`, {
+                username,
+                password
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log(response.data); // Pour le débogage
+
             alert('Registration successful! Please log in.');
             onRegisterSuccess();
         } catch (error) {
+            console.error("Registration error:", error.response ? error.response.data : error.message);
             alert('Registration failed. Please try again.');
-            console.error("Registration error:", error);
         }
     };
 

@@ -3,17 +3,31 @@ import ReactMarkdown from 'react-markdown';
 import { Typography, Paper, Box } from '@mui/material';
 
 const MessageContent = ({ content }) => {
+    // Fonction pour vérifier si le contenu est valide
+    const isValidContent = (content) => {
+        return content !== null && content !== undefined && typeof content === 'string';
+    };
+
+    // Fonction pour formater le contenu
+    const formatContent = (text) => {
+        if (!isValidContent(text)) return '';
+        return text.replace(/\\n/g, '\n').replace(/\n(?!\n)/g, '\n\n');
+    };
+
+    // Fonction pour vérifier si c'est du JSON valide
     const isJSON = (str) => {
+        if (!isValidContent(str)) return false;
         try {
             const parsed = JSON.parse(str);
-            // Vérifie si c'est un objet JSON "normal" et non une chaîne transformée en objet
-            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && Object.keys(parsed).length > 0 && !Object.keys(parsed).every(key => !isNaN(parseInt(key)));
+            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && Object.keys(parsed).length > 0;
         } catch (e) {
             return false;
         }
     };
 
+    // Fonction pour vérifier si c'est un objet string
     const isStringObject = (str) => {
+        if (!isValidContent(str)) return false;
         try {
             const parsed = JSON.parse(str);
             return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).every(key => !isNaN(parseInt(key)));
@@ -22,29 +36,54 @@ const MessageContent = ({ content }) => {
         }
     };
 
-    const formatContent = (text) => {
-        // Remplacer les \n littéraux par de vrais retours à la ligne
-        return text.replace(/\\n/g, '\n').replace(/\n(?!\n)/g, '\n\n');
-    };
-
-
-    if (isJSON(content)) {
-        const jsonData = JSON.parse(content);
+    // Gestion du contenu invalide
+    if (!isValidContent(content)) {
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <pre>{JSON.stringify(jsonData, null, 2)}</pre>
-            </Paper>
-        );
-    } else if (isStringObject(content)) {
-        const stringContent = Object.values(JSON.parse(content)).join('');
-        return (
-            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography>{formatContent(stringContent)}</Typography>
+                <Typography color="error">Contenu invalide ou non disponible</Typography>
             </Paper>
         );
     }
 
-    // Pour le contenu non-JSON, on utilise ReactMarkdown comme avant
+    // Traitement du contenu JSON
+    if (isJSON(content)) {
+        try {
+            const jsonData = JSON.parse(content);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+                </Paper>
+            );
+        } catch (error) {
+            console.error("Erreur lors du parsing JSON:", error);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography color="error">Erreur lors de l'affichage du contenu JSON</Typography>
+                </Paper>
+            );
+        }
+    }
+
+    // Traitement du contenu string object
+    if (isStringObject(content)) {
+        try {
+            const stringContent = Object.values(JSON.parse(content)).join('');
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography>{formatContent(stringContent)}</Typography>
+                </Paper>
+            );
+        } catch (error) {
+            console.error("Erreur lors du parsing de l'objet string:", error);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography color="error">Erreur lors de l'affichage du contenu</Typography>
+                </Paper>
+            );
+        }
+    }
+
+    // Traitement du contenu Markdown
     return (
         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
             <ReactMarkdown

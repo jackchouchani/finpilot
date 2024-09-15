@@ -19,12 +19,17 @@ class RiskManagementAgent:
         VaR = norm.ppf(1-confidence_level) * portfolio_std
         CVaR = -1 * (norm.pdf(norm.ppf(1-confidence_level)) / (1-confidence_level)) * portfolio_std
 
-        return {
-            "rendement_portefeuille": float(portfolio_return),
-            "volatilité_portefeuille": float(portfolio_std),
-            "Valeur_à_Risque": float(-VaR),
-            "VaR_Conditionnelle": float(-CVaR),
-            "niveau_confiance": confidence_level
-        }
+        rapport = f"""
+Analyse de gestion des risques
+
+Rendement du portefeuille: {portfolio_return:.2f}
+Volatilité du portefeuille: {portfolio_std:.2f}
+Valeur à Risque (VaR) à {confidence_level * 100:.0f}% de confiance: {-VaR:.2f}
+VaR Conditionnelle (CVaR) à {confidence_level * 100:.0f}% de confiance: {-CVaR:.2f}
+
+Conclusion:
+Cette analyse fournit un aperçu des risques associés au portefeuille. Les investisseurs devraient utiliser ces informations pour ajuster leur stratégie d'investissement en fonction de leur tolérance au risque.
+"""
+        return rapport
 
 risk_management_agent = RiskManagementAgent()

@@ -47,19 +47,24 @@ class PortfolioOptimizationAgent:
         opt_std, opt_ret = portfolio_performance(opt.x, mean_returns, cov_matrix)
         opt_sharpe = (opt_ret - risk_free_rate) / opt_std
 
-        return {
-            "portefeuille_actuel": {
-                "poids": dict(zip(tickers, weights)),
-                "rendement_attendu": current_ret,
-                "volatilité": current_std,
-                "ratio_sharpe": current_sharpe
-            },
-            "portefeuille_optimisé": {
-                "poids": dict(zip(tickers, opt.x)),
-                "rendement_attendu": opt_ret,
-                "volatilité": opt_std,
-                "ratio_sharpe": opt_sharpe
-            }
-        }
+        rapport = f"""
+Analyse de l'optimisation du portefeuille
+
+Portefeuille actuel:
+- Poids: {dict(zip(tickers, weights))}
+- Rendement attendu: {current_ret:.2f}
+- Volatilité: {current_std:.2f}
+- Ratio de Sharpe: {current_sharpe:.2f}
+
+Portefeuille optimisé:
+- Poids: {dict(zip(tickers, opt.x))}
+- Rendement attendu: {opt_ret:.2f}
+- Volatilité: {opt_std:.2f}
+- Ratio de Sharpe: {opt_sharpe:.2f}
+
+Conclusion:
+Cette analyse fournit un aperçu de l'optimisation du portefeuille. Les investisseurs peuvent utiliser ces informations pour ajuster leur stratégie d'investissement.
+"""
+        return rapport
 
 portfolio_optimization_agent = PortfolioOptimizationAgent()

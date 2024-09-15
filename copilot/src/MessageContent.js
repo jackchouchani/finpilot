@@ -5,7 +5,7 @@ import { Typography, Paper, Box } from '@mui/material';
 const MessageContent = ({ content, graphs }) => {
     // Fonction pour vérifier si le contenu est valide
     const isValidContent = (content) => {
-        return content !== null && content !== undefined && typeof content === 'string';
+        return content !== null && content !== undefined;
     };
 
     const isMarkdown = (str) => {

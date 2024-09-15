@@ -738,6 +738,7 @@ def test_agents():
     return jsonify(results)
 
 @app.route('/chat', methods=['POST'])
+@jwt_required()
 def chat():
     global financial_data
     
@@ -768,7 +769,7 @@ def chat():
             } for func in functions
         ]
 
-    client = anthropic.Anthropic() if use_claude else openai_client
+    client = anthropic_client if use_claude else openai_client
     model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-mini"
     tools = claude_tools if use_claude else functions
 
@@ -781,7 +782,6 @@ def chat():
         )
 
         if use_claude:
-            print(f"Claude response type: {response.content[0].type}")
             if response.content[0].type == 'text':
                 conversation_manager.add_message(conversation_id, {"role": "assistant", "content": response.content[0].text})
                 return jsonify({"reply": response.content[0].text, "conversation_id": conversation_id})

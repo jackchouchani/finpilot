@@ -41,7 +41,7 @@ const MessageContent = ({ content, graphs }) => {
     };
 
     // Gestion du contenu invalide
-    if (!isValidContent(content)) {
+    if (!isValidContent(content) && !isMarkdown(content)) {
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
                 <Typography color="error">Contenu invalide ou non disponible</Typography>
@@ -87,7 +87,7 @@ const MessageContent = ({ content, graphs }) => {
         }
     }
     // Traitement pour l'agent de reporting
-    if (typeof content === 'object') {
+    if (typeof content === 'object' && content.report) {
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
                 <Typography variant="h6">Rapport généré</Typography>

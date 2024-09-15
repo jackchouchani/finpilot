@@ -471,7 +471,7 @@ function App() {
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message} />}
+                                                    secondary={<MessageContent content={message.content} />}
                                                 />
                                             </ListItem>
                                         ))}
@@ -556,7 +556,7 @@ function App() {
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
                                                     secondary={
                                                         <>
-                                                            <MessageContent content={message} />
+                                                            <MessageContent content={message.content} />
                                                             {message.graphs && message.graphs.map((graph, graphIndex) => (
                                                                 <img
                                                                     key={graphIndex}
@@ -601,7 +601,7 @@ function App() {
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message} />}
+                                                    secondary={<MessageContent content={message.content} />}
                                                 />
                                             </ListItem>
                                         ))}

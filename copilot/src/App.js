@@ -447,9 +447,7 @@ function App() {
                 <Container maxWidth="md">
                     <Paper elevation={3} style={{ padding: '20px', marginTop: '20px' }}>
                         <Button onClick={handleLogout}>Logout</Button>
-                        <Typography variant="h4" gutterBottom>
-                            AI Copilot
-                        </Typography>
+                        <img src="/public/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto', marginBottom: '20px' }} />
                         <AppBar position="static" color="default">
                             <Tabs
                                 value={activeTab}

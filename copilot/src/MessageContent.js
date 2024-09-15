@@ -2,33 +2,21 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Typography, Paper, Box } from '@mui/material';
 
-const JSONDisplay = ({ data }) => {
-    const renderJSONValue = (value) => {
-        if (typeof value === 'object' && value !== null) {
-            return <JSONDisplay data={value} />;
-        }
-        return <span>{JSON.stringify(value)}</span>;
-    };
-
-    return (
-        <Box component="pre" sx={{ m: 0, p: 1, bgcolor: 'background.paper', borderRadius: 1, overflow: 'auto' }}>
-            {'{'}
-            {Object.entries(data).map(([key, value], index, array) => (
-                <Box key={key} sx={{ pl: 2 }}>
-                    <Typography component="span" color="primary">"{key}"</Typography>: {renderJSONValue(value)}
-                    {index < array.length - 1 ? ',' : ''}
-                </Box>
-            ))}
-            {'}'}
-        </Box>
-    );
-};
-
 const MessageContent = ({ content }) => {
     const isJSON = (str) => {
         try {
-            JSON.parse(str);
-            return true;
+            const parsed = JSON.parse(str);
+            // Vérifie si c'est un objet JSON "normal" et non une chaîne transformée en objet
+            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && Object.keys(parsed).length > 0 && !Object.keys(parsed).every(key => !isNaN(parseInt(key)));
+        } catch (e) {
+            return false;
+        }
+    };
+
+    const isStringObject = (str) => {
+        try {
+            const parsed = JSON.parse(str);
+            return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).every(key => !isNaN(parseInt(key)));
         } catch (e) {
             return false;
         }
@@ -36,7 +24,18 @@ const MessageContent = ({ content }) => {
 
     if (isJSON(content)) {
         const jsonData = JSON.parse(content);
-        return <JSONDisplay data={jsonData} />;
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+            </Paper>
+        );
+    } else if (isStringObject(content)) {
+        const stringContent = Object.values(JSON.parse(content)).join('');
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography>{stringContent}</Typography>
+            </Paper>
+        );
     }
 
     // Pour le contenu non-JSON, on utilise ReactMarkdown comme avant

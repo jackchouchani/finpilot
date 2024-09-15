@@ -5,7 +5,7 @@ import { Typography, Paper, Box } from '@mui/material';
 const MessageContent = ({ content, graphs }) => {
     // Fonction pour vérifier si le contenu est valide
     const isValidContent = (content) => {
-        return content !== null && content !== undefined;
+        return content !== null && content !== undefined && content !== '';
     };
 
     const isMarkdown = (str) => {
@@ -42,6 +42,7 @@ const MessageContent = ({ content, graphs }) => {
 
     // Gestion du contenu invalide
     if (!isValidContent(content)) {
+        console.error("Contenu invalide reçu:", content);
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
                 <Typography color="error">Contenu invalide ou non disponible</Typography>

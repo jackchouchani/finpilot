@@ -334,7 +334,6 @@ function App() {
             if (token) {
                 config.headers['Authorization'] = `Bearer ${token}`;
             }
-            config.baseURL = process.env.REACT_APP_API_URL;
             return config;
         },
         (error) => {

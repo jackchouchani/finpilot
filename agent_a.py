@@ -1,68 +1,81 @@
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize, sent_tokenize
+# import nltk
+# from nltk.corpus import stopwords
+# from nltk.tokenize import word_tokenize, sent_tokenize
+from pydantic import BaseModel
+from typing import List
 import openai
 import os
-from dotenv import load_dotenv
+import json
+# from dotenv import load_dotenv
 
-nltk.download('punkt')
-nltk.download('stopwords')
+# nltk.download('punkt')
+# nltk.download('stopwords')
+# nltk.download('punkt_tab')
 
-load_dotenv()
 
 openai.api_key = os.getenv('OPENAI_API_KEY') 
 
-class DocumentAnalysisAgent:
+class PhraseCle(BaseModel):
+    phrase: str
+
+class AnalyseDocument(BaseModel):
+    mots_cles: List[str]
+    phrases_cles: List[PhraseCle]
+    resume: str
+
+class MetriquesFinancieres(BaseModel):
+    chiffre_affaires: float
+    benefice_net: float
+    ebitda: float
+    risques: List[str]
+
+class RapportFinancier(BaseModel):
+    resume: str
+    metriques_cles: MetriquesFinancieres
+
+class AgentAnalyseDocument:
     def __init__(self):
         self.client = openai.OpenAI()
 
-    def analyze(self, text):
-        stop_words = set(stopwords.words('english'))
-        word_tokens = word_tokenize(text)
-        filtered_text = [word for word in word_tokens if word.casefold() not in stop_words]
+    def analyser(self, texte: str) -> AnalyseDocument:
+        try:
+            completion = self.client.chat.completions.create(
+                model="gpt-4o-2024-08-06",
+                messages=[
+                    {"role": "system", "content": "Analysez le texte suivant et extrayez les informations clés en français."},
+                    {"role": "user", "content": texte}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            resultat = json.loads(completion.choices[0].message.content)
+            return AnalyseDocument(**resultat)
+        except Exception as e:
+            print(f"Erreur dans analyser: {str(e)}")
+            return AnalyseDocument(mots_cles=[], phrases_cles=[], resume="Une erreur s'est produite lors de l'analyse.")
 
-        sentences = sent_tokenize(text)
-        key_sentences = sentences[:3]
+    def analyser_rapport_financier(self, texte: str) -> RapportFinancier:
+        try:
+            completion = self.client.chat.completions.create(
+                model="gpt-4o-2024-08-06",
+                messages=[
+                    {"role": "system", "content": "Vous êtes un analyste financier. Extrayez les informations financières clés du rapport donné en français."},
+                    {"role": "user", "content": texte}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            resultat = json.loads(completion.choices[0].message.content)
+            return RapportFinancier(**resultat)
+        except Exception as e:
+            print(f"Erreur dans analyser_rapport_financier: {str(e)}")
+            return RapportFinancier(
+                resume="Une erreur s'est produite lors de l'analyse.",
+                metriques_cles=MetriquesFinancieres(chiffre_affaires=0, benefice_net=0, ebitda=0, risques=[])
+            )
 
-        # Utiliser ChatGPT pour le résumé
-        summary = self.get_gpt_summary(text)
-
-        return {
-            "key_words": filtered_text[:10],
-            "key_sentences": key_sentences,
-            "summary": summary
-        }
-
-    def get_gpt_summary(self, text):
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Résumez le texte suivant en 2-3 phrases."},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.7,
-            max_tokens=100,
-            top_p=1
-        )
-        return response.choices[0].message.content.strip()
-    
-    def analyze_financial_report(self, text):
-        summary = self.get_gpt_summary(text)
-        key_metrics = self.extract_key_metrics(text)
-        return {
-            "summary": summary,
-            "key_metrics": key_metrics
-        }
-
-    def extract_key_metrics(self, text):
-        prompt = "Extrayez les indicateurs clés suivants du rapport financier : chiffre d'affaires, bénéfice net, EBITDA, et liste des principaux risques. Présentez les résultats au format JSON."
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Vous êtes un analyste financier."},
-                {"role": "user", "content": prompt + "\n\nRapport:\n" + text}
-            ]
-        )
-        return json.loads(response.choices[0].message.content)
-
-document_agent = DocumentAnalysisAgent()
+document_agent = AgentAnalyseDocument()

@@ -42,7 +42,12 @@ from generateur_report import generate_report
 # load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://www.finpilot.one", "supports_credentials": True}})
+CORS(app, resources={r"/*": {
+    "origins": ["https://www.finpilot.one", "http://localhost:3000"],
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "supports_credentials": True
+}})
 
 # Initialize OpenAI and Anthropic clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -986,10 +991,10 @@ def news_impact():
 @app.route('/analyze_pdf', methods=['POST'])
 def analyze_pdf():
     if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
+        return jsonify({"error": "Aucun fichier n'a été fourni"}), 400
     file = request.files['file']
     if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+        return jsonify({"error": "Aucun fichier sélectionné"}), 400
     if file and file.filename.endswith('.pdf'):
         pdf_reader = PdfReader(io.BytesIO(file.read()))
         text = ""
@@ -997,10 +1002,25 @@ def analyze_pdf():
             text += page.extract_text()
         
         # Analyse du texte extrait avec l'agent d'analyse de documents
-        result = document_agent.analyze_financial_report(text)
-        return jsonify(result)
+        result = agent_document.analyser_rapport_financier(text)
+        
+        # Convertir le résultat Pydantic en dictionnaire pour la sérialisation JSON
+        result_dict = result.dict()
+        
+        # Ajuster la structure du résultat pour correspondre à l'ancienne structure si nécessaire
+        adjusted_result = {
+            "resume": result_dict["resume"],
+            "metriques_cles": {
+                "chiffre_affaires": result_dict["metriques_cles"]["chiffre_affaires"],
+                "benefice_net": result_dict["metriques_cles"]["benefice_net"],
+                "ebitda": result_dict["metriques_cles"]["ebitda"],
+                "risques": result_dict["metriques_cles"]["risques"]
+            }
+        }
+        
+        return jsonify(adjusted_result)
     else:
-        return jsonify({"error": "Invalid file type"}), 400
+        return jsonify({"error": "Type de fichier invalide"}), 400
     
 @app.route('/clean_conversations', methods=['POST'])
 def clean_conversations():

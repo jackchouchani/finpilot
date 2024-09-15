@@ -24,10 +24,23 @@ class ComplianceAgent:
         if len(portfolio) < self.regulations["min_stocks_count"]:
             violations.append(f"Le portefeuille ne contient que {len(portfolio)} actions. Le minimum requis est de {self.regulations['min_stocks_count']}")
 
-        return {
-            "conforme": len(violations) == 0,
-            "violations": violations
-        }
+        rapport = f"""
+Analyse de conformité
+
+Conformité: {"Conforme" if len(violations) == 0 else "Non conforme"}
+Violations:
+"""
+        if violations:
+            for violation in violations:
+                rapport += f"- {violation}\n"
+        else:
+            rapport += "Aucune violation détectée.\n"
+
+        rapport += """
+Conclusion:
+Cette analyse de conformité fournit un aperçu des violations potentielles dans le portefeuille. Les investisseurs devraient utiliser ces informations pour ajuster leur portefeuille en fonction des réglementations en vigueur.
+"""
+        return rapport
 
         # Note: Les vérifications pour les secteurs restreints et les scores ESG nécessiteraient des données supplémentaires
         # que nous n'avons pas dans notre implémentation actuelle. Elles sont omises pour simplifier.

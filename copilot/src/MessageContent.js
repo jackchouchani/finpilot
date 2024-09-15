@@ -8,6 +8,10 @@ const MessageContent = ({ content }) => {
         return content !== null && content !== undefined && typeof content === 'string';
     };
 
+    const isMarkdown = (str) => {
+        return str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## ');
+    };
+
     // Fonction pour formater le contenu
     const formatContent = (text) => {
         if (!isValidContent(text)) return '';
@@ -82,7 +86,6 @@ const MessageContent = ({ content }) => {
             );
         }
     }
-
     // Traitement du contenu Markdown
     return (
         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
@@ -102,6 +105,7 @@ const MessageContent = ({ content }) => {
                                 <code {...props} />
                             </Box>
                         ),
+                    img: ({ node, ...props }) => <Box component="img" sx={{ maxWidth: '100%', height: 'auto' }} {...props} />,
                 }}
             >
                 {formatContent(content)}

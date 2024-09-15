@@ -36,10 +36,19 @@ class ReportingAgent:
             buffer.seek(0)
             images_base64.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
 
-        return {
-            "content": report,
-            "graph": images_base64
-        }
+        formatted_result = f"""
+# Résultat de l'analyse par l'agent {agent_name}
+
+{result['content']}
+
+## Graphiques
+
+![Graphique](data:image/png;base64,{result['graph']})
+
+---
+*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
+    """
+    return formatted_result, 200, {'Content-Type': 'text/markdown; charset=utf-8'}
 
     def _generate_stock_report(self, stock):
         symbol = stock['symbol']

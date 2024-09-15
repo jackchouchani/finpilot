@@ -99,7 +99,19 @@ const MessageContent = ({ content }) => {
             );
         }
     }
-    // Traitement du contenu Markdown
+    // Traitement pour l'agent de reporting
+    if (typeof content === 'object' && content.hasOwnProperty('report')) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography variant="h6">Rapport généré</Typography>
+                <Box component="a" href={`data:application/pdf;base64,${content.report}`} download="report.pdf">
+                    <Typography color="primary">Télécharger le rapport PDF</Typography>
+                </Box>
+            </Paper>
+        );
+    }
+
+    // Traitement pour les autres types de contenu
     return (
         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
             <ReactMarkdown
@@ -118,7 +130,6 @@ const MessageContent = ({ content }) => {
                                 <code {...props} />
                             </Box>
                         ),
-                    img: ({ node, ...props }) => <Box component="img" sx={{ maxWidth: '100%', height: 'auto' }} {...props} />,
                 }}
             >
                 {formatContent(content)}

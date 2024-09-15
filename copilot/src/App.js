@@ -236,15 +236,13 @@ function App() {
                 // Traitement spécial pour l'agent de reporting
                 newMessage = {
                     role: 'assistant',
-                    content: response.data.content,
-                    graphs: response.data.graph
+                    content: response.data
                 };
             } else {
                 // Traitement standard pour les autres agents
                 newMessage = {
                     role: 'assistant',
-                    content: JSON.stringify(response.data, null, 2),
-                    graph: response.data.graph
+                    content: JSON.stringify(response.data, null, 2)
                 };
             }
             setMessages(prevMessages => [...prevMessages, newMessage]);
@@ -473,7 +471,7 @@ function App() {
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message.content} />}
+                                                    secondary={<MessageContent content={message} />}
                                                 />
                                             </ListItem>
                                         ))}
@@ -558,7 +556,7 @@ function App() {
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
                                                     secondary={
                                                         <>
-                                                            <MessageContent content={message.content} />
+                                                            <MessageContent content={message} />
                                                             {message.graphs && message.graphs.map((graph, graphIndex) => (
                                                                 <img
                                                                     key={graphIndex}
@@ -603,7 +601,7 @@ function App() {
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message.content} />}
+                                                    secondary={<MessageContent content={message} />}
                                                 />
                                             </ListItem>
                                         ))}

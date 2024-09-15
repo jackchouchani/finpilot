@@ -240,7 +240,7 @@ function App() {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
             let newMessage = {
                 role: 'assistant',
-                content: response.data.content
+                content: response.data.content || 'Pas de contenu reçu de l\'agent'
             };
             if (response.data.graphs) {
                 newMessage.graphs = response.data.graphs;

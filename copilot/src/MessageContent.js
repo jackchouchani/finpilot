@@ -40,14 +40,27 @@ const MessageContent = ({ content }) => {
         }
     };
 
-    // // Gestion du contenu invalide
-    // if (!isValidContent(content)) {
-    //     return (
-    //         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-    //             <Typography color="error">Contenu invalide ou non disponible</Typography>
-    //         </Paper>
-    //     );
-    // }
+    // Gestion du contenu invalide
+    if (!isValidContent(content)) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography color="error">Contenu invalide ou non disponible</Typography>
+            </Paper>
+        );
+    }
+
+    // Traitement du contenu pour l'agent de reporting
+    if (typeof content === 'object' && content.content) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography>{content.content}</Typography>
+                {content.graphs && content.graphs.map((graph, index) => (
+                    <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+                ))}
+            </Paper>
+        );
+    }
+
 
     // Traitement du contenu JSON
     if (isJSON(content)) {

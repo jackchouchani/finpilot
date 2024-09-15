@@ -83,7 +83,7 @@ function App() {
     const fetchChatHistory = async () => {
         try {
             const response = await axios.get(process.env.REACT_APP_API_URL + '/chat_history');
-            setMessages(response.data);
+            setMessages(response.data.reverse());  // Inversez l'ordre des messages
         } catch (error) {
             console.error('Error fetching chat history:', error);
         }
@@ -95,7 +95,7 @@ function App() {
 
         setLoading(true);
         const newMessage = { role: 'user', content: input };
-        setMessages(prevMessages => [...prevMessages, newMessage]);
+        setMessages(prevMessages => [newMessage, ...prevMessages]);
         setInput('');
 
         try {
@@ -104,7 +104,7 @@ function App() {
                 conversation_id: conversationId
             });
             setConversationId(response.data.conversation_id);
-            setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);
+            setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
         } catch (error) {
             console.error('Error sending message:', error);
         } finally {
@@ -231,20 +231,17 @@ function App() {
 
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
-            let newMessage;
-            if (agentName === 'reporting') {
-                newMessage = {
-                    role: 'assistant',
-                    content: response.data.content,
-                    graphs: response.data.graphs
-                };
-            } else {
-                newMessage = {
-                    role: 'assistant',
-                    content: JSON.stringify(response.data, null, 2)
-                };
+            let newMessage = {
+                role: 'assistant',
+                content: response.data.content
+            };
+            if (response.data.graphs) {
+                newMessage.graphs = response.data.graphs;
             }
-            setMessages(prevMessages => [...prevMessages, newMessage]);
+            setMessages(prevMessages => [newMessage, ...prevMessages]);
+
+            // Sauvegardez le message de l'agent dans la base de données
+            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {

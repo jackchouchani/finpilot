@@ -130,10 +130,20 @@ const MessageContent = ({ content }) => {
                                 <code {...props} />
                             </Box>
                         ),
+                    img: ({ node, ...props }) => {
+                        if (props.src.startsWith('data:image')) {
+                            return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
+                        }
+                        // Gérer les autres types d'images si nécessaire
+                        return null;
+                    },
                 }}
             >
                 {formatContent(content)}
             </ReactMarkdown>
+            {graphs && graphs.map((graph, index) => (
+                <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+            ))}
         </Paper>
     );
 };

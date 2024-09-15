@@ -19,9 +19,7 @@ class ReportingAgent:
     def generate_report(self, portfolio):
         if not portfolio:
             return {"error": "Aucun portefeuille trouvé pour cet utilisateur"}
-        
-        agent_name = "Agent de Reporting"
-        
+                
         report = "# Rapport de Portefeuille\n\n"
         
         for stock in portfolio:
@@ -39,7 +37,6 @@ class ReportingAgent:
             images_base64.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
 
         formatted_result = f"""
-# Résultat de l'analyse par l'agent {agent_name}
 
 {report}
 

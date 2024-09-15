@@ -873,28 +873,35 @@ def call_agent(agent_name):
         elif agent_name == "compliance":
             result = compliance_agent.check_compliance(portfolio)
         elif agent_name == "market_sentiment":
-            print(data)
             if 'summary' not in data:
-                data['summary'] = "No summary provided"  # Utiliser une valeur par défaut si 'summary' est manquant
+                data['summary'] = "No summary provided"
             result = market_sentiment_agent.analyze_sentiment(data['ticker'], data['summary'])
         elif agent_name == "investment_recommendation":
             portfolio = data.get('portfolio', [])
             if isinstance(portfolio, dict):
                 portfolio = [portfolio]
-            print(portfolio)
             portfolio = [stock['symbol'].upper() if isinstance(stock, dict) and 'symbol' in stock else stock.upper() for stock in portfolio]
-            risk_profile = data.get('risk_profile', 'moderate')  # Utiliser 'moderate' par défaut
+            risk_profile = data.get('risk_profile', 'moderate')
             result = investment_recommendation_agent.get_recommendation(portfolio, risk_profile)
         elif agent_name == "historical_data_analysis":
             result = historical_data_agent.analyze_previous_day(data['ticker'])
         elif agent_name == "user_profile_analysis":
             chat_history = get_chat_history(user_id)
-            portfolio = get_portfolio(user_id)
             result = user_profile_agent.analyze_user_profile(portfolio, chat_history)
         else:
             return jsonify({"error": "Agent not found"}), 404
         
-        return jsonify(result)
+        # Formatage du résultat en Markdown
+        formatted_result = f"""
+# Résultat de l'analyse par l'agent {agent_name}
+
+{result}
+
+---
+*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
+        """
+        
+        return formatted_result, 200, {'Content-Type': 'text/markdown; charset=utf-8'}
     except KeyError as e:
         app.logger.error(f"Missing required data for agent {agent_name}: {str(e)}")
         return jsonify({"error": f"Missing required data: {str(e)}"}), 400

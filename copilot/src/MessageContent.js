@@ -22,6 +22,11 @@ const MessageContent = ({ content }) => {
         }
     };
 
+    const formatContent = (text) => {
+        return text.replace(/\n(?!\n)/g, '\n\n');
+    };
+
+
     if (isJSON(content)) {
         const jsonData = JSON.parse(content);
         return (
@@ -59,7 +64,7 @@ const MessageContent = ({ content }) => {
                         ),
                 }}
             >
-                {content}
+                {formatContent(content)}
             </ReactMarkdown>
         </Paper>
     );

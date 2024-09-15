@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar } from '@mui/material';
-import ReactMarkdown from 'react-markdown';
 import Settings from './Settings';
 import Portfolio from './Portfolio';
 import Login from './Login';
@@ -11,7 +10,7 @@ import MarketSentiment from './MarketSentiment';
 import InvestmentRecommendation from './InvestmentRecommendation';
 import HistoricalDataAnalysis from './HistoricalDataAnalysis';
 import UserProfileAnalysis from './UserProfileAnalysis';
-import MessageContent from '.MessageContent'
+import MessageContent from './MessageContent'
 import axios from 'axios';
 import { logout } from './Auth';
 import ErrorBoundary from './ErrorBoundary';

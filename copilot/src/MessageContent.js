@@ -23,8 +23,8 @@ const MessageContent = ({ content }) => {
     };
 
     const formatContent = (text) => {
-        // Remplace les retours à la ligne par des balises <br />
-        return text.replace(/\n/g, '<br />');
+        // Remplacer les \n littéraux par de vrais retours à la ligne
+        return text.replace(/\\n/g, '\n').replace(/\n(?!\n)/g, '\n\n');
     };
 
 
@@ -39,7 +39,7 @@ const MessageContent = ({ content }) => {
         const stringContent = Object.values(JSON.parse(content)).join('');
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography>{stringContent}</Typography>
+                <Typography>{formatContent(stringContent)}</Typography>
             </Paper>
         );
     }
@@ -47,7 +47,6 @@ const MessageContent = ({ content }) => {
     // Pour le contenu non-JSON, on utilise ReactMarkdown comme avant
     return (
         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-            <Typography dangerouslySetInnerHTML={{ __html: formatContent(content) }} />
             <ReactMarkdown
                 components={{
                     h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,

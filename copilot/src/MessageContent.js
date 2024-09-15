@@ -9,7 +9,7 @@ const MessageContent = ({ content, graphs }) => {
     };
 
     const isMarkdown = (str) => {
-        return str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## ');
+        return typeof str === 'string' && (str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## '));
     };
 
     // Fonction pour formater le contenu

@@ -11,6 +11,7 @@ import MarketSentiment from './MarketSentiment';
 import InvestmentRecommendation from './InvestmentRecommendation';
 import HistoricalDataAnalysis from './HistoricalDataAnalysis';
 import UserProfileAnalysis from './UserProfileAnalysis';
+import MessageContent from '.MessageContent'
 import axios from 'axios';
 import { logout } from './Auth';
 import ErrorBoundary from './ErrorBoundary';
@@ -411,27 +412,6 @@ function App() {
         }
     }, []);
 
-    const MessageContent = ({ content }) => {
-        // Remplacer les \n par des retours à la ligne HTML
-        const formattedContent = content.replace(/\\n/g, '\n');
-
-        return (
-            <Paper style={{ padding: '10px', marginTop: '10px', maxWidth: '100%', overflowX: 'auto' }}>
-                <ReactMarkdown
-                    components={{
-                        h3: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
-                        h4: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
-                        p: ({ node, ...props }) => <Typography paragraph {...props} />,
-                        li: ({ node, ...props }) => <Typography component="li" style={{ marginLeft: 20 }} {...props} />,
-                        ul: ({ node, ...props }) => <ul style={{ paddingLeft: 20 }} {...props} />,
-                        strong: ({ node, ...props }) => <strong style={{ fontWeight: 'bold' }} {...props} />,
-                    }}
-                >
-                    {formattedContent}
-                </ReactMarkdown>
-            </Paper>
-        );
-    };
     if (!isLoggedIn) {
         return (
             <Container maxWidth="sm">

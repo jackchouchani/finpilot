@@ -241,7 +241,7 @@ function App() {
             console.log(response.data)
             let newMessage = {
                 role: 'assistant',
-                content: response.data.content || 'Pas de contenu reçu de l\'agent'
+                content: typeof response.data === 'string' ? response.data : response.data.content || 'Pas de contenu reçu de l\'agent'
             };
             if (response.data.graphs) {
                 newMessage.graphs = response.data.graphs;
@@ -447,7 +447,7 @@ function App() {
                 <Container maxWidth="md">
                     <Paper elevation={3} style={{ padding: '20px', marginTop: '20px' }}>
                         <Button onClick={handleLogout}>Logout</Button>
-                        <img src="/public/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto', marginBottom: '20px' }} />
+                        <img src="/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto', marginBottom: '20px' }} />
                         <AppBar position="static" color="default">
                             <Tabs
                                 value={activeTab}

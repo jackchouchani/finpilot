@@ -23,7 +23,8 @@ const MessageContent = ({ content }) => {
     };
 
     const formatContent = (text) => {
-        return text.replace(/\n(?!\n)/g, '\n\n');
+        // Remplace les retours à la ligne par des balises <br />
+        return text.replace(/\n/g, '<br />');
     };
 
 
@@ -46,6 +47,7 @@ const MessageContent = ({ content }) => {
     // Pour le contenu non-JSON, on utilise ReactMarkdown comme avant
     return (
         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+            <Typography dangerouslySetInnerHTML={{ __html: formatContent(content) }} />
             <ReactMarkdown
                 components={{
                     h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,

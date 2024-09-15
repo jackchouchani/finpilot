@@ -44,7 +44,7 @@ const MessageContent = ({ content, graphs }) => {
     if (!isValidContent(content)) {
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography color="error">Contenu invalide ou non disponible</Typography>
+                <Typography color="error">Contenu invalide ou non disponible { content }</Typography>
             </Paper>
         );
     }

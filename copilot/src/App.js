@@ -233,23 +233,18 @@ function App() {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
             let newMessage;
             if (agentName === 'reporting') {
-                // Traitement spécial pour l'agent de reporting
                 newMessage = {
                     role: 'assistant',
-                    content: response.data,
-                    graphs: response.data.graphs  // Assurez-vous que l'agent renvoie les graphiques dans cette propriété
+                    content: response.data.content,
+                    graphs: response.data.graphs
                 };
             } else {
-                // Traitement standard pour les autres agents
                 newMessage = {
                     role: 'assistant',
                     content: JSON.stringify(response.data, null, 2)
                 };
             }
             setMessages(prevMessages => [...prevMessages, newMessage]);
-
-            // Sauvegarder le message dans l'historique du chat
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {

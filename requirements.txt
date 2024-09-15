@@ -28,3 +28,5 @@ requests
 matplotlib
 gunicorn
 python-dotenv
+pydantic
+typing

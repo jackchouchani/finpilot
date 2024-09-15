@@ -360,13 +360,6 @@ def get_chat_history(user_id, limit=50):
         messages = cursor.fetchall()
     return [json.loads(message[0]) for message in messages]
 
-def clean_text(text):
-    if not isinstance(text, str):
-        text = str(text)
-    text = text.replace('\n', ' ')
-    text = ''.join(char for char in text if ord(char) > 31 or char == ' ')
-    return text
-
 def get_chat_history(user_id):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
@@ -870,6 +863,7 @@ def call_agent(agent_name):
             result = risk_management_agent.analyze(portfolio)
         elif agent_name == "reporting":
             result = reporting_agent.generate_report(portfolio)
+            return jsonify(result), 200  # Utilisez jsonify pour convertir le résultat en JSON
         elif agent_name == "compliance":
             result = compliance_agent.check_compliance(portfolio)
         elif agent_name == "market_sentiment":

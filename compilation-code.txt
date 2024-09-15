@@ -183,35 +183,34 @@ class ReportingAgent:
     def generate_report(self, portfolio):
         if not portfolio:
             return {"error": "Aucun portefeuille trouvé pour cet utilisateur"}
-                
-        report = "# Rapport de Portefeuille\n\n"
         
         for stock in portfolio:
             report += self._generate_stock_report(stock)
         
+        report_md = f"""
+# Rapport de Portefeuille
+
+{report}
+    """
         # Création des graphiques
         figs = self._create_graphs(portfolio)
         
-        # Convertir les graphiques en images base64
-        images_base64 = []
+    
+        # Conversion des graphiques en base64
+        graphs_base64 = []
         for fig in figs:
-            buffer = io.BytesIO()
-            FigureCanvas(fig).print_png(buffer)
-            buffer.seek(0)
-            images_base64.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png')
+            buf.seek(0)
+            graphs_base64.append(base64.b64encode(buf.getvalue()).decode('utf-8'))
 
-        formatted_result = f"""
+        # Création du résultat formaté
+        formatted_result = {
+            "content": report_md,
+            "graphs": graphs_base64
+        }
 
-{report}
-
-## Graphiques
-
-![Graphique](data:image/png;base64,{images_base64})
-
----
-*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
-    """
-        return formatted_result, 200, {'Content-Type': 'text/markdown; charset=utf-8'}
+        return formatted_result
 
     def _generate_stock_report(self, stock):
         symbol = stock['symbol']
@@ -334,7 +333,7 @@ class InvestmentRecommendationAgent:
                 {"role": "user", "content": f"Sur la base de ce portefeuille:\n{portfolio_str}\n\nEt d'un profil de risque {risk_profile}, fournissez des recommandations d'investissement."}
             ],
             temperature=0.7,
-            max_tokens=800
+            max_tokens=1200
         )
 
         return response.choices[0].message.content.strip()
@@ -420,13 +419,32 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 import base64
+import os
+import time
 from datetime import datetime, timedelta
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-from reportlab.platypus import Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 from plotly import graph_objects as go
+from plotly import figure_factory as ff
+import plotly.express as px
+import yfinance as yf
+from flask import jsonify
+import anthropic
+
+anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+
+def generate_ai_content(prompt):
+    message = anthropic_client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1000,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return message.content[0].text
 
 def create_paragraph(text, style_name='Normal'):
     styles = getSampleStyleSheet()
@@ -440,9 +458,14 @@ def create_paragraph(text, style_name='Normal'):
     
     return Paragraph(cleaned_text, custom_style)
 
-def generate_report():
-    from copilote_central import generate_ai_content
-    data = request.json
+def clean_text(text):
+    if not isinstance(text, str):
+        text = str(text)
+    text = text.replace('\n', ' ')
+    text = ''.join(char for char in text if ord(char) > 31 or char == ' ')
+    return text
+
+def generate_report(data):
     portfolio = data['portfolio']
     start_date = data.get('start_date', (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d'))
     end_date = data.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -465,12 +488,16 @@ def generate_report():
 
     # Table des matières
     elements.append(create_section_header("Table des Matières"))
-    toc = TableOfContents()
-    toc.levelStyles = [
-        ParagraphStyle(name='TOCHeading1', fontSize=14, leading=16),
-        ParagraphStyle(name='TOCHeading2', fontSize=12, leading=14, leftIndent=20),
-    ]
-    elements.append(toc)
+        # Supprimez cette ligne
+    # from reportlab.platypus import TableOfContents
+
+    # Remplacez la section de création de la table des matières par un simple paragraphe
+    elements.append(create_section_header("Table des Matières"))
+    # Ajoutez manuellement les sections que vous avez dans votre rapport
+    elements.append(create_paragraph("1. Résumé Exécutif", 'Normal'))
+    elements.append(create_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
+    elements.append(create_paragraph("3. Analyse de Performance", 'Normal'))
+    # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
     # Sections du rapport
@@ -630,7 +657,7 @@ def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
     data = [['Titre', 'Poids', 'Prix d\'entrée', 'Prix actuel', 'Rendement']]
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
-        entry_price = float(stock['entryPrice'])
+        entry_price = float(stock['entry_price'])
         current_price = df[symbol].iloc[-1]
         stock_return = (current_price / entry_price - 1)
         data.append([symbol, f"{weight:.2%}", f"{entry_price:.2f} €", f"{current_price:.2f} €", f"{stock_return:.2%}"])
@@ -1885,13 +1912,6 @@ def get_chat_history(user_id, limit=50):
         """, (user_id, limit))
         messages = cursor.fetchall()
     return [json.loads(message[0]) for message in messages]
-
-def clean_text(text):
-    if not isinstance(text, str):
-        text = str(text)
-    text = text.replace('\n', ' ')
-    text = ''.join(char for char in text if ord(char) > 31 or char == ' ')
-    return text
 
 def get_chat_history(user_id):
     with sqlite3.connect(DATABASE) as conn:
@@ -3328,19 +3348,6 @@ const MessageContent = ({ content, graphs }) => {
         );
     }
 
-    // Traitement du contenu pour l'agent de reporting
-    if (typeof content === 'object' && content.content) {
-        return (
-            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography>{content.content}</Typography>
-                {content.graphs && content.graphs.map((graph, index) => (
-                    <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
-                ))}
-            </Paper>
-        );
-    }
-
-
     // Traitement du contenu JSON
     if (isJSON(content)) {
         try {
@@ -3379,7 +3386,7 @@ const MessageContent = ({ content, graphs }) => {
         }
     }
     // Traitement pour l'agent de reporting
-    if (typeof content === 'object' && content.hasOwnProperty('report')) {
+    if (typeof content === 'object') {
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
                 <Typography variant="h6">Rapport généré</Typography>
@@ -4606,23 +4613,18 @@ function App() {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
             let newMessage;
             if (agentName === 'reporting') {
-                // Traitement spécial pour l'agent de reporting
                 newMessage = {
                     role: 'assistant',
-                    content: response.data,
-                    graphs: response.data.graphs 
+                    content: response.data.content,
+                    graphs: response.data.graphs
                 };
             } else {
-                // Traitement standard pour les autres agents
                 newMessage = {
                     role: 'assistant',
                     content: JSON.stringify(response.data, null, 2)
                 };
             }
             setMessages(prevMessages => [...prevMessages, newMessage]);
-
-            // Sauvegarder le message dans l'historique du chat
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {
@@ -4845,7 +4847,7 @@ function App() {
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message.content} />}
+                                                    secondary={<MessageContent content={message.content} graphs={message.graphs} />}
                                                 />
                                             </ListItem>
                                         ))}

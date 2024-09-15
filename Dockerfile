@@ -11,4 +11,4 @@ WORKDIR /app
 COPY --from=builder /app/.venv .venv/
 COPY . .
 ENV PATH="/app/.venv/bin:$PATH"
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8080"]
+CMD ["gunicorn", "--timeout", "180", "wsgi:app", "--bind", "0.0.0.0:8080"]

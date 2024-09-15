@@ -7,9 +7,14 @@ primary_region = 'cdg'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false  # Changé à false pour éviter l'arrêt automatique
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 1    # Augmenté à 1 pour garder au moins une instance active
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
 
 [[services]]
   protocol = "tcp"
@@ -29,3 +34,6 @@ primary_region = 'cdg'
 [metrics]
   port = 9091
   path = "/metrics"
+
+[env]
+  NGINX_WORKER_TIMEOUT = "300s"  # Set the worker timeout to 300 seconds (5 minutes)

@@ -29,7 +29,7 @@ class InvestmentRecommendationAgent:
                 {"role": "user", "content": f"Sur la base de ce portefeuille:\n{portfolio_str}\n\nEt d'un profil de risque {risk_profile}, fournissez des recommandations d'investissement."}
             ],
             temperature=0.7,
-            max_tokens=800
+            max_tokens=1200
         )
 
         return response.choices[0].message.content.strip()

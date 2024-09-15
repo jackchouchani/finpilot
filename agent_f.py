@@ -20,12 +20,12 @@ class ReportingAgent:
         if not portfolio:
             return {"error": "Aucun portefeuille trouvé pour cet utilisateur"}
         
+        report = ""
+
         for stock in portfolio:
             report += self._generate_stock_report(stock)
         
         report_md = f"""
-# Rapport de Portefeuille
-
 {report}
     """
         # Création des graphiques

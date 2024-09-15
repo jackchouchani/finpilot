@@ -2,13 +2,32 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 import base64
+import os
+import time
 from datetime import datetime, timedelta
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-from reportlab.platypus import Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 from plotly import graph_objects as go
+from plotly import figure_factory as ff
+import plotly.express as px
+import yfinance as yf
+from flask import jsonify
+import anthropic
+
+anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+
+def generate_ai_content(prompt):
+    message = anthropic_client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1000,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return message.content[0].text
 
 def create_paragraph(text, style_name='Normal'):
     styles = getSampleStyleSheet()
@@ -22,9 +41,14 @@ def create_paragraph(text, style_name='Normal'):
     
     return Paragraph(cleaned_text, custom_style)
 
-def generate_report():
-    from copilote_central import generate_ai_content
-    data = request.json
+def clean_text(text):
+    if not isinstance(text, str):
+        text = str(text)
+    text = text.replace('\n', ' ')
+    text = ''.join(char for char in text if ord(char) > 31 or char == ' ')
+    return text
+
+def generate_report(data):
     portfolio = data['portfolio']
     start_date = data.get('start_date', (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d'))
     end_date = data.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -47,12 +71,16 @@ def generate_report():
 
     # Table des matières
     elements.append(create_section_header("Table des Matières"))
-    toc = TableOfContents()
-    toc.levelStyles = [
-        ParagraphStyle(name='TOCHeading1', fontSize=14, leading=16),
-        ParagraphStyle(name='TOCHeading2', fontSize=12, leading=14, leftIndent=20),
-    ]
-    elements.append(toc)
+        # Supprimez cette ligne
+    # from reportlab.platypus import TableOfContents
+
+    # Remplacez la section de création de la table des matières par un simple paragraphe
+    elements.append(create_section_header("Table des Matières"))
+    # Ajoutez manuellement les sections que vous avez dans votre rapport
+    elements.append(create_paragraph("1. Résumé Exécutif", 'Normal'))
+    elements.append(create_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
+    elements.append(create_paragraph("3. Analyse de Performance", 'Normal'))
+    # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
     # Sections du rapport
@@ -212,7 +240,7 @@ def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
     data = [['Titre', 'Poids', 'Prix d\'entrée', 'Prix actuel', 'Rendement']]
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
-        entry_price = float(stock['entryPrice'])
+        entry_price = float(stock['entry_price'])
         current_price = df[symbol].iloc[-1]
         stock_return = (current_price / entry_price - 1)
         data.append([symbol, f"{weight:.2%}", f"{entry_price:.2f} €", f"{current_price:.2f} €", f"{stock_return:.2%}"])

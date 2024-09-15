@@ -19,35 +19,34 @@ class ReportingAgent:
     def generate_report(self, portfolio):
         if not portfolio:
             return {"error": "Aucun portefeuille trouvé pour cet utilisateur"}
-                
-        report = "# Rapport de Portefeuille\n\n"
         
         for stock in portfolio:
             report += self._generate_stock_report(stock)
         
+        report_md = f"""
+# Rapport de Portefeuille
+
+{report}
+    """
         # Création des graphiques
         figs = self._create_graphs(portfolio)
         
-        # Convertir les graphiques en images base64
-        images_base64 = []
+    
+        # Conversion des graphiques en base64
+        graphs_base64 = []
         for fig in figs:
-            buffer = io.BytesIO()
-            FigureCanvas(fig).print_png(buffer)
-            buffer.seek(0)
-            images_base64.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png')
+            buf.seek(0)
+            graphs_base64.append(base64.b64encode(buf.getvalue()).decode('utf-8'))
 
-        report = f"""
-    # Rapport de Portefeuille
-
-    {report}
-    """
-
+        # Création du résultat formaté
         formatted_result = {
-            "content": report,
-            "graphs": images_base64  # Assurez-vous que images_base64 est une liste de chaînes base64
+            "content": report_md,
+            "graphs": graphs_base64
         }
 
-        return formatted_result, 200, {'Content-Type': 'application/json'}
+        return formatted_result
 
     def _generate_stock_report(self, stock):
         symbol = stock['symbol']

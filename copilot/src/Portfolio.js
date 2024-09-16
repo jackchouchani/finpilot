@@ -477,14 +477,19 @@ function Portfolio() {
                             <Typography>Final Value: ${scenarioResults.final_value.toFixed(2)}</Typography>
                             <Typography>Total Return: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
                             <Box sx={{ width: '100%', height: 400 }}>
-                                <ResponsiveContainer>
+                                <ResponsiveContainer width="100%" height={400}>
                                     <LineChart data={scenarioResults.daily_returns.map((value, index) => ({ day: index, return: value }))}>
                                         <XAxis dataKey="day" />
-                                        <YAxis />
+                                        <YAxis 
+                                            tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+                                        />
                                         <CartesianGrid strokeDasharray="3 3" />
-                                        <RechartsTooltip />
+                                        <Tooltip 
+                                            formatter={(value) => [`${(value * 100).toFixed(2)}%`, "Daily Return"]}
+                                            labelFormatter={(label) => `Day ${label + 1}`}
+                                        />
                                         <Legend />
-                                        <Line type="monotone" dataKey="return" stroke="#8884d8" />
+                                        <Line type="monotone" dataKey="return" stroke="#8884d8" dot={false} name="Daily Return" />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </Box>

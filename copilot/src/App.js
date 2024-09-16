@@ -682,14 +682,24 @@ function App() {
                                                 <p>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</p>
                                                 <p>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</p>
                                                 <div style={{ width: '100%', height: '41%' }}>
-                                                    <ResponsiveContainer>
-                                                        <LineChart width="100%" height={800} data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
-                                                            <XAxis dataKey="date" />
-                                                            <YAxis />
+                                                    <ResponsiveContainer width="100%" height={400}>
+                                                        <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
+                                                            <XAxis 
+                                                                dataKey="date" 
+                                                                tickFormatter={(tick) => new Date(startDate).addDays(tick).toLocaleDateString()}
+                                                                interval={Math.floor(backtestResults.portfolio_values.length / 5)}
+                                                            />
+                                                            <YAxis 
+                                                                domain={['dataMin', 'dataMax']}
+                                                                tickFormatter={(value) => `$${value.toLocaleString()}`}
+                                                            />
                                                             <CartesianGrid strokeDasharray="3 3" />
-                                                            <Tooltip />
+                                                            <Tooltip 
+                                                                formatter={(value) => [`$${value.toLocaleString()}`, "Portfolio Value"]}
+                                                                labelFormatter={(label) => new Date(startDate).addDays(label).toLocaleDateString()}
+                                                            />
                                                             <Legend />
-                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" />
+                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
                                                         </LineChart>
                                                     </ResponsiveContainer>
                                                 </div>
@@ -743,19 +753,30 @@ function App() {
                                                 <p>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</p>
                                                 <p>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</p>
                                                 {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
-                                                    <LineChart width={500} height={300} data={comparisonResults.portfolio_cumulative.map((value, index) => ({
+                                                    <ResponsiveContainer width="100%" height={400}>
+                                                    <LineChart data={comparisonResults.portfolio_cumulative.map((value, index) => ({
                                                         date: index,
                                                         portfolio: value,
                                                         benchmark: comparisonResults.benchmark_cumulative[index]
                                                     }))}>
-                                                        <XAxis dataKey="date" />
-                                                        <YAxis />
+                                                        <XAxis 
+                                                            dataKey="date" 
+                                                            tickFormatter={(tick) => new Date(comparisonStartDate).addDays(tick).toLocaleDateString()}
+                                                            interval={Math.floor(comparisonResults.portfolio_cumulative.length / 5)}
+                                                        />
+                                                        <YAxis 
+                                                            tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+                                                        />
                                                         <CartesianGrid strokeDasharray="3 3" />
-                                                        <Tooltip />
+                                                        <Tooltip 
+                                                            formatter={(value) => [`${(value * 100).toFixed(2)}%`, ""]}
+                                                            labelFormatter={(label) => new Date(comparisonStartDate).addDays(label).toLocaleDateString()}
+                                                        />
                                                         <Legend />
-                                                        <Line type="monotone" dataKey="portfolio" stroke="#8884d8" />
-                                                        <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" />
+                                                        <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
+                                                        <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
                                                     </LineChart>
+                                                </ResponsiveContainer>
                                                 )}
                                             </>
                                         )}

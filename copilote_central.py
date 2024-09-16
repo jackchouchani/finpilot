@@ -1164,90 +1164,55 @@ def get_news():
 @jwt_required()
 def backtest():
     data = request.json
-    print("Received data in backtest:", data)
-    
     portfolio = data.get('portfolio', {})
     start_date = data.get('start_date')
     end_date = data.get('end_date')
 
-    print("Type of portfolio:", type(portfolio))
-    print("Content of portfolio:", portfolio)
-
-    # Vérifier si le portfolio est vide ou s'il n'y a pas de stocks
     if not portfolio or 'stocks' not in portfolio or not portfolio['stocks']:
         return jsonify({"error": "Portfolio is empty or invalid"}), 400
-
-    # Vérifier et ajuster les dates
-    if not start_date:
-        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-    if not end_date:
-        end_date = datetime.now().strftime('%Y-%m-%d')
 
     # Télécharger les données historiques
     stocks_data = {}
     weights = {}
     for stock in portfolio['stocks']:
-        print(f"Processing stock:")
-        print("Type:", type(stock))
-        print("Content:", stock)
-        
-        try:
-            symbol = stock.get('symbol')
-            weight = stock.get('weight')
-            if not symbol or weight is None:
-                return jsonify({"error": f"Invalid stock data: {stock}"}), 400
-            
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(start=start_date, end=end_date)
-            if hist.empty:
-                return jsonify({"error": f"No historical data available for {symbol}"}), 400
-            
-            stocks_data[symbol] = hist['Close']
-            weights[symbol] = float(weight)
-        except Exception as e:
-            print(f"Error processing stock {stock}: {str(e)}")
-            return jsonify({"error": f"Error processing stock {stock}: {str(e)}"}), 400
+        symbol = stock.get('symbol')
+        weight = float(stock.get('weight', 0)) / 100  # Convertir en décimal
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(start=start_date, end=end_date)
+        if hist.empty:
+            return jsonify({"error": f"No historical data available for {symbol}"}), 400
+        stocks_data[symbol] = hist['Close']
+        weights[symbol] = weight
 
     # Créer un DataFrame avec les prix de clôture de tous les stocks
     df = pd.DataFrame(stocks_data)
 
-    # Vérifier si nous avons des données
-    if df.empty:
-        return jsonify({"error": "No data available for the given date range"}), 400
-
     # Calculer les rendements journaliers
-    returns = df.pct_change().dropna()
+    returns = df.pct_change().fillna(0)
 
-    # Vérifier si nous avons des rendements à analyser
-    if returns.empty:
-        return jsonify({"error": "Insufficient data for analysis"}), 400
+    # Calculer les rendements pondérés du portefeuille
+    portfolio_returns = (returns * pd.Series(weights)).sum(axis=1)
 
-    # Initialiser le portefeuille
-    initial_value = 10000  # Valeur initiale du portefeuille
-    portfolio_value = initial_value
-
-    # Simuler la performance du portefeuille
-    portfolio_returns = []
-    for date, row in returns.iterrows():
-        daily_return = sum(row * pd.Series(weights))
-        portfolio_value *= (1 + daily_return)
-        portfolio_returns.append(float(portfolio_value))
+    # Calculer la valeur du portefeuille au fil du temps
+    initial_value = 10000
+    portfolio_values = (1 + portfolio_returns).cumprod() * initial_value
 
     # Calculer les métriques de performance
-    total_return = (portfolio_value - initial_value) / initial_value
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
-    portfolio_volatility = returns.mul(pd.Series(weights)).sum(axis=1).std() * np.sqrt(252)
-    sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
+    total_return = (portfolio_values.iloc[-1] / initial_value) - 1
+    days = len(returns)
+    annualized_return = (1 + total_return) ** (252 / days) - 1
+    portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
+    risk_free_rate = 0.02  # Taux sans risque supposé de 2%
+    sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility if portfolio_volatility != 0 else 0
 
     results = {
         "total_return": float(total_return),
         "annualized_return": float(annualized_return),
         "volatility": float(portfolio_volatility),
         "sharpe_ratio": float(sharpe_ratio),
-        "portfolio_values": portfolio_returns
+        "portfolio_values": portfolio_values.tolist()
     }
 
-    print("Backtest results:", results)
     return jsonify(results)
 
 @app.route('/chat_history', methods=['GET', 'POST'])
@@ -1280,8 +1245,8 @@ def compare_portfolios():
     
     portfolio = data['portfolio']
     benchmark = data['benchmark']
-    start_date = data['start_date']
-    end_date = data['end_date']
+    start_date = data.get('start_date')
+    end_date = data.get('end_date')
 
     print("Type of portfolio:", type(portfolio))
     print("Content of portfolio:", portfolio)
@@ -1309,13 +1274,9 @@ def compare_portfolios():
         return jsonify({"error": "Invalid portfolio structure"}), 400
 
     for stock in stocks:
-        print(f"Processing stock:")
-        print("Type:", type(stock))
-        print("Content:", stock)
-        
         try:
             symbol = stock['symbol']
-            weight = float(stock['weight'])
+            weight = float(stock['weight']) / 100  # Convertir le poids en décimal
             ticker = yf.Ticker(symbol)
             hist = ticker.history(start=start_date, end=end_date)
             portfolio_data[symbol] = hist['Close']
@@ -1328,36 +1289,41 @@ def compare_portfolios():
     if not portfolio_data:
         return jsonify({"error": "No data could be retrieved for the given portfolio"}), 400
 
-    # Calculer les rendements
-    portfolio_return = annualized_return
+    # Calculer les rendements du portefeuille
+    portfolio_returns = pd.DataFrame(portfolio_data).pct_change().dropna()
+    weighted_returns = portfolio_returns.mul(pd.Series(portfolio_weights))
+    portfolio_return = weighted_returns.sum(axis=1)
+
+    # Calculer le rendement total et annualisé du portefeuille
+    total_return = (1 + portfolio_return).prod() - 1
+    days = len(portfolio_return)
+    annualized_return = (1 + total_return) ** (252 / days) - 1
 
     # Télécharger les données historiques du benchmark
     benchmark_ticker = yf.Ticker(benchmark)
     benchmark_data = benchmark_ticker.history(start=start_date, end=end_date)
     benchmark_returns = benchmark_data['Close'].pct_change().dropna()
 
-    # Assurez-vous que les deux séries de rendements ont la même longueur
-    common_index = portfolio_returns.index.intersection(benchmark_returns.index)
-    portfolio_returns = portfolio_returns.loc[common_index]
-    benchmark_returns = benchmark_returns.loc[common_index]
+    # Calculer le rendement total et annualisé du benchmark
+    benchmark_total_return = (1 + benchmark_returns).prod() - 1
+    benchmark_annualized_return = (1 + benchmark_total_return) ** (252 / len(benchmark_returns)) - 1
+
+    # Calculer les volatilités
+    portfolio_volatility = portfolio_return.std() * np.sqrt(252)
+    benchmark_volatility = benchmark_returns.std() * np.sqrt(252)
+
+    # Calculer les ratios de Sharpe (en supposant un taux sans risque de 2%)
+    risk_free_rate = 0.02
+    portfolio_sharpe = (annualized_return - risk_free_rate) / portfolio_volatility
+    benchmark_sharpe = (benchmark_annualized_return - risk_free_rate) / benchmark_volatility
 
     # Calculer la performance cumulée
-    portfolio_cumulative = (1 + (portfolio_returns * pd.Series(portfolio_weights)).sum(axis=1)).cumprod()
+    portfolio_cumulative = (1 + portfolio_return).cumprod()
     benchmark_cumulative = (1 + benchmark_returns).cumprod()
 
-    # Calculer les métriques de performance
-    portfolio_total_return = portfolio_cumulative.iloc[-1] - 1 if len(portfolio_cumulative) > 0 else 0
-    benchmark_total_return = benchmark_cumulative.iloc[-1] - 1 if len(benchmark_cumulative) > 0 else 0
-
-    portfolio_volatility = portfolio_returns.std().mean() * np.sqrt(252) if len(portfolio_returns) > 0 else 0
-    benchmark_volatility = benchmark_returns.std() * np.sqrt(252) if len(benchmark_returns) > 0 else 0
-
-    portfolio_sharpe = ((portfolio_total_return - risk_free_rate) / portfolio_volatility) if portfolio_volatility != 0 else 0
-    benchmark_sharpe = ((benchmark_total_return - risk_free_rate) / benchmark_volatility) if benchmark_volatility != 0 else 0
-
     results = {
-        "portfolio_return": float(portfolio_total_return),
-        "benchmark_return": float(benchmark_total_return),
+        "portfolio_return": float(annualized_return),
+        "benchmark_return": float(benchmark_annualized_return),
         "portfolio_volatility": float(portfolio_volatility),
         "benchmark_volatility": float(benchmark_volatility),
         "portfolio_sharpe": float(portfolio_sharpe),

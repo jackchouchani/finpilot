@@ -3,9 +3,6 @@ import argparse
 import os
 import base64
 
-# Génère une clé secrète aléatoire de 32 bytes (256 bits)
-secret_key = base64.b64encode(os.urandom(32)).decode('utf-8')
-print(secret_key)
 
 def lire_fichier(chemin):
     try:

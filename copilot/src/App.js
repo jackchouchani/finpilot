@@ -682,34 +682,34 @@ function App() {
                                                 <p>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</p>
                                                 <p>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</p>
                                                 <div style={{ width: '100%', height: '41%' }}>
-                                                <ResponsiveContainer width="100%" height={400}>
-                                                    <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
-                                                        <XAxis 
-                                                            dataKey="date" 
-                                                            tickFormatter={(tick) => {
-                                                                const date = new Date(startDate);
-                                                                date.setDate(date.getDate() + tick);
-                                                                return date.toLocaleDateString();
-                                                            }}
-                                                            interval={Math.floor(backtestResults.portfolio_values.length / 5)}
-                                                        />
-                                                        <YAxis 
-                                                            domain={['dataMin', 'dataMax']}
-                                                            tickFormatter={(value) => `$${value.toLocaleString()}`}
-                                                        />
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <Tooltip 
-                                                            formatter={(value) => [`$${value.toLocaleString()}`, "Portfolio Value"]}
-                                                            labelFormatter={(label) => {
-                                                                const date = new Date(startDate);
-                                                                date.setDate(date.getDate() + label);
-                                                                return date.toLocaleDateString();
-                                                            }}
-                                                        />
-                                                        <Legend />
-                                                        <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
-                                                    </LineChart>
-                                                </ResponsiveContainer>
+                                                    <ResponsiveContainer width="100%" height={400}>
+                                                        <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
+                                                            <XAxis
+                                                                dataKey="date"
+                                                                tickFormatter={(tick) => {
+                                                                    const date = new Date(startDate);
+                                                                    date.setDate(date.getDate() + tick);
+                                                                    return date.toLocaleDateString();
+                                                                }}
+                                                                interval={Math.floor(backtestResults.portfolio_values.length / 5)}
+                                                            />
+                                                            <YAxis
+                                                                domain={['dataMin', 'dataMax']}
+                                                                tickFormatter={(value) => `$${value.toLocaleString()}`}
+                                                            />
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <Tooltip
+                                                                formatter={(value) => [`$${value.toLocaleString()}`, "Portfolio Value"]}
+                                                                labelFormatter={(label) => {
+                                                                    const date = new Date(startDate);
+                                                                    date.setDate(date.getDate() + label);
+                                                                    return date.toLocaleDateString();
+                                                                }}
+                                                            />
+                                                            <Legend />
+                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
+                                                        </LineChart>
+                                                    </ResponsiveContainer>
                                                 </div>
                                             </>
                                         )}
@@ -734,7 +734,7 @@ function App() {
                                             margin: 'auto'
                                         }
                                     }}
-                                ></Dialog>
+                                >
                                     <DialogTitle>Portfolio Comparison</DialogTitle>
                                     <DialogContent>
                                         <Select
@@ -775,38 +775,38 @@ function App() {
                                                 <p>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</p>
                                                 <p>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</p>
                                                 {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
-                                                <ResponsiveContainer width="100%" height={400}>
-                                                    <LineChart data={comparisonResults.portfolio_cumulative.map((value, index) => ({
-                                                        date: index,
-                                                        portfolio: value,
-                                                        benchmark: comparisonResults.benchmark_cumulative[index]
-                                                    }))}>
-                                                        <XAxis 
-                                                            dataKey="date" 
-                                                            tickFormatter={(tick) => {
-                                                                const date = new Date(comparisonStartDate);
-                                                                date.setDate(date.getDate() + tick);
-                                                                return date.toLocaleDateString();
-                                                            }}
-                                                            interval={Math.floor(comparisonResults.portfolio_cumulative.length / 5)}
-                                                        />
-                                                        <YAxis 
-                                                            tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
-                                                        />
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <Tooltip 
-                                                            formatter={(value) => [`${(value * 100).toFixed(2)}%`, ""]}
-                                                            labelFormatter={(label) => {
-                                                                const date = new Date(comparisonStartDate);
-                                                                date.setDate(date.getDate() + label);
-                                                                return date.toLocaleDateString();
-                                                            }}
-                                                        />
-                                                        <Legend />
-                                                        <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
-                                                        <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
-                                                    </LineChart>
-                                                </ResponsiveContainer>
+                                                    <ResponsiveContainer width="100%" height={400}>
+                                                        <LineChart data={comparisonResults.portfolio_cumulative.map((value, index) => ({
+                                                            date: index,
+                                                            portfolio: value,
+                                                            benchmark: comparisonResults.benchmark_cumulative[index]
+                                                        }))}>
+                                                            <XAxis
+                                                                dataKey="date"
+                                                                tickFormatter={(tick) => {
+                                                                    const date = new Date(comparisonStartDate);
+                                                                    date.setDate(date.getDate() + tick);
+                                                                    return date.toLocaleDateString();
+                                                                }}
+                                                                interval={Math.floor(comparisonResults.portfolio_cumulative.length / 5)}
+                                                            />
+                                                            <YAxis
+                                                                tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+                                                            />
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <Tooltip
+                                                                formatter={(value) => [`${(value * 100).toFixed(2)}%`, ""]}
+                                                                labelFormatter={(label) => {
+                                                                    const date = new Date(comparisonStartDate);
+                                                                    date.setDate(date.getDate() + label);
+                                                                    return date.toLocaleDateString();
+                                                                }}
+                                                            />
+                                                            <Legend />
+                                                            <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
+                                                            <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
+                                                        </LineChart>
+                                                    </ResponsiveContainer>
                                                 )}
                                             </>
                                         )}

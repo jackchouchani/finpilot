@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar } from '@mui/material';
+import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar, Switch, FormControlLabel } from '@mui/material';
 import Settings from './Settings';
 import Portfolio from './Portfolio';
 import Login from './Login';
@@ -23,6 +24,7 @@ function a11yProps(index) {
 }
 
 function App() {
+    const [darkMode, setDarkMode] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [activeTab, setActiveTab] = useState(0);
@@ -43,10 +45,20 @@ function App() {
     const [portfolio, setPortfolio] = useState([]);
     const [portfolioLoading, setPortfolioLoading] = useState(true);
     const [news, setNews] = useState([]);
-    const [portfolioLoaded, setPortfolioLoaded] = useState(false);
     const [settings, setSettings] = useState({
         risk_tolerance: 'moderate',
-        // ajoutez d'autres paramètres par défaut si nécessaire
+    });
+
+    const theme = createTheme({
+        palette: {
+            mode: darkMode ? 'dark' : 'light',
+            primary: {
+                main: '#1976d2',
+            },
+            secondary: {
+                main: '#dc004e',
+            },
+        },
     });
 
     const fetchSettings = async () => {
@@ -238,7 +250,6 @@ function App() {
 
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
-            console.log(response.data)
             let newMessage = {
                 role: 'assistant',
                 content: typeof response.data === 'string' ? response.data : response.data.content || 'Pas de contenu reçu de l\'agent'
@@ -442,330 +453,339 @@ function App() {
         );
     }
     return (
-        <Fade in={true} timeout={1000}>
-            <Slide direction="up" in={true} mountOnEnter unmountOnExit>
-                <Container maxWidth="md">
-                    <Paper elevation={3} style={{ padding: '20px', marginTop: '20px' }}>
-                        <Button onClick={handleLogout}>Logout</Button>
-                        <img src="/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto', marginBottom: '20px' }} />
-                        <AppBar position="static" color="default">
-                            <Tabs
-                                value={activeTab}
-                                onChange={(e, newValue) => setActiveTab(newValue)}
-                                indicatorColor="primary"
-                                textColor="primary"
-                                variant="scrollable"
-                                scrollButtons="auto"
-                                aria-label="scrollable auto tabs example"
-                            >
-                                <Tab label="Copilot" {...a11yProps(0)} />
-                                <Tab label="Agents" {...a11yProps(1)} />
-                                <Tab label="PDF Analysis" {...a11yProps(2)} />
-                                <Tab label="Settings" {...a11yProps(3)} />
-                                <Tab label="Portfolio" {...a11yProps(4)} />
-                                <Tab label="Chargement Portfolio" {...a11yProps(5)} />
-                                <Tab label="Market Sentiment" {...a11yProps(6)} />
-                                <Tab label="Investment Recommendation" {...a11yProps(7)} />
-                                <Tab label="Historical Data Analysis" {...a11yProps(8)} />
-                                <Tab label="User Profile Analysis" {...a11yProps(9)} />
-                            </Tabs>
-                        </AppBar>
-                        <Box p={3}>
-                            {activeTab === 0 && (
-                                <>
-                                    <List>
-                                        {messages.map((message, index) => (
-                                            <ListItem key={index} alignItems="flex-start">
-                                                <ListItemText
-                                                    primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message.content} graphs={message.graphs} />}
-                                                />
-                                            </ListItem>
-                                        ))}
-                                    </List>
-                                    <form onSubmit={handleSubmit}>
+        <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <Fade in={true} timeout={1000}>
+                <Slide direction="up" in={true} mountOnEnter unmountOnExit>
+                    <Container maxWidth="md">
+                        <Paper elevation={3} style={{ padding: '20px', marginTop: '20px', borderRadius: '15px' }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Button onClick={handleLogout} variant="outlined" color="secondary">Logout</Button>
+                                <img src="/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto' }} />
+                                <FormControlLabel
+                                    control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
+                                    label="Dark Mode"
+                                />
+                            </Box>
+                            <AppBar position="static" color="default">
+                                <Tabs
+                                    value={activeTab}
+                                    onChange={(e, newValue) => setActiveTab(newValue)}
+                                    indicatorColor="primary"
+                                    textColor="primary"
+                                    variant="scrollable"
+                                    scrollButtons="auto"
+                                    aria-label="scrollable auto tabs example"
+                                >
+                                    <Tab label="Copilot" {...a11yProps(0)} />
+                                    <Tab label="Agents" {...a11yProps(1)} />
+                                    <Tab label="PDF Analysis" {...a11yProps(2)} />
+                                    <Tab label="Settings" {...a11yProps(3)} />
+                                    <Tab label="Portfolio" {...a11yProps(4)} />
+                                    <Tab label="Chargement Portfolio" {...a11yProps(5)} />
+                                    <Tab label="Market Sentiment" {...a11yProps(6)} />
+                                    <Tab label="Investment Recommendation" {...a11yProps(7)} />
+                                    <Tab label="Historical Data Analysis" {...a11yProps(8)} />
+                                    <Tab label="User Profile Analysis" {...a11yProps(9)} />
+                                </Tabs>
+                            </AppBar>
+                            <Box p={3}>
+                                {activeTab === 0 && (
+                                    <>
+                                        <List>
+                                            {messages.map((message, index) => (
+                                                <ListItem key={index} alignItems="flex-start">
+                                                    <ListItemText
+                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        secondary={<MessageContent content={message.content} graphs={message.graphs} />}
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                        <form onSubmit={handleSubmit}>
+                                            <TextField
+                                                fullWidth
+                                                variant="outlined"
+                                                value={input}
+                                                onChange={(e) => setInput(e.target.value)}
+                                                placeholder="Type your message..."
+                                                margin="normal"
+                                            />
+                                            <Button type="submit" variant="contained" color="primary" disabled={loading}>
+                                                {loading ? <CircularProgress size={24} /> : 'Send'}
+                                            </Button>
+                                        </form>
+                                        <input
+                                            type="file"
+                                            accept=".pdf"
+                                            onChange={handlePDFUpload}
+                                            style={{ display: 'none' }}
+                                            id="pdf-upload"
+                                        />
+                                        <label htmlFor="pdf-upload">
+                                            <Button variant="contained" component="span" color="primary">
+                                                Upload PDF
+                                            </Button>
+                                        </label>
+                                        <Typography variant="body2" style={{ marginTop: '10px' }}>
+                                            You can also drag and drop a PDF file here
+                                        </Typography>
+                                    </>
+                                )}
+                                {activeTab === 1 && (
+                                    <>
                                         <TextField
                                             fullWidth
                                             variant="outlined"
                                             value={input}
                                             onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Type your message..."
+                                            placeholder="Enter data for agent..."
                                             margin="normal"
                                         />
-                                        <Button type="submit" variant="contained" color="primary" disabled={loading}>
-                                            {loading ? <CircularProgress size={24} /> : 'Send'}
+                                        <Button onClick={() => handleAgentCall('document')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Document Analysis
                                         </Button>
-                                    </form>
-                                    <input
-                                        type="file"
-                                        accept=".pdf"
-                                        onChange={handlePDFUpload}
-                                        style={{ display: 'none' }}
-                                        id="pdf-upload"
-                                    />
-                                    <label htmlFor="pdf-upload">
-                                        <Button variant="contained" component="span" color="primary">
-                                            Upload PDF
+                                        <Button onClick={() => handleAgentCall('sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Sentiment Analysis
                                         </Button>
-                                    </label>
-                                    <Typography variant="body2" style={{ marginTop: '10px' }}>
-                                        You can also drag and drop a PDF file here
-                                    </Typography>
-                                </>
-                            )}
-                            {activeTab === 1 && (
-                                <>
-                                    <TextField
-                                        fullWidth
-                                        variant="outlined"
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        placeholder="Enter data for agent..."
-                                        margin="normal"
-                                    />
-                                    <Button onClick={() => handleAgentCall('document')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Document Analysis
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Sentiment Analysis
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('financial_modeling')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Financial Modeling
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('portfolio_optimization')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Portfolio Optimization
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('risk_management')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Risk Management
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('reporting')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Reporting
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('compliance')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Compliance Check
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('market_sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Market Sentiment
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('user_profile_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        User Profile Analysis
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('historical_data_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Historical Data Analysis
-                                    </Button>
-                                    <Button onClick={() => handleAgentCall('investment_recommendation')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                        Investment Recommendation
-                                    </Button>
-                                    <List>
-                                        {messages.map((message, index) => (
-                                            <ListItem key={index} alignItems="flex-start">
-                                                <ListItemText
-                                                    primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={
-                                                        <>
-                                                            <MessageContent content={message.content} />
-                                                            {message.graphs && message.graphs.map((graph, graphIndex) => (
-                                                                <img
-                                                                    key={graphIndex}
-                                                                    src={`data:image/png;base64,${graph}`}
-                                                                    alt={`Portfolio Graph ${graphIndex + 1}`}
-                                                                    style={{ maxWidth: '100%', marginTop: '10px' }}
-                                                                />
-                                                            ))}
-                                                            {message.graph && (
-                                                                <img
-                                                                    src={`data:image/png;base64,${message.graph}`}
-                                                                    alt="Graph"
-                                                                    style={{ maxWidth: '100%', marginTop: '10px' }}
-                                                                />
-                                                            )}
-                                                        </>
-                                                    }
-                                                />
-                                            </ListItem>
-                                        ))}
-                                    </List>
-                                </>
-                            )}
-                            {activeTab === 2 && (
-                                <>
-                                    <input
-                                        type="file"
-                                        accept=".pdf"
-                                        onChange={handleFileUpload}
-                                        style={{ display: 'none' }}
-                                        id="pdf-upload"
-                                    />
-                                    <label htmlFor="pdf-upload">
-                                        <Button variant="contained" component="span" color="primary" disabled={loading}>
-                                            Upload PDF
+                                        <Button onClick={() => handleAgentCall('financial_modeling')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Financial Modeling
                                         </Button>
-                                    </label>
-                                    {file && <Typography variant="body1">{file.name}</Typography>}
-                                    {loading && <CircularProgress />}
-                                    <List>
-                                        {messages.map((message, index) => (
-                                            <ListItem key={index} alignItems="flex-start">
-                                                <ListItemText
-                                                    primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message.content} />}
-                                                />
-                                            </ListItem>
-                                        ))}
-                                    </List>
-                                </>
-                            )}
-                            {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
-                            {activeTab === 4 && <Portfolio />}
+                                        <Button onClick={() => handleAgentCall('portfolio_optimization')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Portfolio Optimization
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('risk_management')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Risk Management
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('reporting')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Reporting
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('compliance')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Compliance Check
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('market_sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Market Sentiment
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('user_profile_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            User Profile Analysis
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('historical_data_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Historical Data Analysis
+                                        </Button>
+                                        <Button onClick={() => handleAgentCall('investment_recommendation')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
+                                            Investment Recommendation
+                                        </Button>
+                                        <List>
+                                            {messages.map((message, index) => (
+                                                <ListItem key={index} alignItems="flex-start">
+                                                    <ListItemText
+                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        secondary={
+                                                            <>
+                                                                <MessageContent content={message.content} />
+                                                                {message.graphs && message.graphs.map((graph, graphIndex) => (
+                                                                    <img
+                                                                        key={graphIndex}
+                                                                        src={`data:image/png;base64,${graph}`}
+                                                                        alt={`Portfolio Graph ${graphIndex + 1}`}
+                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                    />
+                                                                ))}
+                                                                {message.graph && (
+                                                                    <img
+                                                                        src={`data:image/png;base64,${message.graph}`}
+                                                                        alt="Graph"
+                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                    />
+                                                                )}
+                                                            </>
+                                                        }
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </>
+                                )}
+                                {activeTab === 2 && (
+                                    <>
+                                        <input
+                                            type="file"
+                                            accept=".pdf"
+                                            onChange={handleFileUpload}
+                                            style={{ display: 'none' }}
+                                            id="pdf-upload"
+                                        />
+                                        <label htmlFor="pdf-upload">
+                                            <Button variant="contained" component="span" color="primary" disabled={loading}>
+                                                Upload PDF
+                                            </Button>
+                                        </label>
+                                        {file && <Typography variant="body1">{file.name}</Typography>}
+                                        {loading && <CircularProgress />}
+                                        <List>
+                                            {messages.map((message, index) => (
+                                                <ListItem key={index} alignItems="flex-start">
+                                                    <ListItemText
+                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        secondary={<MessageContent content={message.content} />}
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </>
+                                )}
+                                {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
+                                {activeTab === 4 && <Portfolio />}
 
-                            <Button onClick={() => setOpenBacktest(true)}>Run Backtest</Button>
+                                <Button onClick={() => setOpenBacktest(true)}>Run Backtest</Button>
 
-                            <Dialog
-                                open={openBacktest}
-                                onClose={() => setOpenBacktest(false)}
-                                fullWidth
-                                maxWidth="lg"
-                                PaperProps={{
-                                    style: {
-                                        width: '65%',
-                                        height: '73%',
-                                        maxWidth: 'none',
-                                        maxHeight: 'none',
-                                        margin: 'auto'
-                                    }
-                                }}
-                            >
-                                <DialogTitle>Backtest Results</DialogTitle>
-                                <DialogContent>
-                                    <TextField
-                                        label="Start Date"
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                        fullWidth
-                                        margin="normal"
-                                    />
-                                    <TextField
-                                        label="End Date"
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                        fullWidth
-                                        margin="normal"
-                                    />
-                                    <Button onClick={runBacktest}>Run Backtest</Button>
-                                    {backtestResults && (
-                                        <>
-                                            <p>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</p>
-                                            <p>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</p>
-                                            <p>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</p>
-                                            <p>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</p>
-                                            <div style={{ width: '100%', height: '41%' }}>
-                                                <ResponsiveContainer>
-                                                    <LineChart width="100%" height={800} data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
+                                <Dialog
+                                    open={openBacktest}
+                                    onClose={() => setOpenBacktest(false)}
+                                    fullWidth
+                                    maxWidth="lg"
+                                    PaperProps={{
+                                        style: {
+                                            width: '65%',
+                                            height: '73%',
+                                            maxWidth: 'none',
+                                            maxHeight: 'none',
+                                            margin: 'auto'
+                                        }
+                                    }}
+                                >
+                                    <DialogTitle>Backtest Results</DialogTitle>
+                                    <DialogContent>
+                                        <TextField
+                                            label="Start Date"
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        <TextField
+                                            label="End Date"
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        <Button onClick={runBacktest}>Run Backtest</Button>
+                                        {backtestResults && (
+                                            <>
+                                                <p>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</p>
+                                                <p>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</p>
+                                                <p>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</p>
+                                                <p>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</p>
+                                                <div style={{ width: '100%', height: '41%' }}>
+                                                    <ResponsiveContainer>
+                                                        <LineChart width="100%" height={800} data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
+                                                            <XAxis dataKey="date" />
+                                                            <YAxis />
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <Tooltip />
+                                                            <Legend />
+                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" />
+                                                        </LineChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </>
+                                        )}
+                                    </DialogContent>
+                                    <DialogActions>
+                                        <Button onClick={() => setOpenBacktest(false)}>Close</Button>
+                                    </DialogActions>
+                                </Dialog>
+                                <Button onClick={() => setOpenComparison(true)}>Compare with Benchmark</Button>
+
+                                <Dialog open={openComparison} onClose={() => setOpenComparison(false)}>
+                                    <DialogTitle>Portfolio Comparison</DialogTitle>
+                                    <DialogContent>
+                                        <Select
+                                            value={benchmark}
+                                            onChange={(e) => setBenchmark(e.target.value)}
+                                            fullWidth
+                                            margin="normal"
+                                        >
+                                            <MenuItem value="SPY">S&P 500 (SPY)</MenuItem>
+                                            <MenuItem value="QQQ">Nasdaq 100 (QQQ)</MenuItem>
+                                            <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
+                                        </Select>
+                                        <TextField
+                                            label="Start Date"
+                                            type="date"
+                                            value={comparisonStartDate}
+                                            onChange={(e) => setComparisonStartDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        <TextField
+                                            label="End Date"
+                                            type="date"
+                                            value={comparisonEndDate}
+                                            onChange={(e) => setComparisonEndDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        {/* <Button onClick={compareWithBenchmark}>Compare</Button> */}
+                                        {comparisonResults && (
+                                            <>
+                                                <p>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</p>
+                                                <p>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</p>
+                                                <p>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</p>
+                                                <p>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</p>
+                                                <p>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</p>
+                                                <p>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</p>
+                                                {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
+                                                    <LineChart width={500} height={300} data={comparisonResults.portfolio_cumulative.map((value, index) => ({
+                                                        date: index,
+                                                        portfolio: value,
+                                                        benchmark: comparisonResults.benchmark_cumulative[index]
+                                                    }))}>
                                                         <XAxis dataKey="date" />
                                                         <YAxis />
                                                         <CartesianGrid strokeDasharray="3 3" />
                                                         <Tooltip />
                                                         <Legend />
-                                                        <Line type="monotone" dataKey="value" stroke="#8884d8" />
+                                                        <Line type="monotone" dataKey="portfolio" stroke="#8884d8" />
+                                                        <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" />
                                                     </LineChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                        </>
-                                    )}
-                                </DialogContent>
-                                <DialogActions>
-                                    <Button onClick={() => setOpenBacktest(false)}>Close</Button>
-                                </DialogActions>
-                            </Dialog>
-                            <Button onClick={() => setOpenComparison(true)}>Compare with Benchmark</Button>
-
-                            <Dialog open={openComparison} onClose={() => setOpenComparison(false)}>
-                                <DialogTitle>Portfolio Comparison</DialogTitle>
-                                <DialogContent>
-                                    <Select
-                                        value={benchmark}
-                                        onChange={(e) => setBenchmark(e.target.value)}
-                                        fullWidth
-                                        margin="normal"
-                                    >
-                                        <MenuItem value="SPY">S&P 500 (SPY)</MenuItem>
-                                        <MenuItem value="QQQ">Nasdaq 100 (QQQ)</MenuItem>
-                                        <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
-                                    </Select>
-                                    <TextField
-                                        label="Start Date"
-                                        type="date"
-                                        value={comparisonStartDate}
-                                        onChange={(e) => setComparisonStartDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                        fullWidth
-                                        margin="normal"
-                                    />
-                                    <TextField
-                                        label="End Date"
-                                        type="date"
-                                        value={comparisonEndDate}
-                                        onChange={(e) => setComparisonEndDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                        fullWidth
-                                        margin="normal"
-                                    />
-                                    {/* <Button onClick={compareWithBenchmark}>Compare</Button> */}
-                                    {comparisonResults && (
-                                        <>
-                                            <p>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</p>
-                                            <p>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</p>
-                                            <p>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</p>
-                                            <p>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</p>
-                                            <p>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</p>
-                                            <p>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</p>
-                                            {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
-                                                <LineChart width={500} height={300} data={comparisonResults.portfolio_cumulative.map((value, index) => ({
-                                                    date: index,
-                                                    portfolio: value,
-                                                    benchmark: comparisonResults.benchmark_cumulative[index]
-                                                }))}>
-                                                    <XAxis dataKey="date" />
-                                                    <YAxis />
-                                                    <CartesianGrid strokeDasharray="3 3" />
-                                                    <Tooltip />
-                                                    <Legend />
-                                                    <Line type="monotone" dataKey="portfolio" stroke="#8884d8" />
-                                                    <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" />
-                                                </LineChart>
-                                            )}
-                                        </>
-                                    )}
-                                </DialogContent>
-                                <DialogActions>
-                                    <Button onClick={compareWithBenchmark}>Compare</Button>
-                                    <Button onClick={() => setOpenComparison(false)}>Close</Button>
-                                </DialogActions>
-                            </Dialog>
-                            {activeTab === 5 && (
-                                <ErrorBoundary>
-                                    {portfolioLoading ? (
-                                        <Typography>Chargement du portfolio...</Typography>
-                                    ) : portfolio ? (
-                                        <Dashboard portfolio={portfolio} />
-                                    ) : (
-                                        <Typography>Erreur lors du chargement du portfolio</Typography>
-                                    )}
-                                </ErrorBoundary>
-                            )}
-                            {activeTab === 6 && <MarketSentiment />}
-                            {activeTab === 7 && <InvestmentRecommendation />}
-                            {activeTab === 8 && <HistoricalDataAnalysis />}
-                            {activeTab === 9 && <UserProfileAnalysis />}
-                        </Box>
-                    </Paper>
-                </Container>
-            </Slide >
-        </Fade >
+                                                )}
+                                            </>
+                                        )}
+                                    </DialogContent>
+                                    <DialogActions>
+                                        <Button onClick={compareWithBenchmark}>Compare</Button>
+                                        <Button onClick={() => setOpenComparison(false)}>Close</Button>
+                                    </DialogActions>
+                                </Dialog>
+                                {activeTab === 5 && (
+                                    <ErrorBoundary>
+                                        {portfolioLoading ? (
+                                            <Typography>Chargement du portfolio...</Typography>
+                                        ) : portfolio ? (
+                                            <Dashboard portfolio={portfolio} />
+                                        ) : (
+                                            <Typography>Erreur lors du chargement du portfolio</Typography>
+                                        )}
+                                    </ErrorBoundary>
+                                )}
+                                {activeTab === 6 && <MarketSentiment />}
+                                {activeTab === 7 && <InvestmentRecommendation />}
+                                {activeTab === 8 && <HistoricalDataAnalysis />}
+                                {activeTab === 9 && <UserProfileAnalysis />}
+                            </Box>
+                        </Paper>
+                    </Container>
+                </Slide >
+            </Fade >
+        </ThemeProvider>
     );
 }
 

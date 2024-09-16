@@ -184,12 +184,12 @@ class ReportingAgent:
         if not portfolio:
             return {"error": "Aucun portefeuille trouvé pour cet utilisateur"}
         
+        report = ""
+
         for stock in portfolio:
             report += self._generate_stock_report(stock)
         
         report_md = f"""
-# Rapport de Portefeuille
-
 {report}
     """
         # Création des graphiques
@@ -2291,6 +2291,7 @@ def test_agents():
     return jsonify(results)
 
 @app.route('/chat', methods=['POST'])
+@jwt_required()
 def chat():
     global financial_data
     
@@ -2321,7 +2322,7 @@ def chat():
             } for func in functions
         ]
 
-    client = anthropic.Anthropic() if use_claude else openai_client
+    client = anthropic_client if use_claude else openai_client
     model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-mini"
     tools = claude_tools if use_claude else functions
 
@@ -2334,7 +2335,6 @@ def chat():
         )
 
         if use_claude:
-            print(f"Claude response type: {response.content[0].type}")
             if response.content[0].type == 'text':
                 conversation_manager.add_message(conversation_id, {"role": "assistant", "content": response.content[0].text})
                 return jsonify({"reply": response.content[0].text, "conversation_id": conversation_id})
@@ -2416,6 +2416,7 @@ def call_agent(agent_name):
             result = risk_management_agent.analyze(portfolio)
         elif agent_name == "reporting":
             result = reporting_agent.generate_report(portfolio)
+            return jsonify(result), 200  # Utilisez jsonify pour convertir le résultat en JSON
         elif agent_name == "compliance":
             result = compliance_agent.check_compliance(portfolio)
         elif agent_name == "market_sentiment":
@@ -3304,11 +3305,11 @@ import { Typography, Paper, Box } from '@mui/material';
 const MessageContent = ({ content, graphs }) => {
     // Fonction pour vérifier si le contenu est valide
     const isValidContent = (content) => {
-        return content !== null && content !== undefined && typeof content === 'string';
+        return content !== null && content !== undefined && content !== '';
     };
 
     const isMarkdown = (str) => {
-        return str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## ');
+        return typeof str === 'string' && (str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## '));
     };
 
     // Fonction pour formater le contenu
@@ -3341,6 +3342,7 @@ const MessageContent = ({ content, graphs }) => {
 
     // Gestion du contenu invalide
     if (!isValidContent(content)) {
+        console.error("Contenu invalide reçu:", content);
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
                 <Typography color="error">Contenu invalide ou non disponible</Typography>
@@ -3386,7 +3388,7 @@ const MessageContent = ({ content, graphs }) => {
         }
     }
     // Traitement pour l'agent de reporting
-    if (typeof content === 'object') {
+    if (typeof content === 'object' && content.report) {
         return (
             <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
                 <Typography variant="h6">Rapport généré</Typography>
@@ -4463,7 +4465,7 @@ function App() {
     const fetchChatHistory = async () => {
         try {
             const response = await axios.get(process.env.REACT_APP_API_URL + '/chat_history');
-            setMessages(response.data);
+            setMessages(response.data.reverse());  // Inversez l'ordre des messages
         } catch (error) {
             console.error('Error fetching chat history:', error);
         }
@@ -4475,7 +4477,7 @@ function App() {
 
         setLoading(true);
         const newMessage = { role: 'user', content: input };
-        setMessages(prevMessages => [...prevMessages, newMessage]);
+        setMessages(prevMessages => [newMessage, ...prevMessages]);
         setInput('');
 
         try {
@@ -4484,7 +4486,7 @@ function App() {
                 conversation_id: conversationId
             });
             setConversationId(response.data.conversation_id);
-            setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);
+            setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
         } catch (error) {
             console.error('Error sending message:', error);
         } finally {
@@ -4608,33 +4610,45 @@ function App() {
                 data = { input: input };
                 break;
         }
+        const userMessage = { role: 'user', content: input };
+        setMessages(prevMessages => [userMessage, ...prevMessages]);
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
+        } catch (error) {
+            console.error('Error saving user message to chat history:', error);
+        }
 
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
-            let newMessage;
-            if (agentName === 'reporting') {
-                newMessage = {
-                    role: 'assistant',
-                    content: response.data.content,
-                    graphs: response.data.graphs
-                };
-            } else {
-                newMessage = {
-                    role: 'assistant',
-                    content: JSON.stringify(response.data, null, 2)
-                };
+            let newMessage = {
+                role: 'assistant',
+                content: typeof response.data === 'string' ? response.data : response.data.content || 'Pas de contenu reçu de l\'agent'
+            };
+            if (response.data.graphs) {
+                newMessage.graphs = response.data.graphs;
             }
-            setMessages(prevMessages => [...prevMessages, newMessage]);
+            setMessages(prevMessages => [newMessage, ...prevMessages]);
+
+            // Sauvegardez le message de l'agent dans la base de données
+            try {
+                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
+            } catch (saveError) {
+                console.error('Error saving agent message to chat history:', saveError);
+            }
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {
                 role: 'assistant',
                 content: `Error: ${error.response?.data?.error || error.message}`
             };
-            setMessages(prevMessages => [...prevMessages, errorMessage]);
+            setMessages(prevMessages => [errorMessage, ...prevMessages]);
 
             // Sauvegarder le message d'erreur dans l'historique du chat
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
+            try {
+                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
+            } catch (saveError) {
+                console.error('Error saving error message to chat history:', saveError);
+            }
         } finally {
             setLoading(false);
         }
@@ -4814,9 +4828,7 @@ function App() {
                 <Container maxWidth="md">
                     <Paper elevation={3} style={{ padding: '20px', marginTop: '20px' }}>
                         <Button onClick={handleLogout}>Logout</Button>
-                        <Typography variant="h4" gutterBottom>
-                            AI Copilot
-                        </Typography>
+                        <img src="/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto', marginBottom: '20px' }} />
                         <AppBar position="static" color="default">
                             <Tabs
                                 value={activeTab}

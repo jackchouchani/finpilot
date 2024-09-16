@@ -88,18 +88,21 @@ function App() {
     }, []);
 
     useEffect(() => {
-        // Charger l'historique des chats au montage du composant
-        fetchChatHistory();
-    }, []);
+        const fetchChatHistory = async () => {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/chat_history`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                });
+                setMessages(response.data.reverse());
+            } catch (error) {
+                console.error('Error fetching chat history:', error);
+            }
+        };
 
-    const fetchChatHistory = async () => {
-        try {
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/chat_history');
-            setMessages(response.data.reverse());  // Inversez l'ordre des messages
-        } catch (error) {
-            console.error('Error fetching chat history:', error);
+        if (isLoggedIn) {
+            fetchChatHistory();
         }
-    };
+    }, [isLoggedIn]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

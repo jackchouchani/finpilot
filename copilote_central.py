@@ -344,13 +344,13 @@ def login():
         return jsonify({"error": "Invalid username or password"}), 401
     
     # Fonction pour enregistrer le chat
-def save_chat_history(user_id, message):
+def save_chat_message(user_id, role, content):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO chat_history (user_id, message, timestamp)
-            VALUES (?, ?, datetime('now'))
-        """, (user_id, json.dumps(message)))
+            INSERT INTO chat_history (user_id, role, content, timestamp)
+            VALUES (?, ?, ?, datetime('now'))
+        """, (user_id, role, content))
         conn.commit()
 
 # Fonction pour récupérer l'historique des chats
@@ -358,18 +358,11 @@ def get_chat_history(user_id, limit=50):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT message FROM chat_history
+            SELECT role, content, timestamp FROM chat_history
             WHERE user_id = ?
             ORDER BY timestamp DESC
             LIMIT ?
         """, (user_id, limit))
-        messages = cursor.fetchall()
-    return [json.loads(message[0]) for message in messages]
-
-def get_chat_history(user_id):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT message FROM chat_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50", (user_id,))
         messages = cursor.fetchall()
     return [json.loads(message[0]) for message in messages]
 
@@ -518,7 +511,8 @@ def init_db():
         conn.execute('''CREATE TABLE IF NOT EXISTS chat_history
                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
                          user_id INTEGER,
-                         message TEXT,
+                         role TEXT,
+                         content TEXT,
                          timestamp DATETIME,
                          FOREIGN KEY (user_id) REFERENCES users(id))''')
 
@@ -754,7 +748,7 @@ def chat():
     use_claude = request.json.get('use_claude', False)
     
     # Sauvegardez le message de l'utilisateur
-    save_chat_history(user_id, {"role": "user", "content": user_message})
+    save_chat_message(user_id, 'user', user_message)
 
     if not conversation_id:
         conversation_id = conversation_manager.start_conversation()
@@ -793,12 +787,12 @@ def chat():
                 return jsonify({"reply": response.content[0].text, "conversation_id": conversation_id})
             assistant_message = response.content[0]
             # Sauvegardez la réponse de l'assistant
-            save_chat_history(user_id, {"role": "assistant", "content": assistant_message.content})
+            save_chat_history(user_id, 'assistant', assistant_message.content)
 
         else:
             assistant_message = response.choices[0].message
             # Sauvegardez la réponse de l'assistant
-            save_chat_history(user_id, {"role": "assistant", "content": assistant_message.content})
+            save_chat_history(user_id, 'assistant', assistant_message.content)
 
         messages.append(assistant_message)
 
@@ -1223,7 +1217,7 @@ def chat_history():
     if request.method == 'GET':
         try:
             history = get_chat_history(user_id)
-            return jsonify(history), 200
+            return jsonify([{"role": role, "content": content, "timestamp": timestamp} for role, content, timestamp in history]), 200
         except Exception as e:
             app.logger.error(f"Error retrieving chat history: {str(e)}")
             return jsonify({"error": "Failed to retrieve chat history"}), 500

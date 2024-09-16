@@ -646,7 +646,7 @@ function App() {
                                     maxWidth="lg"
                                     PaperProps={{
                                         style: {
-                                            width: '65%',
+                                            width: '67%',
                                             height: '73%',
                                             maxWidth: 'none',
                                             maxHeight: 'none',
@@ -720,7 +720,21 @@ function App() {
                                 </Dialog>
                                 <Button onClick={() => setOpenComparison(true)}>Compare with Benchmark</Button>
 
-                                <Dialog open={openComparison} onClose={() => setOpenComparison(false)}>
+                                <Dialog
+                                    open={openComparison}
+                                    onClose={() => setOpenComparison(false)}
+                                    fullWidth
+                                    maxWidth="lg"
+                                    PaperProps={{
+                                        style: {
+                                            width: '67%',
+                                            height: '73%',
+                                            maxWidth: 'none',
+                                            maxHeight: 'none',
+                                            margin: 'auto'
+                                        }
+                                    }}
+                                ></Dialog>
                                     <DialogTitle>Portfolio Comparison</DialogTitle>
                                     <DialogContent>
                                         <Select

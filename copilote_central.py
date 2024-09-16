@@ -49,6 +49,12 @@ CORS(app, resources={r"/*": {
     "supports_credentials": True
 }})
 
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'ALLOWALL'  # Permettre tous les domaines
+    response.headers['Content-Security-Policy'] = "frame-ancestors *"  # Permettre tous les domaines
+    return response
+
 # Initialize OpenAI and Anthropic clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))

@@ -607,7 +607,7 @@ class Agents:
         return compliance_agent.check_compliance(data)
     
 def structure_data(data):
-    client = openai.OpenAI()
+    client = openai_client.OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -1342,11 +1342,10 @@ def simulate_scenario():
     portfolio = data['portfolio']
     scenario = data['scenario']
     
-    # Définir les paramètres des scénarios
     scenarios = {
-        "market_crash": {"mean": -0.3, "volatility": 0.4},
-        "bull_market": {"mean": 0.2, "volatility": 0.15},
-        "high_inflation": {"mean": 0.05, "volatility": 0.25},
+        "market_crash": {"mean": -0.001, "volatility": 0.03},
+        "bull_market": {"mean": 0.0008, "volatility": 0.015},
+        "high_inflation": {"mean": 0.0003, "volatility": 0.02},
     }
     
     if scenario not in scenarios:
@@ -1354,26 +1353,21 @@ def simulate_scenario():
     
     scenario_params = scenarios[scenario]
     
-    # Simuler les rendements pour chaque action du portefeuille
-    simulated_returns = {}
-    for stock in portfolio['stocks']:
-        returns = np.random.normal(scenario_params['mean'], scenario_params['volatility'], 252)  # 252 jours de trading
-        simulated_returns[stock['symbol']] = returns
+    initial_value = 10000
+    days = 252  # 1 year of trading days
     
-    # Calculer la performance du portefeuille
-    portfolio_weights = {stock['symbol']: float(stock['weight']) for stock in portfolio['stocks']}
-    portfolio_returns = sum(simulated_returns[symbol] * weight for symbol, weight in portfolio_weights.items())
-    
-    # Calculer la valeur finale du portefeuille
-    initial_value = 10000  # Valeur initiale supposée
-    final_value = initial_value * (1 + portfolio_returns.sum())
+    daily_returns = np.random.normal(scenario_params['mean'], scenario_params['volatility'], days)
+    cumulative_returns = (1 + daily_returns).cumprod()
+    portfolio_values = initial_value * cumulative_returns
+    final_value = portfolio_values[-1]
     
     results = {
         "scenario": scenario,
         "initial_value": initial_value,
         "final_value": final_value,
-        "total_return": (final_value - initial_value) / initial_value,
-        "daily_returns": portfolio_returns.tolist()
+        "total_return": (final_value / initial_value) - 1,
+        "daily_returns": daily_returns.tolist(),
+        "portfolio_values": portfolio_values.tolist()
     }
     
     return jsonify(results)

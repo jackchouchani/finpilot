@@ -452,11 +452,13 @@ def create_paragraph(text, style_name='Normal'):
         style_name = 'Normal'
     style = styles[style_name]
     
+    # Nettoyer le texte et ajouter des retours à la ligne
     cleaned_text = clean_text(text)
+    wrapped_text = textwrap.fill(cleaned_text, width=80)
     
     custom_style = ParagraphStyle('CustomStyle', parent=style, wordWrap='CJK')
     
-    return Paragraph(cleaned_text, custom_style)
+    return Paragraph(wrapped_text, custom_style)
 
 def clean_text(text):
     if not isinstance(text, str):
@@ -475,7 +477,9 @@ def generate_report(data):
     
     # Création du document PDF
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 
+                               rightMargin=0.5*inch, leftMargin=0.5*inch, 
+                               topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
     
@@ -559,19 +563,26 @@ def create_title_page(title, subtitle, date):
     elements = []
     styles = getSampleStyleSheet()
     
-    subtitle_style = ParagraphStyle(name='CustomSubtitle',
-                                    parent=styles['Normal'],
-                                    fontSize=14,
-                                    leading=16,
-                                    alignment=1,
-                                    spaceAfter=12)
+    # Ajouter le logo
+    logo_path = "copilot/public/logo.jpg"  # Remplacez par le chemin de votre logo
+    logo = Image(logo_path, width=2*inch, height=1*inch)
+    elements.append(logo)
     
-    elements.append(Spacer(1, 2*inch))
-    elements.append(Paragraph(title, styles['Title']))
+    elements.append(Spacer(1, 1*inch))
+    
+    title_style = ParagraphStyle(name='Title', parent=styles['Title'], fontSize=24, alignment=1)
+    elements.append(Paragraph(title, title_style))
+    
     elements.append(Spacer(1, 0.5*inch))
+    
+    subtitle_style = ParagraphStyle(name='Subtitle', parent=styles['Normal'], fontSize=18, alignment=1)
     elements.append(Paragraph(subtitle, subtitle_style))
+    
     elements.append(Spacer(1, 0.5*inch))
-    elements.append(Paragraph(date, styles['Normal']))
+    
+    date_style = ParagraphStyle(name='Date', parent=styles['Normal'], fontSize=14, alignment=1)
+    elements.append(Paragraph(date, date_style))
+    
     elements.append(PageBreak())
     return elements
 
@@ -1451,9 +1462,6 @@ import argparse
 import os
 import base64
 
-# Génère une clé secrète aléatoire de 32 bytes (256 bits)
-secret_key = base64.b64encode(os.urandom(32)).decode('utf-8')
-print(secret_key)
 
 def lire_fichier(chemin):
     try:
@@ -1602,12 +1610,18 @@ CORS(app, resources={r"/*": {
     "supports_credentials": True
 }})
 
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'ALLOWALL'  # Permettre tous les domaines
+    response.headers['Content-Security-Policy'] = "frame-ancestors *"  # Permettre tous les domaines
+    return response
+
 # Initialize OpenAI and Anthropic clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 # Configuration de la base de données SQLite
-DATABASE = 'copilote.db'
+DATABASE = '/litefs/copilot-db.db'
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
@@ -1891,34 +1905,36 @@ def login():
         return jsonify({"error": "Invalid username or password"}), 401
     
     # Fonction pour enregistrer le chat
-def save_chat_history(user_id, message):
-    with sqlite3.connect(DATABASE) as conn:
+def save_chat_message(user_id, role, content):
+    with sqlite3.connect('copilote.db') as conn:
         cursor = conn.cursor()
+        # Convertir le contenu en JSON s'il s'agit d'un dictionnaire
+        if isinstance(content, dict):
+            content = json.dumps(content)
         cursor.execute("""
-            INSERT INTO chat_history (user_id, message, timestamp)
-            VALUES (?, ?, datetime('now'))
-        """, (user_id, json.dumps(message)))
+            INSERT INTO chat_history (user_id, role, content, timestamp)
+            VALUES (?, ?, ?, datetime('now'))
+        """, (user_id, role, content))
         conn.commit()
 
 # Fonction pour récupérer l'historique des chats
-def get_chat_history(user_id, limit=50):
-    with sqlite3.connect(DATABASE) as conn:
+def get_chat_history(user_id):
+    with sqlite3.connect('copilote.db') as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT message FROM chat_history
+            SELECT role, content, timestamp FROM chat_history
             WHERE user_id = ?
             ORDER BY timestamp DESC
-            LIMIT ?
-        """, (user_id, limit))
-        messages = cursor.fetchall()
-    return [json.loads(message[0]) for message in messages]
-
-def get_chat_history(user_id):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT message FROM chat_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50", (user_id,))
-        messages = cursor.fetchall()
-    return [json.loads(message[0]) for message in messages]
+        """, (user_id,))
+        results = cursor.fetchall()
+        return [
+            {
+                "role": role,
+                "content": json.loads(content) if content.startswith('{') else content,
+                "timestamp": timestamp
+            }
+            for role, content, timestamp in results
+        ]
 
 class ConversationManager:
     def __init__(self):
@@ -2031,43 +2047,61 @@ def execute_function(function_name, arguments, user_message):
             "message": f"Une erreur s'est produite lors de l'exécution de {function_name}: {str(e)}"
         }
 
+# def init_db():
+#     with sqlite3.connect(DATABASE) as conn:
+#         conn.execute('''CREATE TABLE IF NOT EXISTS users
+#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                          username TEXT UNIQUE NOT NULL,
+#                          password TEXT NOT NULL)''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS portfolios
+#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                          user_id INTEGER,
+#                          name TEXT NOT NULL,
+#                          data TEXT NOT NULL)''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS portfolio (
+#                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                         user_id INTEGER,
+#                         name TEXT,
+#                         symbol TEXT,
+#                         weight REAL,
+#                         entry_price REAL,
+#                         FOREIGN KEY (user_id) REFERENCES users(id))''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
+#                         user_id INTEGER PRIMARY KEY,
+#                         setting_name TEXT,
+#                         setting_value TEXT,
+#                         FOREIGN KEY (user_id) REFERENCES users(id)
+#                     )''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
+#                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                         task_type TEXT NOT NULL,
+#                         status TEXT NOT NULL,
+#                         result TEXT
+#                     )''')
+#         conn.execute('''DROP TABLE IF EXISTS chat_history''')
+#         conn.execute('''CREATE TABLE chat_history
+#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                          user_id INTEGER,
+#                          role TEXT,
+#                          content TEXT,
+#                          timestamp DATETIME,
+#                          FOREIGN KEY (user_id) REFERENCES users(id))''')
+
 def init_db():
-    with sqlite3.connect(DATABASE) as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS users
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         username TEXT UNIQUE NOT NULL,
-                         password TEXT NOT NULL)''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS portfolios
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         user_id INTEGER,
-                         name TEXT NOT NULL,
-                         data TEXT NOT NULL)''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS portfolio (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        name TEXT,
-                        symbol TEXT,
-                        weight REAL,
-                        entry_price REAL,
-                        FOREIGN KEY (user_id) REFERENCES users(id))''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
-                        user_id INTEGER PRIMARY KEY,
-                        setting_name TEXT,
-                        setting_value TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id)
-                    )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        task_type TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        result TEXT
-                    )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS chat_history
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         user_id INTEGER,
-                         message TEXT,
-                         timestamp DATETIME,
-                         FOREIGN KEY (user_id) REFERENCES users(id))''')
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"DATABASE path: {DATABASE}")
+    print(f"Directory contents of /litefs: {os.listdir('/litefs')}")
+    print(f"Directory contents of /var/lib/litefs: {os.listdir('/var/lib/litefs')}")
+    
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            print("Successfully connected to the database")
+            # Rest of your initialization code
+    except sqlite3.OperationalError as e:
+        print(f"SQLite operational error: {e}")
+        print(f"SQLite version: {sqlite3.sqlite_version}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
 
 @app.route('/clear_chat', methods=['POST'])
 @jwt_required()
@@ -2116,6 +2150,17 @@ def get_portfolio(user_id, name=None):
         portfolio = cursor.fetchall()
     return [{"symbol": row[3], "weight": row[4], "entry_price": row[5]} for row in portfolio]
 
+print(f"Current working directory: {os.getcwd()}")
+print(f"Contents of /: {os.listdir('/')}")
+print(f"Contents of /var: {os.listdir('/var')}")
+print(f"Contents of /var/lib: {os.listdir('/var/lib')}")
+
+if not os.path.exists('/litefs'):
+    print("WARNING: /litefs does not exist!")
+else:
+    print(f"Contents of /litefs: {os.listdir('/litefs')}")
+
+print(f"Contents of /proc/mounts: {open('/proc/mounts').read()}")
 init_db()
 
 class Agents:
@@ -2154,7 +2199,7 @@ class Agents:
         return compliance_agent.check_compliance(data)
     
 def structure_data(data):
-    client = openai.OpenAI()
+    client = openai_client.OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -2301,7 +2346,7 @@ def chat():
     use_claude = request.json.get('use_claude', False)
     
     # Sauvegardez le message de l'utilisateur
-    save_chat_history(user_id, {"role": "user", "content": user_message})
+    save_chat_message(user_id, 'user', user_message)
 
     if not conversation_id:
         conversation_id = conversation_manager.start_conversation()
@@ -2340,12 +2385,12 @@ def chat():
                 return jsonify({"reply": response.content[0].text, "conversation_id": conversation_id})
             assistant_message = response.content[0]
             # Sauvegardez la réponse de l'assistant
-            save_chat_history(user_id, {"role": "assistant", "content": assistant_message.content})
+            save_chat_message(user_id, 'assistant', assistant_message.content)
 
         else:
             assistant_message = response.choices[0].message
             # Sauvegardez la réponse de l'assistant
-            save_chat_history(user_id, {"role": "assistant", "content": assistant_message.content})
+            save_chat_message(user_id, 'assistant', assistant_message.content)
 
         messages.append(assistant_message)
 
@@ -2711,90 +2756,55 @@ def get_news():
 @jwt_required()
 def backtest():
     data = request.json
-    print("Received data in backtest:", data)
-    
     portfolio = data.get('portfolio', {})
     start_date = data.get('start_date')
     end_date = data.get('end_date')
 
-    print("Type of portfolio:", type(portfolio))
-    print("Content of portfolio:", portfolio)
-
-    # Vérifier si le portfolio est vide ou s'il n'y a pas de stocks
     if not portfolio or 'stocks' not in portfolio or not portfolio['stocks']:
         return jsonify({"error": "Portfolio is empty or invalid"}), 400
-
-    # Vérifier et ajuster les dates
-    if not start_date:
-        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-    if not end_date:
-        end_date = datetime.now().strftime('%Y-%m-%d')
 
     # Télécharger les données historiques
     stocks_data = {}
     weights = {}
     for stock in portfolio['stocks']:
-        print(f"Processing stock:")
-        print("Type:", type(stock))
-        print("Content:", stock)
-        
-        try:
-            symbol = stock.get('symbol')
-            weight = stock.get('weight')
-            if not symbol or weight is None:
-                return jsonify({"error": f"Invalid stock data: {stock}"}), 400
-            
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(start=start_date, end=end_date)
-            if hist.empty:
-                return jsonify({"error": f"No historical data available for {symbol}"}), 400
-            
-            stocks_data[symbol] = hist['Close']
-            weights[symbol] = float(weight)
-        except Exception as e:
-            print(f"Error processing stock {stock}: {str(e)}")
-            return jsonify({"error": f"Error processing stock {stock}: {str(e)}"}), 400
+        symbol = stock.get('symbol')
+        weight = float(stock.get('weight', 0)) / 100  # Convertir en décimal
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(start=start_date, end=end_date)
+        if hist.empty:
+            return jsonify({"error": f"No historical data available for {symbol}"}), 400
+        stocks_data[symbol] = hist['Close']
+        weights[symbol] = weight
 
     # Créer un DataFrame avec les prix de clôture de tous les stocks
     df = pd.DataFrame(stocks_data)
 
-    # Vérifier si nous avons des données
-    if df.empty:
-        return jsonify({"error": "No data available for the given date range"}), 400
-
     # Calculer les rendements journaliers
-    returns = df.pct_change().dropna()
+    returns = df.pct_change().fillna(0)
 
-    # Vérifier si nous avons des rendements à analyser
-    if returns.empty:
-        return jsonify({"error": "Insufficient data for analysis"}), 400
+    # Calculer les rendements pondérés du portefeuille
+    portfolio_returns = (returns * pd.Series(weights)).sum(axis=1)
 
-    # Initialiser le portefeuille
-    initial_value = 10000  # Valeur initiale du portefeuille
-    portfolio_value = initial_value
-
-    # Simuler la performance du portefeuille
-    portfolio_returns = []
-    for date, row in returns.iterrows():
-        daily_return = sum(row * pd.Series(weights))
-        portfolio_value *= (1 + daily_return)
-        portfolio_returns.append(float(portfolio_value))
+    # Calculer la valeur du portefeuille au fil du temps
+    initial_value = 10000
+    portfolio_values = (1 + portfolio_returns).cumprod() * initial_value
 
     # Calculer les métriques de performance
-    total_return = (portfolio_value - initial_value) / initial_value
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
-    portfolio_volatility = returns.mul(pd.Series(weights)).sum(axis=1).std() * np.sqrt(252)
-    sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
+    total_return = (portfolio_values.iloc[-1] / initial_value) - 1
+    days = len(returns)
+    annualized_return = (1 + total_return) ** (252 / days) - 1
+    portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
+    risk_free_rate = 0.02  # Taux sans risque supposé de 2%
+    sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility if portfolio_volatility != 0 else 0
 
     results = {
         "total_return": float(total_return),
         "annualized_return": float(annualized_return),
         "volatility": float(portfolio_volatility),
         "sharpe_ratio": float(sharpe_ratio),
-        "portfolio_values": portfolio_returns
+        "portfolio_values": portfolio_values.tolist()
     }
 
-    print("Backtest results:", results)
     return jsonify(results)
 
 @app.route('/chat_history', methods=['GET', 'POST'])
@@ -2813,7 +2823,7 @@ def chat_history():
     elif request.method == 'POST':
         data = request.json
         try:
-            save_chat_history(user_id, data)
+            save_chat_message(user_id, 'user', data)
             return jsonify({"message": "Chat history updated successfully"}), 200
         except Exception as e:
             app.logger.error(f"Error saving chat history: {str(e)}")
@@ -2827,8 +2837,8 @@ def compare_portfolios():
     
     portfolio = data['portfolio']
     benchmark = data['benchmark']
-    start_date = data['start_date']
-    end_date = data['end_date']
+    start_date = data.get('start_date')
+    end_date = data.get('end_date')
 
     print("Type of portfolio:", type(portfolio))
     print("Content of portfolio:", portfolio)
@@ -2856,13 +2866,9 @@ def compare_portfolios():
         return jsonify({"error": "Invalid portfolio structure"}), 400
 
     for stock in stocks:
-        print(f"Processing stock:")
-        print("Type:", type(stock))
-        print("Content:", stock)
-        
         try:
             symbol = stock['symbol']
-            weight = float(stock['weight'])
+            weight = float(stock['weight']) / 100  # Convertir le poids en décimal
             ticker = yf.Ticker(symbol)
             hist = ticker.history(start=start_date, end=end_date)
             portfolio_data[symbol] = hist['Close']
@@ -2875,36 +2881,41 @@ def compare_portfolios():
     if not portfolio_data:
         return jsonify({"error": "No data could be retrieved for the given portfolio"}), 400
 
-    # Calculer les rendements
-    portfolio_return = annualized_return
+    # Calculer les rendements du portefeuille
+    portfolio_returns = pd.DataFrame(portfolio_data).pct_change().dropna()
+    weighted_returns = portfolio_returns.mul(pd.Series(portfolio_weights))
+    portfolio_return = weighted_returns.sum(axis=1)
+
+    # Calculer le rendement total et annualisé du portefeuille
+    total_return = (1 + portfolio_return).prod() - 1
+    days = len(portfolio_return)
+    annualized_return = (1 + total_return) ** (252 / days) - 1
 
     # Télécharger les données historiques du benchmark
     benchmark_ticker = yf.Ticker(benchmark)
     benchmark_data = benchmark_ticker.history(start=start_date, end=end_date)
     benchmark_returns = benchmark_data['Close'].pct_change().dropna()
 
-    # Assurez-vous que les deux séries de rendements ont la même longueur
-    common_index = portfolio_returns.index.intersection(benchmark_returns.index)
-    portfolio_returns = portfolio_returns.loc[common_index]
-    benchmark_returns = benchmark_returns.loc[common_index]
+    # Calculer le rendement total et annualisé du benchmark
+    benchmark_total_return = (1 + benchmark_returns).prod() - 1
+    benchmark_annualized_return = (1 + benchmark_total_return) ** (252 / len(benchmark_returns)) - 1
+
+    # Calculer les volatilités
+    portfolio_volatility = portfolio_return.std() * np.sqrt(252)
+    benchmark_volatility = benchmark_returns.std() * np.sqrt(252)
+
+    # Calculer les ratios de Sharpe (en supposant un taux sans risque de 2%)
+    risk_free_rate = 0.02
+    portfolio_sharpe = (annualized_return - risk_free_rate) / portfolio_volatility
+    benchmark_sharpe = (benchmark_annualized_return - risk_free_rate) / benchmark_volatility
 
     # Calculer la performance cumulée
-    portfolio_cumulative = (1 + (portfolio_returns * pd.Series(portfolio_weights)).sum(axis=1)).cumprod()
+    portfolio_cumulative = (1 + portfolio_return).cumprod()
     benchmark_cumulative = (1 + benchmark_returns).cumprod()
 
-    # Calculer les métriques de performance
-    portfolio_total_return = portfolio_cumulative.iloc[-1] - 1 if len(portfolio_cumulative) > 0 else 0
-    benchmark_total_return = benchmark_cumulative.iloc[-1] - 1 if len(benchmark_cumulative) > 0 else 0
-
-    portfolio_volatility = portfolio_returns.std().mean() * np.sqrt(252) if len(portfolio_returns) > 0 else 0
-    benchmark_volatility = benchmark_returns.std() * np.sqrt(252) if len(benchmark_returns) > 0 else 0
-
-    portfolio_sharpe = ((portfolio_total_return - risk_free_rate) / portfolio_volatility) if portfolio_volatility != 0 else 0
-    benchmark_sharpe = ((benchmark_total_return - risk_free_rate) / benchmark_volatility) if benchmark_volatility != 0 else 0
-
     results = {
-        "portfolio_return": float(portfolio_total_return),
-        "benchmark_return": float(benchmark_total_return),
+        "portfolio_return": float(annualized_return),
+        "benchmark_return": float(benchmark_annualized_return),
         "portfolio_volatility": float(portfolio_volatility),
         "benchmark_volatility": float(benchmark_volatility),
         "portfolio_sharpe": float(portfolio_sharpe),
@@ -2923,11 +2934,10 @@ def simulate_scenario():
     portfolio = data['portfolio']
     scenario = data['scenario']
     
-    # Définir les paramètres des scénarios
     scenarios = {
-        "market_crash": {"mean": -0.3, "volatility": 0.4},
-        "bull_market": {"mean": 0.2, "volatility": 0.15},
-        "high_inflation": {"mean": 0.05, "volatility": 0.25},
+        "market_crash": {"mean": -0.001, "volatility": 0.03},
+        "bull_market": {"mean": 0.0008, "volatility": 0.015},
+        "high_inflation": {"mean": 0.0003, "volatility": 0.02},
     }
     
     if scenario not in scenarios:
@@ -2935,26 +2945,21 @@ def simulate_scenario():
     
     scenario_params = scenarios[scenario]
     
-    # Simuler les rendements pour chaque action du portefeuille
-    simulated_returns = {}
-    for stock in portfolio['stocks']:
-        returns = np.random.normal(scenario_params['mean'], scenario_params['volatility'], 252)  # 252 jours de trading
-        simulated_returns[stock['symbol']] = returns
+    initial_value = 10000
+    days = 252  # 1 year of trading days
     
-    # Calculer la performance du portefeuille
-    portfolio_weights = {stock['symbol']: float(stock['weight']) for stock in portfolio['stocks']}
-    portfolio_returns = sum(simulated_returns[symbol] * weight for symbol, weight in portfolio_weights.items())
-    
-    # Calculer la valeur finale du portefeuille
-    initial_value = 10000  # Valeur initiale supposée
-    final_value = initial_value * (1 + portfolio_returns.sum())
+    daily_returns = np.random.normal(scenario_params['mean'], scenario_params['volatility'], days)
+    cumulative_returns = (1 + daily_returns).cumprod()
+    portfolio_values = initial_value * cumulative_returns
+    final_value = portfolio_values[-1]
     
     results = {
         "scenario": scenario,
         "initial_value": initial_value,
         "final_value": final_value,
-        "total_return": (final_value - initial_value) / initial_value,
-        "daily_returns": portfolio_returns.tolist()
+        "total_return": (final_value / initial_value) - 1,
+        "daily_returns": daily_returns.tolist(),
+        "portfolio_values": portfolio_values.tolist()
     }
     
     return jsonify(results)
@@ -3230,2081 +3235,5 @@ from copilote_central import app
 
 if __name__ == "__main__":
     app.run()
->>>
-
-./copilot/src/HistoricalDataAnalysis.js :
-<<<
-import React, { useState } from 'react';
-import axios from 'axios';
-import { TextField, Button, Typography, CircularProgress } from '@mui/material';
-
-function HistoricalDataAnalysis() {
-    const [ticker, setTicker] = useState('');
-    const [analysis, setAnalysis] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const analyzeHistoricalData = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.post('/previous_day_analysis', { ticker });
-            setAnalysis(response.data.analysis);
-        } catch (error) {
-            console.error('Error analyzing historical data:', error);
-            setAnalysis('Error analyzing data');
-        }
-        setLoading(false);
-    };
-
-    return (
-        <div>
-            <Typography variant="h6">Previous Day Data Analysis</Typography>
-            <TextField
-                label="Stock Ticker"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value)}
-            />
-            <Button onClick={analyzeHistoricalData} disabled={loading}>
-                Analyze Data
-            </Button>
-            {loading ? (
-                <CircularProgress />
-            ) : (
-                <Typography>{analysis}</Typography>
-            )}
-        </div>
-    );
-}
-
-export default HistoricalDataAnalysis;
->>>
-
-./copilot/src/reportWebVitals.js :
-<<<
-const reportWebVitals = onPerfEntry => {
-  if (onPerfEntry && onPerfEntry instanceof Function) {
-    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
-      getCLS(onPerfEntry);
-      getFID(onPerfEntry);
-      getFCP(onPerfEntry);
-      getLCP(onPerfEntry);
-      getTTFB(onPerfEntry);
-    });
-  }
-};
-
-export default reportWebVitals;
-
->>>
-
-./copilot/src/MessageContent.js :
-<<<
-import React from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Typography, Paper, Box } from '@mui/material';
-
-const MessageContent = ({ content, graphs }) => {
-    // Fonction pour vérifier si le contenu est valide
-    const isValidContent = (content) => {
-        return content !== null && content !== undefined && content !== '';
-    };
-
-    const isMarkdown = (str) => {
-        return typeof str === 'string' && (str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## '));
-    };
-
-    // Fonction pour formater le contenu
-    const formatContent = (text) => {
-        if (!isValidContent(text)) return '';
-        return text.replace(/\\n/g, '\n').replace(/\n(?!\n)/g, '\n\n');
-    };
-
-    // Fonction pour vérifier si c'est du JSON valide
-    const isJSON = (str) => {
-        if (!isValidContent(str)) return false;
-        try {
-            const parsed = JSON.parse(str);
-            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && Object.keys(parsed).length > 0;
-        } catch (e) {
-            return false;
-        }
-    };
-
-    // Fonction pour vérifier si c'est un objet string
-    const isStringObject = (str) => {
-        if (!isValidContent(str)) return false;
-        try {
-            const parsed = JSON.parse(str);
-            return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).every(key => !isNaN(parseInt(key)));
-        } catch (e) {
-            return false;
-        }
-    };
-
-    // Gestion du contenu invalide
-    if (!isValidContent(content)) {
-        console.error("Contenu invalide reçu:", content);
-        return (
-            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography color="error">Contenu invalide ou non disponible</Typography>
-            </Paper>
-        );
-    }
-
-    // Traitement du contenu JSON
-    if (isJSON(content)) {
-        try {
-            const jsonData = JSON.parse(content);
-            return (
-                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                    <pre>{JSON.stringify(jsonData, null, 2)}</pre>
-                </Paper>
-            );
-        } catch (error) {
-            console.error("Erreur lors du parsing JSON:", error);
-            return (
-                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                    <Typography color="error">Erreur lors de l'affichage du contenu JSON</Typography>
-                </Paper>
-            );
-        }
-    }
-
-    // Traitement du contenu string object
-    if (isStringObject(content)) {
-        try {
-            const stringContent = Object.values(JSON.parse(content)).join('');
-            return (
-                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                    <Typography>{formatContent(stringContent)}</Typography>
-                </Paper>
-            );
-        } catch (error) {
-            console.error("Erreur lors du parsing de l'objet string:", error);
-            return (
-                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                    <Typography color="error">Erreur lors de l'affichage du contenu</Typography>
-                </Paper>
-            );
-        }
-    }
-    // Traitement pour l'agent de reporting
-    if (typeof content === 'object' && content.report) {
-        return (
-            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography variant="h6">Rapport généré</Typography>
-                <Box component="a" href={`data:application/pdf;base64,${content.report}`} download="report.pdf">
-                    <Typography color="primary">Télécharger le rapport PDF</Typography>
-                </Box>
-            </Paper>
-        );
-    }
-
-    // Traitement pour les autres types de contenu
-    return (
-        <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-            <ReactMarkdown
-                components={{
-                    h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,
-                    h2: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
-                    h3: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
-                    p: ({ node, ...props }) => <Typography paragraph {...props} />,
-                    li: ({ node, ...props }) => <Typography component="li" sx={{ ml: 2 }} {...props} />,
-                    ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
-                    code: ({ node, inline, ...props }) =>
-                        inline ? (
-                            <Box component="code" sx={{ bgcolor: 'grey.100', p: 0.5, borderRadius: 1 }} {...props} />
-                        ) : (
-                            <Box component="pre" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, overflow: 'auto' }}>
-                                <code {...props} />
-                            </Box>
-                        ),
-                    img: ({ node, ...props }) => {
-                        if (props.src.startsWith('data:image')) {
-                            return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
-                        }
-                        // Gérer les autres types d'images si nécessaire
-                        return null;
-                    },
-                }}
-            >
-                {formatContent(content)}
-            </ReactMarkdown>
-            {graphs && graphs.map((graph, index) => (
-                <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
-            ))}
-        </Paper>
-    );
-};
-
-export default MessageContent;
->>>
-
-./copilot/src/Auth.js :
-<<<
-import axios from 'axios';
-
-export const login = async (username, password) => {
-    try {
-        const response = await axios.post(process.env.REACT_APP_API_URL + '/login', { username, password });
-        const { access_token } = response.data;
-        localStorage.setItem('token', access_token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-        return true;
-    } catch (error) {
-        console.error("Login failed", error);
-        return false;
-    }
-};
-
-export const logout = () => {
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
-};
->>>
-
-./copilot/src/index.js :
-<<<
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
-
->>>
-
-./copilot/src/Register.js :
-<<<
-import React, { useState } from 'react';
-import { TextField, Button, Box } from '@mui/material';
-import axios from 'axios';
-
-function Register({ onRegisterSuccess }) {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/register`, {
-                username,
-                password
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            console.log(response.data); // Pour le débogage
-
-            alert('Registration successful! Please log in.');
-            onRegisterSuccess();
-        } catch (error) {
-            console.error("Registration error:", error.response ? error.response.data : error.message);
-            alert('Registration failed. Please try again.');
-        }
-    };
-
-    return (
-        <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-                label="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                fullWidth
-                margin="normal"
-            />
-            <TextField
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                fullWidth
-                margin="normal"
-            />
-            <Button type="submit" variant="contained" color="primary">
-                Register
-            </Button>
-        </Box>
-    );
-}
-
-export default Register;
-
->>>
-
-./copilot/src/InvestmentRecommendation.js :
-<<<
-import React, { useState } from 'react';
-import axios from 'axios';
-import { TextField, Button, Typography, CircularProgress, Select, MenuItem } from '@mui/material';
-
-function InvestmentRecommendation() {
-    const [portfolio, setPortfolio] = useState('');
-    const [riskProfile, setRiskProfile] = useState('moderate');
-    const [recommendation, setRecommendation] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const getRecommendation = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.post('/investment_recommendation', {
-                portfolio: portfolio.split(',').map(stock => stock.trim()),
-                risk_profile: riskProfile
-            });
-            setRecommendation(response.data.recommendation);
-        } catch (error) {
-            console.error('Error getting investment recommendation:', error);
-            setRecommendation('Error getting recommendation');
-        }
-        setLoading(false);
-    };
-
-    return (
-        <div>
-            <Typography variant="h6">Investment Recommendation</Typography>
-            <TextField
-                label="Portfolio (comma-separated tickers)"
-                value={portfolio}
-                onChange={(e) => setPortfolio(e.target.value)}
-            />
-            <Select
-                value={riskProfile}
-                onChange={(e) => setRiskProfile(e.target.value)}
-            >
-                <MenuItem value="conservative">Conservative</MenuItem>
-                <MenuItem value="moderate">Moderate</MenuItem>
-                <MenuItem value="aggressive">Aggressive</MenuItem>
-            </Select>
-            <Button onClick={getRecommendation} disabled={loading}>
-                Get Recommendation
-            </Button>
-            {loading ? (
-                <CircularProgress />
-            ) : (
-                <Typography>{recommendation}</Typography>
-            )}
-        </div>
-    );
-}
-
-export default InvestmentRecommendation;
->>>
-
-./copilot/src/Login.js :
-<<<
-import React, { useState } from 'react';
-import { TextField, Button, Box } from '@mui/material';
-import { login } from './Auth'
-
-function Login({ onLogin }) {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const success = await login(username, password);
-        if (success) {
-            onLogin();
-        } else {
-            alert('Login failed');
-        }
-    };
-
-    return (
-        <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-                label="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                fullWidth
-                margin="normal"
-            />
-            <TextField
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                fullWidth
-                margin="normal"
-            />
-            <Button type="submit" variant="contained" color="primary">
-                Login
-            </Button>
-        </Box>
-    );
-}
-
-export default Login;
->>>
-
-./copilot/src/ErrorBoundary.js :
-<<<
-import React from 'react';
-
-class ErrorBoundary extends React.Component {
-    constructor(props) {
-        super(props);
-        this.state = { hasError: false };
-    }
-
-    static getDerivedStateFromError(error) {
-        return { hasError: true };
-    }
-
-    componentDidCatch(error, errorInfo) {
-        console.log('Error caught by ErrorBoundary:', error, errorInfo);
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return <h1>Something went wrong.</h1>;
-        }
-
-        return this.props.children;
-    }
-}
-
-export default ErrorBoundary;
->>>
-
-./copilot/src/MarketSentiment.js :
-<<<
-import React, { useState } from 'react';
-import axios from 'axios';
-import { TextField, Button, Typography, CircularProgress } from '@mui/material';
-
-function MarketSentiment() {
-    const [ticker, setTicker] = useState('');
-    const [sentiment, setSentiment] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const analyzeSentiment = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.post('/market_sentiment', { ticker });
-            setSentiment(response.data.sentiment);
-        } catch (error) {
-            console.error('Error analyzing market sentiment:', error);
-            setSentiment('Error analyzing sentiment');
-        }
-        setLoading(false);
-    };
-
-    return (
-        <div>
-            <Typography variant="h6">Market Sentiment Analysis</Typography>
-            <TextField
-                label="Stock Ticker"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value)}
-            />
-            <Button onClick={analyzeSentiment} disabled={loading}>
-                Analyze Sentiment
-            </Button>
-            {loading ? (
-                <CircularProgress />
-            ) : (
-                <Typography>{sentiment}</Typography>
-            )}
-        </div>
-    );
-}
-
-export default MarketSentiment;
->>>
-
-./copilot/src/UserProfileAnalysis.js :
-<<<
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Typography, CircularProgress, Button } from '@mui/material';
-
-function UserProfileAnalysis() {
-    const [analysis, setAnalysis] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const getProfileAnalysis = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.post('/user_profile_analysis');
-            setAnalysis(response.data.analysis);
-        } catch (error) {
-            console.error('Error getting user profile analysis:', error);
-            setAnalysis('Error analyzing user profile');
-        }
-        setLoading(false);
-    };
-
-    return (
-        <div>
-            <Typography variant="h6">User Profile Analysis</Typography>
-            <Button onClick={getProfileAnalysis} disabled={loading}>
-                Analyze My Profile
-            </Button>
-            {loading ? (
-                <CircularProgress />
-            ) : (
-                <Typography>{analysis}</Typography>
-            )}
-        </div>
-    );
-}
-
-export default UserProfileAnalysis;
->>>
-
-./copilot/src/Portfolio.js :
-<<<
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-    TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, Paper, List, ListItem, ListItemText, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, CircularProgress, InputAdornment, Autocomplete, IconButton, Box, Switch, FormControlLabel, Tooltip
-} from '@mui/material';
-import {
-    PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid
-} from 'recharts';
-import { Info } from '@mui/icons-material';
-import axios from 'axios';
-
-export const PortfolioPieChart = ({ portfolio }) => {
-    if (!portfolio || !portfolio.stocks || portfolio.stocks.length === 0) {
-        return <Typography>Aucune donnée de portefeuille disponible pour le graphique</Typography>;
-    }
-
-    const data = portfolio.stocks.map(stock => ({
-        name: stock.symbol,
-        value: parseFloat(stock.weight),
-        entryPrice: parseFloat(stock.entry_price)
-    }));
-
-    const COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-
-    const renderCustomizedLabel = ({
-        cx, cy, midAngle, innerRadius, outerRadius, percent, index
-    }) => {
-        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-        const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-        const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-
-        return (
-            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
-                {`${data[index].name} ${(percent * 100).toFixed(0)}%`}
-            </text>
-        );
-    };
-
-    return (
-        <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-                <Pie
-                    data={data}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={renderCustomizedLabel}
-                    outerRadius={150}
-                    fill="#8884d8"
-                    dataKey="value"
-                >
-                    {data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                </Pie>
-                <RechartsTooltip content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                            <div style={{ backgroundColor: '#fff', padding: '5px', border: '1px solid #ccc' }}>
-                                <p>{`${data.name} : ${(data.value * 100).toFixed(2)}%`}</p>
-                                <p>{`Prix d'entrée : $${data.entryPrice}`}</p>
-                            </div>
-                        );
-                    }
-                    return null;
-                }} />
-                <Legend />
-            </PieChart>
-        </ResponsiveContainer>
-    );
-};
-
-function Portfolio() {
-    const [portfolio, setPortfolio] = useState({ name: 'default', stocks: [] });
-    const [newStock, setNewStock] = useState({ symbol: '', weight: '', entryPrice: '' });
-    const [livePrices, setLivePrices] = useState({});
-    const [news, setNews] = useState([]);
-    const [scenarioResults, setScenarioResults] = useState(null);
-    const [openScenario, setOpenScenario] = useState(false);
-    const [selectedScenario, setSelectedScenario] = useState('market_crash');
-    const [openReport, setOpenReport] = useState(false);
-    const [reportData, setReportData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [portfolioValue, setPortfolioValue] = useState(100000); // Valeur par défaut
-    const [displayMode, setDisplayMode] = useState('weight'); // 'weight' ou 'shares'
-    const [editingStock, setEditingStock] = useState(null);
-
-    const handleSubmit = (event) => {
-        event.preventDefault();
-        if (newStock.symbol && newStock.weight && newStock.entryPrice) {
-            addStock();
-        } else {
-            alert('Veuillez remplir tous les champs');
-        }
-    };
-
-    const handleChange = (e) => {
-        setNewStock({ ...newStock, [e.target.name]: e.target.value });
-    };
-
-    useEffect(() => {
-        fetchPortfolio();
-    }, []);
-
-    useEffect(() => {
-        if (portfolio.stocks && portfolio.stocks.length > 0) {
-            fetchLatestPrices();
-        }
-    }, [portfolio]);
-
-    useEffect(() => {
-        const fetchNews = async () => {
-            if (!portfolio || !portfolio.stocks) {
-                console.error("Portfolio or portfolio.stocks is undefined");
-                return;
-            }
-            const tickers = portfolio.stocks.map(stock => stock.symbol).join(',');
-            try {
-                const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
-                setNews(response.data);
-            } catch (error) {
-                console.error("Erreur lors de la récupération des nouvelles:", error);
-            }
-        };
-        fetchNews();
-    }, [portfolio]);
-
-    useEffect(() => {
-        if (newStock.symbol) {
-            const fetchNewStockPrice = async () => {
-                try {
-                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
-                    if (response.data && response.data.price) {
-                        setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
-                    }
-                } catch (error) {
-                    console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
-                }
-            };
-            fetchNewStockPrice();
-        }
-    }, [newStock.symbol]);
-
-    useEffect(() => {
-        const fetchPortfolioValue = async () => {
-            try {
-                const response = await axios.get(process.env.REACT_APP_API_URL + '/get_portfolio_value', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                setPortfolioValue(response.data.portfolio_value);
-            } catch (error) {
-                console.error("Error fetching portfolio value:", error);
-            }
-        };
-        fetchPortfolioValue();
-    }, []);
-
-    const updatePortfolioValue = async (newValue) => {
-        try {
-            await axios.post(process.env.REACT_APP_API_URL + '/update_portfolio_value',
-                { portfolio_value: newValue },
-                { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
-            );
-            setPortfolioValue(newValue);
-        } catch (error) {
-            console.error("Error updating portfolio value:", error);
-        }
-    };
-
-    const fetchPortfolio = async () => {
-        try {
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/portfolio');
-            setPortfolio(response.data);
-        } catch (error) {
-            console.error("Erreur lors de la récupération du portfolio:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const calculateValue = (stock) => {
-        const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
-        return displayMode === 'weight'
-            ? (parseFloat(stock.weight) / 100) * portfolioValue
-            : parseFloat(stock.shares || stock.weight) * currentPrice;
-    };
-
-    const fetchLatestPrices = async () => {
-        if (!portfolio || !portfolio.stocks) {
-            console.error("Portfolio or portfolio.stocks is undefined");
-            return;
-        }
-        const updatedPrices = { ...livePrices };
-        for (const stock of portfolio.stocks) {
-            try {
-                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
-                if (response.data && response.data.price) {
-                    updatedPrices[stock.symbol] = response.data.price;
-                }
-            } catch (error) {
-                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
-            }
-        }
-        setLivePrices(updatedPrices);
-    };
-
-    const addStock = () => {
-        setPortfolio(prevPortfolio => ({
-            ...prevPortfolio,
-            stocks: [...(prevPortfolio.stocks || []), {
-                symbol: newStock.symbol,
-                weight: newStock.weight,
-                entry_price: newStock.entryPrice
-            }]
-        }));
-        setNewStock({ symbol: '', weight: '', entryPrice: '' });
-    };
-
-    const savePortfolio = async () => {
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/portfolio', portfolio);
-            if (response.status === 200) {
-                alert('Portfolio sauvegardé avec succès!');
-                fetchPortfolio();
-            } else {
-                alert('Erreur lors de la sauvegarde du portfolio.');
-            }
-        } catch (error) {
-            console.error("Erreur lors de la sauvegarde du portfolio:", error);
-            alert('Erreur lors de la sauvegarde du portfolio. Veuillez réessayer.');
-        }
-    };
-
-    const simulateScenario = async () => {
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/simulate_scenario', {
-                portfolio: {
-                    stocks: portfolio.stocks.map(stock => ({
-                        symbol: stock.symbol,
-                        weight: parseFloat(stock.weight)
-                    }))
-                },
-                scenario: selectedScenario
-            });
-            setScenarioResults(response.data);
-            setOpenScenario(true);
-        } catch (error) {
-            console.error("Error simulating scenario:", error);
-            alert('Error simulating scenario. Please try again.');
-        }
-    };
-
-    const generateReport = async () => {
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/generate_report', {
-                portfolio: portfolio
-            });
-            setReportData(response.data.report);
-            setOpenReport(true);
-        } catch (error) {
-            console.error("Error generating report:", error);
-            alert('Error generating report. Please try again.');
-        }
-    };
-
-    const handleEditStock = (index) => {
-        setEditingStock(index);
-    };
-
-    const handleSaveStock = (index) => {
-        setEditingStock(null);
-        // Ici, vous pouvez ajouter une logique pour sauvegarder les modifications dans la base de données
-    };
-
-    const handleStockChange = (index, field, value) => {
-        const updatedStocks = [...portfolio.stocks];
-        updatedStocks[index] = { ...updatedStocks[index], [field]: value };
-        setPortfolio({ ...portfolio, stocks: updatedStocks });
-    };
-
-    const formatNumber = (number) => {
-        return new Intl.NumberFormat('fr-FR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(number);
-    };
-
-    const calculateDiff = (entryPrice, currentPrice, shares) => {
-        const diff = (currentPrice - entryPrice) * shares;
-        const color = diff >= 0 ? 'green' : 'red';
-        return { diff, color };
-    };
-
-    if (loading) {
-        return <CircularProgress />;
-    }
-
-    return (
-        <Paper sx={{ padding: 2 }}>
-            <Typography variant="h6">Latest News</Typography>
-            {news && news.length > 0 ? (
-                <List>
-                    {news.map((item, index) => (
-                        <ListItem key={index}>
-                            <ListItemText primary={item.title} secondary={item.description} />
-                        </ListItem>
-                    ))}
-                </List>
-            ) : (
-                <Typography>No news available for the current stocks</Typography>
-            )}
-
-            <form onSubmit={handleSubmit}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                    <Autocomplete
-                        options={['AAPL', 'GOOGL', 'MSFT', 'AMZN']}
-                        renderInput={(params) => <TextField {...params} label="Symbole de l'action" />}
-                        onInputChange={(event, newValue) => setNewStock({ ...newStock, symbol: newValue })}
-                        value={newStock.symbol}
-                        sx={{ flexGrow: 1 }}
-                    />
-                    <TextField
-                        label={displayMode === 'weight' ? "Poids (%)" : "Nombre d'actions"}
-                        type="number"
-                        name={displayMode === 'weight' ? 'weight' : 'shares'}
-                        value={displayMode === 'weight' ? newStock.weight : newStock.shares}
-                        onChange={handleChange}
-                        InputProps={{
-                            endAdornment: displayMode === 'weight' ? <InputAdornment position="end">%</InputAdornment> : null,
-                        }}
-                        sx={{ flexGrow: 1 }}
-                    />
-                    <TextField
-                        label="Prix d'entrée"
-                        type="number"
-                        name="entryPrice"
-                        value={newStock.entryPrice}
-                        onChange={handleChange}
-                        sx={{ flexGrow: 1 }}
-                    />
-                    <Tooltip title={`Le ${displayMode === 'weight' ? 'poids' : 'nombre d\'actions'} représente ${displayMode === 'weight' ? 'le pourcentage' : 'la quantité'} de l'action dans votre portefeuille.`}>
-                        <IconButton>
-                            <Info />
-                        </IconButton>
-                    </Tooltip>
-                    <Button type="submit" variant="contained" color="primary">Ajouter</Button>
-                </Box>
-            </form>
-
-            {portfolio && portfolio.stocks && portfolio.stocks.length > 0 ? (
-                <>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Symbol</TableCell>
-                                <TableCell>{displayMode === 'weight' ? 'Weight (%)' : 'Shares'}</TableCell>
-                                <TableCell>Entry Price</TableCell>
-                                <TableCell>Current Price</TableCell>
-                                <TableCell>Value</TableCell>
-                                <TableCell>Diff</TableCell>
-                                <TableCell>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {portfolio.stocks.map((stock, index) => {
-                                const shares = displayMode === 'weight'
-                                    ? (parseFloat(stock.weight) / 100) * portfolioValue / parseFloat(stock.entry_price)
-                                    : parseFloat(stock.weight);
-                                const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
-                                const value = shares * currentPrice;
-                                const { diff, color } = calculateDiff(parseFloat(stock.entry_price), currentPrice, shares);
-                                return (
-                                    <TableRow key={index}>
-                                        <TableCell>{stock.symbol}</TableCell>
-                                        <TableCell>
-                                            {editingStock === index ? (
-                                                <TextField
-                                                    type="number"
-                                                    value={displayMode === 'weight' ? stock.weight : shares}
-                                                    onChange={(e) => handleStockChange(index, displayMode === 'weight' ? 'weight' : 'shares', e.target.value)}
-                                                    InputProps={displayMode === 'weight' ? {
-                                                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                                                    } : {}}
-                                                />
-                                            ) : (
-                                                displayMode === 'weight'
-                                                    ? `${formatNumber(parseFloat(stock.weight))}%`
-                                                    : formatNumber(shares)
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {editingStock === index ? (
-                                                <TextField
-                                                    type="number"
-                                                    value={stock.entry_price}
-                                                    onChange={(e) => handleStockChange(index, 'entry_price', e.target.value)}
-                                                />
-                                            ) : (
-                                                formatNumber(parseFloat(stock.entry_price))
-                                            )}
-                                        </TableCell>
-                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Loading...'}</TableCell>
-                                        <TableCell>{formatNumber(value)}</TableCell>
-                                        <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
-                                        <TableCell>
-                                            {editingStock === index ? (
-                                                <Button onClick={() => handleSaveStock(index)}>Save</Button>
-                                            ) : (
-                                                <Button onClick={() => handleEditStock(index)}>Edit</Button>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
-                    <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Portfolio Allocation</Typography>
-                    <PortfolioPieChart portfolio={portfolio} />
-                </>
-            ) : (
-                <Typography sx={{ my: 2 }}>Le portefeuille est actuellement vide. Ajoutez des actions pour commencer.</Typography>
-            )}
-
-            <Box sx={{ mt: 3 }}>
-                <TextField
-                    label="Portfolio Value"
-                    value={formatNumber(portfolioValue)}
-                    onChange={(e) => {
-                        const newValue = parseFloat(e.target.value.replace(/[^0-9,-]/g, '').replace(',', '.'));
-                        if (!isNaN(newValue)) {
-                            setPortfolioValue(newValue);
-                            updatePortfolioValue(newValue);
-                        }
-                    }}
-                    fullWidth
-                    margin="normal"
-                />
-                <Typography variant="h6" sx={{ mt: 2 }}>Current Portfolio Value: {portfolioValue.toFixed(2)}</Typography>
-                <FormControlLabel
-                    control={<Switch checked={displayMode === 'shares'} onChange={() => setDisplayMode(displayMode === 'weight' ? 'shares' : 'weight')} />}
-                    label={`Switch to ${displayMode === 'weight' ? 'Shares' : 'Weight'} Mode`}
-                    sx={{ mt: 2 }}
-                />
-            </Box>
-
-            <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary">
-                    Save Portfolio
-                </Button>
-                <Button onClick={() => setOpenScenario(true)} variant="contained">Simulate Scenario</Button>
-                <Button onClick={generateReport} variant="contained">Generate Report</Button>
-            </Box>
-
-            <Dialog
-                open={openScenario}
-                onClose={() => setOpenScenario(false)}
-                fullWidth
-                maxWidth="md"
-            >
-                <DialogTitle>Scenario Simulation</DialogTitle>
-                <DialogContent>
-                    <Select
-                        value={selectedScenario}
-                        onChange={(e) => setSelectedScenario(e.target.value)}
-                        fullWidth
-                        sx={{ mb: 2 }}
-                    >
-                        <MenuItem value="market_crash">Market Crash</MenuItem>
-                        <MenuItem value="bull_market">Bull Market</MenuItem>
-                        <MenuItem value="high_inflation">High Inflation</MenuItem>
-                    </Select>
-                    <Button onClick={simulateScenario} variant="contained" sx={{ mb: 2 }}>Run Simulation</Button>
-                    {scenarioResults && scenarioResults.daily_returns && scenarioResults.daily_returns.length > 0 ? (
-                        <Box>
-                            <Typography>Scenario: {scenarioResults.scenario}</Typography>
-                            <Typography>Initial Value: ${scenarioResults.initial_value.toFixed(2)}</Typography>
-                            <Typography>Final Value: ${scenarioResults.final_value.toFixed(2)}</Typography>
-                            <Typography>Total Return: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
-                            <Box sx={{ width: '100%', height: 400 }}>
-                                <ResponsiveContainer>
-                                    <LineChart data={scenarioResults.daily_returns.map((value, index) => ({ day: index, return: value }))}>
-                                        <XAxis dataKey="day" />
-                                        <YAxis />
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <RechartsTooltip />
-                                        <Legend />
-                                        <Line type="monotone" dataKey="return" stroke="#8884d8" />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </Box>
-                        </Box>
-                    ) : (
-                        <Typography>No scenario data available</Typography>
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenScenario(false)}>Close</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
-                <DialogTitle>Portfolio Report</DialogTitle>
-                <DialogContent>
-                    {reportData && (
-                        <iframe
-                            src={`data:application/pdf;base64,${reportData}`}
-                            width="100%"
-                            height="500px"
-                            style={{ border: 'none' }}
-                        />
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenReport(false)}>Close</Button>
-                    {reportData && (
-                        <Button onClick={() => {
-                            const linkSource = `data:application/pdf;base64,${reportData}`;
-                            const downloadLink = document.createElement("a");
-                            downloadLink.href = linkSource;
-                            downloadLink.download = "portfolio_report.pdf";
-                            downloadLink.click();
-                        }}>
-                            Download PDF
-                        </Button>
-                    )}
-                </DialogActions>
-            </Dialog>
-        </Paper>
-    );
-}
-
-export default Portfolio;
->>>
-
-./copilot/src/Dashboard.js :
-<<<
-import React from 'react';
-import { Grid, Paper, Typography } from '@mui/material';
-import { PortfolioPieChart } from './Portfolio';  // Assurez-vous d'exporter PortfolioPieChart depuis Portfolio.js
-
-function Dashboard({ portfolio }) {
-    console.log('Dashboard portfolio:', portfolio); // Pour déboguer
-
-    if (!portfolio) {
-        return <Typography>Chargement du portfolio...</Typography>;
-    }
-
-    if (!portfolio.stocks || portfolio.stocks.length === 0) {
-        return <Typography>Aucune donnée de portfolio disponible</Typography>;
-    }
-
-    // const totalValue = portfolio.stocks.reduce((sum, stock) => sum + parseFloat(stock.weight) * parseFloat(stock.entryPrice), 0);
-
-    // return (
-    //     <Grid container spacing={3}>
-    //         <Grid item xs={12} md={6}>
-    //             <Paper elevation={3} style={{ padding: '20px' }}>
-    //                 <Typography variant="h6">Valeur du Portfolio</Typography>
-    //                 <Typography variant="h4">${totalValue.toFixed(2)}</Typography>
-    //             </Paper>
-    //         </Grid>
-    //         <Grid item xs={12} md={6}>
-    //             <Paper elevation={3} style={{ padding: '20px' }}>
-    //                 <Typography variant="h6">Allocation du Portfolio</Typography>
-    //                 <PortfolioPieChart portfolio={portfolio} />
-    //             </Paper>
-    //         </Grid>
-    //     </Grid>
-    // );
-    if (!portfolio || !portfolio.stocks) {
-        return <Typography>Aucun portefeuille disponible</Typography>;
-    }
-
-    const totalValue = portfolio.stocks.reduce((sum, stock) => sum + stock.weight * stock.entryPrice, 0);
-
-    return (
-        <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-                <Paper elevation={3} style={{ padding: '20px' }}>
-                    <Typography variant="h6">Portfolio Value</Typography>
-                    <Typography variant="h4">${totalValue.toFixed(2)}</Typography>
-                </Paper>
-            </Grid>
-            <Grid item xs={12} md={6}>
-                <Paper elevation={3} style={{ padding: '20px' }}>
-                    <Typography variant="h6">Portfolio Allocation</Typography>
-                    {portfolio && portfolio.stocks && portfolio.stocks.length > 0 ? (
-                        <PortfolioPieChart portfolio={portfolio} />
-                    ) : (
-                        <Typography>Aucune donnée disponible</Typography>
-                    )}
-                </Paper>
-            </Grid>
-            {/* Ajoutez d'autres widgets ici */}
-        </Grid>
-    );
-}
-
-export default Dashboard;
->>>
-
-./copilot/src/setupTests.js :
-<<<
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
-// expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
-
->>>
-
-./copilot/src/App.js :
-<<<
-import React, { useState, useEffect, useCallback } from 'react';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar, Switch, FormControlLabel } from '@mui/material';
-import Settings from './Settings';
-import Portfolio from './Portfolio';
-import Login from './Login';
-import Register from './Register';
-import Dashboard from './Dashboard';
-import MarketSentiment from './MarketSentiment';
-import InvestmentRecommendation from './InvestmentRecommendation';
-import HistoricalDataAnalysis from './HistoricalDataAnalysis';
-import UserProfileAnalysis from './UserProfileAnalysis';
-import MessageContent from './MessageContent'
-import axios from 'axios';
-import { logout } from './Auth';
-import ErrorBoundary from './ErrorBoundary';
-
-function a11yProps(index) {
-    return {
-        id: `scrollable-auto-tab-${index}`,
-        'aria-controls': `scrollable-auto-tabpanel-${index}`,
-    };
-}
-
-function App() {
-    const [darkMode, setDarkMode] = useState(false);
-    const [input, setInput] = useState('');
-    const [messages, setMessages] = useState([]);
-    const [activeTab, setActiveTab] = useState(0);
-    const [loading, setLoading] = useState(false);
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [showLogin, setShowLogin] = useState(true);
-    const [openBacktest, setOpenBacktest] = useState(false);
-    const [backtestResults, setBacktestResults] = useState(null);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [openComparison, setOpenComparison] = useState(false);
-    const [comparisonResults, setComparisonResults] = useState(null);
-    const [benchmark, setBenchmark] = useState('SPY');
-    const [comparisonStartDate, setComparisonStartDate] = useState('');
-    const [comparisonEndDate, setComparisonEndDate] = useState('');
-    const [conversationId, setConversationId] = useState(null);
-    const [file, setFile] = useState(null);
-    const [portfolio, setPortfolio] = useState([]);
-    const [portfolioLoading, setPortfolioLoading] = useState(true);
-    const [news, setNews] = useState([]);
-    const [settings, setSettings] = useState({
-        risk_tolerance: 'moderate',
-    });
-
-    const theme = createTheme({
-        palette: {
-            mode: darkMode ? 'dark' : 'light',
-            primary: {
-                main: '#1976d2',
-            },
-            secondary: {
-                main: '#dc004e',
-            },
-        },
-    });
-
-    const fetchSettings = async () => {
-        try {
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/settings');
-            setSettings(response.data);
-        } catch (error) {
-            console.error("Error fetching settings:", error);
-        }
-    };
-
-    useEffect(() => {
-        fetchSettings();
-    }, []);
-
-
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            setIsLoggedIn(true);
-        }
-    }, []);
-
-    const clearChatHistory = useCallback(() => {
-        setMessages([]);
-        setConversationId(null);
-    }, []);
-
-    useEffect(() => {
-        // Charger l'historique des chats au montage du composant
-        fetchChatHistory();
-    }, []);
-
-    const fetchChatHistory = async () => {
-        try {
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/chat_history');
-            setMessages(response.data.reverse());  // Inversez l'ordre des messages
-        } catch (error) {
-            console.error('Error fetching chat history:', error);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!input.trim()) return;
-
-        setLoading(true);
-        const newMessage = { role: 'user', content: input };
-        setMessages(prevMessages => [newMessage, ...prevMessages]);
-        setInput('');
-
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
-                message: input,
-                conversation_id: conversationId
-            });
-            setConversationId(response.data.conversation_id);
-            setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
-        } catch (error) {
-            console.error('Error sending message:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchPortfolio = async () => {
-        try {
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/portfolio');
-            setPortfolio(response.data);
-        } catch (error) {
-            console.error("Erreur lors de la récupération du portfolio:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchNews = async () => {
-        setLoading(true);
-        const tickers = portfolio.map(stock => stock.symbol).join(',');
-        try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
-            setNews(response.data);
-        } catch (error) {
-            console.error("Erreur lors de la récupération des nouvelles:", error);
-            setNews([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchLivePrice = useCallback(async (symbol) => {
-        if (!symbol) return null;
-        try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/live_price?symbol=${symbol}`);
-            return response.data.price;
-        } catch (error) {
-            console.error(`Error fetching live price for ${symbol}:`, error);
-            return null;
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchLivePrice();
-    }, [fetchLivePrice]);
-
-    useEffect(() => {
-        if (portfolio.length > 0) {
-            fetchNews();
-        }
-    }, [portfolio]);
-
-    const handleAgentCall = async (agentName) => {
-        setLoading(true);
-        let data = {};
-        switch (agentName) {
-            case 'document':
-                data = { text: input };
-                break;
-            case 'sentiment':
-                data = { company: input };
-                break;
-            case 'financial_modeling':
-                data = { ticker: input };
-                break;
-            case 'portfolio_optimization':
-            case 'risk_management':
-                data = { tickers: input.split(','), portfolio_value: 100000 };
-                break;
-            case 'reporting':
-                data = { portfolio_data: portfolio.stocks };
-            case 'compliance':
-                try {
-                    // Essayez de parser input comme JSON
-                    const parsedInput = JSON.parse(input);
-                    data = { portfolio_data: parsedInput };
-                } catch (error) {
-                    // Si le parsing échoue, supposons que c'est une chaîne de caractères représentant un portefeuille
-                    console.warn("Input is not valid JSON, treating it as a string representation of portfolio");
-                    // Vous pouvez implémenter ici une logique pour convertir la chaîne en objet de portfolio
-                    // Par exemple, si la chaîne est au format "AAPL:30%,GOOGL:40%,MSFT:30%"
-                    const portfolioArray = input.split(',').map(item => {
-                        const [symbol, weight] = item.split(':');
-                        return { symbol, weight: parseFloat(weight) };
-                    });
-                    data = { portfolio_data: portfolioArray };
-                }
-                break;
-            case 'market_sentiment':
-                data = { ticker: input };
-                break;
-            case 'user_profile_analysis':
-                // Nous allons utiliser l'ID de l'utilisateur connecté
-                data = { user_id: localStorage.getItem('userId') };
-                break;
-            case 'historical_data_analysis':
-                // Supposons que l'utilisateur entre le ticker dans l'input
-                data = {
-                    ticker: input,
-                    start_date: startDate,  // Assurez-vous que ces variables sont définies dans votre composant
-                    end_date: endDate
-                };
-                break;
-            case 'investment_recommendation':
-                try {
-                    const settingsResponse = await axios.get(process.env.REACT_APP_API_URL + '/settings');
-                    data = {
-                        portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
-                        risk_profile: settingsResponse.data.risk_profile || 'moderate'
-                    };
-                } catch (error) {
-                    console.error("Error fetching settings:", error);
-                    data = {
-                        portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
-                        risk_profile: 'moderate'
-                    };
-                }
-                break;
-            default:
-                data = { input: input };
-                break;
-        }
-        const userMessage = { role: 'user', content: input };
-        setMessages(prevMessages => [userMessage, ...prevMessages]);
-        try {
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
-        } catch (error) {
-            console.error('Error saving user message to chat history:', error);
-        }
-
-        try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
-            let newMessage = {
-                role: 'assistant',
-                content: typeof response.data === 'string' ? response.data : response.data.content || 'Pas de contenu reçu de l\'agent'
-            };
-            if (response.data.graphs) {
-                newMessage.graphs = response.data.graphs;
-            }
-            setMessages(prevMessages => [newMessage, ...prevMessages]);
-
-            // Sauvegardez le message de l'agent dans la base de données
-            try {
-                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
-            } catch (saveError) {
-                console.error('Error saving agent message to chat history:', saveError);
-            }
-        } catch (error) {
-            console.error(`Error calling ${agentName} agent:`, error);
-            const errorMessage = {
-                role: 'assistant',
-                content: `Error: ${error.response?.data?.error || error.message}`
-            };
-            setMessages(prevMessages => [errorMessage, ...prevMessages]);
-
-            // Sauvegarder le message d'erreur dans l'historique du chat
-            try {
-                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
-            } catch (saveError) {
-                console.error('Error saving error message to chat history:', saveError);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-            setFile(file);
-            setLoading(true);
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const response = await axios.post(process.env.REACT_APP_API_URL + '/upload_pdf', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: JSON.stringify(response.data, null, 2) }]);
-            } catch (error) {
-                console.error('Error uploading PDF:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
-    };
-    const handlePDFUpload = async (e) => {
-        const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-            setLoading(true);
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const response = await axios.post(process.env.REACT_APP_API_URL + '/upload_pdf', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: JSON.stringify(response.data, null, 2) }]);
-            } catch (error) {
-                console.error('Error uploading PDF:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
-    };
-
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            setIsLoggedIn(true);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            fetchPortfolio();
-        } else {
-            setIsLoggedIn(false);
-        }
-    }, []);
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file && file.type === 'application/pdf') {
-            handlePDFUpload({ target: { files: [file] } });
-        }
-    };
-
-    // Assurez-vous d'inclure le token dans toutes les requêtes
-    axios.interceptors.request.use(
-        (config) => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                config.headers['Authorization'] = `Bearer ${token}`;
-            }
-            return config;
-        },
-        (error) => {
-            return Promise.reject(error);
-        }
-    );
-
-    const handleLogin = () => {
-        setIsLoggedIn(true);
-        // Assurez-vous que le token est stocké dans localStorage
-        const token = localStorage.getItem('token');
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        }
-    };
-
-    const handleLogout = () => {
-        logout();
-        setIsLoggedIn(false);
-    };
-
-    const runBacktest = async () => {
-        if (!portfolio || !portfolio.stocks || portfolio.stocks.length === 0) {
-            alert("Portfolio is empty. Please add some stocks before running the backtest.");
-            return;
-        }
-
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/backtest', {
-                portfolio: portfolio,
-                start_date: startDate,
-                end_date: endDate
-            });
-            setBacktestResults(response.data);
-            setOpenBacktest(true);
-        } catch (error) {
-            console.error("Error running backtest:", error);
-            if (error.response && error.response.data && error.response.data.error) {
-                alert(`Error running backtest: ${error.response.data.error}`);
-            } else {
-                alert('Error running backtest. Please try again.');
-            }
-        }
-    };
-
-    const compareWithBenchmark = async () => {
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/compare_portfolios', {
-                portfolio: portfolio.stocks, // Assurez-vous que c'est bien un tableau d'objets stock
-                benchmark: benchmark,
-                start_date: comparisonStartDate,
-                end_date: comparisonEndDate
-            });
-            setComparisonResults(response.data);
-            setOpenComparison(true);
-        } catch (error) {
-            console.error("Error comparing portfolios:", error);
-            if (error.response) {
-                console.error("Response data:", error.response.data);
-                console.error("Response status:", error.response.status);
-            }
-            alert('Error comparing portfolios. Please try again.');
-        }
-    };
-
-    const onClearChat = useCallback(async () => {
-        try {
-            await axios.post(process.env.REACT_APP_API_URL + '/clear_chat');
-            setMessages([]);
-            setConversationId(null);
-            alert('Chat history cleared successfully');
-        } catch (error) {
-            console.error('Error clearing chat history:', error);
-            alert('Error clearing chat history. Please try again.');
-        }
-    }, []);
-
-    if (!isLoggedIn) {
-        return (
-            <Container maxWidth="sm">
-                <Box mt={4}>
-                    {showLogin ? (
-                        <>
-                            <Login onLogin={handleLogin} />
-                            <Button onClick={() => setShowLogin(false)}>
-                                Don't have an account? Register
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                            <Register onRegisterSuccess={() => setShowLogin(true)} />
-                            <Button onClick={() => setShowLogin(true)}>
-                                Already have an account? Login
-                            </Button>
-                        </>
-                    )}
-                </Box>
-            </Container>
-        );
-    }
-    return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <Fade in={true} timeout={1000}>
-                <Slide direction="up" in={true} mountOnEnter unmountOnExit>
-                    <Container maxWidth="md">
-                        <Paper elevation={3} style={{ padding: '20px', marginTop: '20px', borderRadius: '15px' }}>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Button onClick={handleLogout} variant="outlined" color="secondary">Logout</Button>
-                                <img src="/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto' }} />
-                                <FormControlLabel
-                                    control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
-                                    label="Dark Mode"
-                                />
-                            </Box>
-                            <AppBar position="static" color="default">
-                                <Tabs
-                                    value={activeTab}
-                                    onChange={(e, newValue) => setActiveTab(newValue)}
-                                    indicatorColor="primary"
-                                    textColor="primary"
-                                    variant="scrollable"
-                                    scrollButtons="auto"
-                                    aria-label="scrollable auto tabs example"
-                                >
-                                    <Tab label="Copilot" {...a11yProps(0)} />
-                                    <Tab label="Agents" {...a11yProps(1)} />
-                                    <Tab label="PDF Analysis" {...a11yProps(2)} />
-                                    <Tab label="Settings" {...a11yProps(3)} />
-                                    <Tab label="Portfolio" {...a11yProps(4)} />
-                                    <Tab label="Chargement Portfolio" {...a11yProps(5)} />
-                                    <Tab label="Market Sentiment" {...a11yProps(6)} />
-                                    <Tab label="Investment Recommendation" {...a11yProps(7)} />
-                                    <Tab label="Historical Data Analysis" {...a11yProps(8)} />
-                                    <Tab label="User Profile Analysis" {...a11yProps(9)} />
-                                </Tabs>
-                            </AppBar>
-                            <Box p={3}>
-                                {activeTab === 0 && (
-                                    <>
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={<MessageContent content={message.content} graphs={message.graphs} />}
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                        <form onSubmit={handleSubmit}>
-                                            <TextField
-                                                fullWidth
-                                                variant="outlined"
-                                                value={input}
-                                                onChange={(e) => setInput(e.target.value)}
-                                                placeholder="Type your message..."
-                                                margin="normal"
-                                            />
-                                            <Button type="submit" variant="contained" color="primary" disabled={loading}>
-                                                {loading ? <CircularProgress size={24} /> : 'Send'}
-                                            </Button>
-                                        </form>
-                                        <input
-                                            type="file"
-                                            accept=".pdf"
-                                            onChange={handlePDFUpload}
-                                            style={{ display: 'none' }}
-                                            id="pdf-upload"
-                                        />
-                                        <label htmlFor="pdf-upload">
-                                            <Button variant="contained" component="span" color="primary">
-                                                Upload PDF
-                                            </Button>
-                                        </label>
-                                        <Typography variant="body2" style={{ marginTop: '10px' }}>
-                                            You can also drag and drop a PDF file here
-                                        </Typography>
-                                    </>
-                                )}
-                                {activeTab === 1 && (
-                                    <>
-                                        <TextField
-                                            fullWidth
-                                            variant="outlined"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Enter data for agent..."
-                                            margin="normal"
-                                        />
-                                        <Button onClick={() => handleAgentCall('document')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Document Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Sentiment Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('financial_modeling')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Financial Modeling
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('portfolio_optimization')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Portfolio Optimization
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('risk_management')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Risk Management
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('reporting')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Reporting
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('compliance')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Compliance Check
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('market_sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Market Sentiment
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('user_profile_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            User Profile Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('historical_data_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Historical Data Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('investment_recommendation')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Investment Recommendation
-                                        </Button>
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={
-                                                            <>
-                                                                <MessageContent content={message.content} />
-                                                                {message.graphs && message.graphs.map((graph, graphIndex) => (
-                                                                    <img
-                                                                        key={graphIndex}
-                                                                        src={`data:image/png;base64,${graph}`}
-                                                                        alt={`Portfolio Graph ${graphIndex + 1}`}
-                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
-                                                                    />
-                                                                ))}
-                                                                {message.graph && (
-                                                                    <img
-                                                                        src={`data:image/png;base64,${message.graph}`}
-                                                                        alt="Graph"
-                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
-                                                                    />
-                                                                )}
-                                                            </>
-                                                        }
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                    </>
-                                )}
-                                {activeTab === 2 && (
-                                    <>
-                                        <input
-                                            type="file"
-                                            accept=".pdf"
-                                            onChange={handleFileUpload}
-                                            style={{ display: 'none' }}
-                                            id="pdf-upload"
-                                        />
-                                        <label htmlFor="pdf-upload">
-                                            <Button variant="contained" component="span" color="primary" disabled={loading}>
-                                                Upload PDF
-                                            </Button>
-                                        </label>
-                                        {file && <Typography variant="body1">{file.name}</Typography>}
-                                        {loading && <CircularProgress />}
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={<MessageContent content={message.content} />}
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                    </>
-                                )}
-                                {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
-                                {activeTab === 4 && <Portfolio />}
-
-                                <Button onClick={() => setOpenBacktest(true)}>Run Backtest</Button>
-
-                                <Dialog
-                                    open={openBacktest}
-                                    onClose={() => setOpenBacktest(false)}
-                                    fullWidth
-                                    maxWidth="lg"
-                                    PaperProps={{
-                                        style: {
-                                            width: '65%',
-                                            height: '73%',
-                                            maxWidth: 'none',
-                                            maxHeight: 'none',
-                                            margin: 'auto'
-                                        }
-                                    }}
-                                >
-                                    <DialogTitle>Backtest Results</DialogTitle>
-                                    <DialogContent>
-                                        <TextField
-                                            label="Start Date"
-                                            type="date"
-                                            value={startDate}
-                                            onChange={(e) => setStartDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        <TextField
-                                            label="End Date"
-                                            type="date"
-                                            value={endDate}
-                                            onChange={(e) => setEndDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        <Button onClick={runBacktest}>Run Backtest</Button>
-                                        {backtestResults && (
-                                            <>
-                                                <p>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</p>
-                                                <p>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</p>
-                                                <p>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</p>
-                                                <p>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</p>
-                                                <div style={{ width: '100%', height: '41%' }}>
-                                                    <ResponsiveContainer>
-                                                        <LineChart width="100%" height={800} data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
-                                                            <XAxis dataKey="date" />
-                                                            <YAxis />
-                                                            <CartesianGrid strokeDasharray="3 3" />
-                                                            <Tooltip />
-                                                            <Legend />
-                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" />
-                                                        </LineChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </>
-                                        )}
-                                    </DialogContent>
-                                    <DialogActions>
-                                        <Button onClick={() => setOpenBacktest(false)}>Close</Button>
-                                    </DialogActions>
-                                </Dialog>
-                                <Button onClick={() => setOpenComparison(true)}>Compare with Benchmark</Button>
-
-                                <Dialog open={openComparison} onClose={() => setOpenComparison(false)}>
-                                    <DialogTitle>Portfolio Comparison</DialogTitle>
-                                    <DialogContent>
-                                        <Select
-                                            value={benchmark}
-                                            onChange={(e) => setBenchmark(e.target.value)}
-                                            fullWidth
-                                            margin="normal"
-                                        >
-                                            <MenuItem value="SPY">S&P 500 (SPY)</MenuItem>
-                                            <MenuItem value="QQQ">Nasdaq 100 (QQQ)</MenuItem>
-                                            <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
-                                        </Select>
-                                        <TextField
-                                            label="Start Date"
-                                            type="date"
-                                            value={comparisonStartDate}
-                                            onChange={(e) => setComparisonStartDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        <TextField
-                                            label="End Date"
-                                            type="date"
-                                            value={comparisonEndDate}
-                                            onChange={(e) => setComparisonEndDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        {/* <Button onClick={compareWithBenchmark}>Compare</Button> */}
-                                        {comparisonResults && (
-                                            <>
-                                                <p>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</p>
-                                                <p>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</p>
-                                                <p>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</p>
-                                                <p>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</p>
-                                                <p>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</p>
-                                                <p>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</p>
-                                                {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
-                                                    <LineChart width={500} height={300} data={comparisonResults.portfolio_cumulative.map((value, index) => ({
-                                                        date: index,
-                                                        portfolio: value,
-                                                        benchmark: comparisonResults.benchmark_cumulative[index]
-                                                    }))}>
-                                                        <XAxis dataKey="date" />
-                                                        <YAxis />
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <Tooltip />
-                                                        <Legend />
-                                                        <Line type="monotone" dataKey="portfolio" stroke="#8884d8" />
-                                                        <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" />
-                                                    </LineChart>
-                                                )}
-                                            </>
-                                        )}
-                                    </DialogContent>
-                                    <DialogActions>
-                                        <Button onClick={compareWithBenchmark}>Compare</Button>
-                                        <Button onClick={() => setOpenComparison(false)}>Close</Button>
-                                    </DialogActions>
-                                </Dialog>
-                                {activeTab === 5 && (
-                                    <ErrorBoundary>
-                                        {portfolioLoading ? (
-                                            <Typography>Chargement du portfolio...</Typography>
-                                        ) : portfolio ? (
-                                            <Dashboard portfolio={portfolio} />
-                                        ) : (
-                                            <Typography>Erreur lors du chargement du portfolio</Typography>
-                                        )}
-                                    </ErrorBoundary>
-                                )}
-                                {activeTab === 6 && <MarketSentiment />}
-                                {activeTab === 7 && <InvestmentRecommendation />}
-                                {activeTab === 8 && <HistoricalDataAnalysis />}
-                                {activeTab === 9 && <UserProfileAnalysis />}
-                            </Box>
-                        </Paper>
-                    </Container>
-                </Slide >
-            </Fade >
-        </ThemeProvider>
-    );
-}
-
-export default App;
->>>
-
-./copilot/src/Settings.js :
-<<<
-import React, { useState, useEffect } from 'react';
-import { TextField, Button, Select, MenuItem, Chip, Box, FormControl, InputLabel } from '@mui/material';
-import axios from 'axios';
-
-function Settings({ onClearChat }) {
-    const [settings, setSettings] = useState({
-        default_portfolio_value: 100000,
-        risk_profile: 'moderate',
-        preferred_sectors: []
-    });
-
-    useEffect(() => {
-        fetchSettings();
-    }, []);
-
-    const fetchSettings = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/settings', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            setSettings({
-                ...response.data,
-                preferred_sectors: Array.isArray(response.data.preferred_sectors)
-                    ? response.data.preferred_sectors
-                    : []
-            });
-        } catch (error) {
-            console.error("Error fetching settings:", error);
-        }
-    };
-
-    const handleChange = (event) => {
-        setSettings({ ...settings, [event.target.name]: event.target.value });
-    };
-
-    const handleSectorChange = (event) => {
-        setSettings({ ...settings, preferred_sectors: event.target.value });
-    };
-
-    const handleSettingsChange = (setting, value) => {
-        setSettings(prevSettings => ({ ...prevSettings, [setting]: value }));
-    };
-
-    const clearChat = async () => {
-        try {
-            await axios.post(process.env.REACT_APP_API_URL + '/clear_chat');
-            alert('Chat history cleared successfully');
-            onClearChat(); // Appel de la fonction pour mettre à jour l'état dans App.js
-        } catch (error) {
-            console.error('Error clearing chat history:', error);
-            alert('Error clearing chat history. Please try again.');
-        }
-    };
-
-    const saveSettings = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/settings', settings, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.data.message === "Settings updated successfully") {
-                alert('Settings saved successfully');
-            } else {
-                throw new Error('Unexpected response');
-            }
-        } catch (error) {
-            console.error('Error saving settings:', error);
-            alert('Error saving settings. Please try again.');
-        }
-    };
-
-    return (
-        <Box>
-            <TextField
-                label="Default Portfolio Value"
-                value={settings.default_portfolio_value}
-                onChange={(e) => handleSettingsChange('default_portfolio_value', e.target.value)}
-                type="number"
-                fullWidth
-                margin="normal"
-            />
-            <FormControl fullWidth margin="normal">
-                <InputLabel>Risk Profile</InputLabel>
-                <Select
-                    value={settings.risk_profile}
-                    onChange={(e) => handleSettingsChange('risk_profile', e.target.value)}
-                >
-                    <MenuItem value="low">Low</MenuItem>
-                    <MenuItem value="moderate">Moderate</MenuItem>
-                    <MenuItem value="high">High</MenuItem>
-                </Select>
-            </FormControl>
-            <Select
-                label="Preferred Sectors"
-                name="preferred_sectors"
-                multiple
-                value={settings.preferred_sectors}
-                onChange={handleSectorChange}
-                renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {selected.map((value) => (
-                            <Chip key={value} label={value} />
-                        ))}
-                    </Box>
-                )}
-                fullWidth
-                margin="normal"
-            >
-                <MenuItem value="Technology">Technology</MenuItem>
-                <MenuItem value="Healthcare">Healthcare</MenuItem>
-                <MenuItem value="Finance">Finance</MenuItem>
-                <MenuItem value="Energy">Energy</MenuItem>
-            </Select>
-            <Button
-                onClick={clearChat}
-                variant="contained"
-                color="secondary"
-                style={{ marginTop: '20px' }}
-            >
-                Clear Chat History
-            </Button>
-            <Button onClick={saveSettings} variant="contained" color="primary">
-                Save Settings
-            </Button>
-        </Box>
-    );
-}
-
-export default Settings;
 >>>
 

@@ -16,16 +16,21 @@ primary_region = 'cdg'
     hard_limit = 25
     soft_limit = 20
 
+[mounts]
+  source = "litefs_data"
+  destination = "/var/lib/litefs"
+
 [[services]]
-  protocol = "tcp"
   internal_port = 8080
-  
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
+  protocol = "tcp"
+
+[[services.ports]]
+  handlers = ["http"]
+  port = 80
+
+[[services.ports]]
+  handlers = ["tls", "http"]
+  port = 443
 
 [[vm]]
   size = "shared-cpu-1x"

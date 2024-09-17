@@ -60,7 +60,7 @@ openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 # Configuration de la base de données SQLite
-DATABASE = 'copilote.db'
+DATABASE = '/litefs/copilot-db.db'
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
@@ -345,8 +345,11 @@ def login():
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):
-    with sqlite3.connect(DATABASE) as conn:
+    with sqlite3.connect('copilote.db') as conn:
         cursor = conn.cursor()
+        # Convertir le contenu en JSON s'il s'agit d'un dictionnaire
+        if isinstance(content, dict):
+            content = json.dumps(content)
         cursor.execute("""
             INSERT INTO chat_history (user_id, role, content, timestamp)
             VALUES (?, ?, ?, datetime('now'))
@@ -354,17 +357,23 @@ def save_chat_message(user_id, role, content):
         conn.commit()
 
 # Fonction pour récupérer l'historique des chats
-def get_chat_history(user_id, limit=50):
-    with sqlite3.connect(DATABASE) as conn:
+def get_chat_history(user_id):
+    with sqlite3.connect('copilote.db') as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT role, content, timestamp FROM chat_history
             WHERE user_id = ?
             ORDER BY timestamp DESC
-            LIMIT ?
-        """, (user_id, limit))
-        messages = cursor.fetchall()
-    return [json.loads(message[0]) for message in messages]
+        """, (user_id,))
+        results = cursor.fetchall()
+        return [
+            {
+                "role": role,
+                "content": json.loads(content) if content.startswith('{') else content,
+                "timestamp": timestamp
+            }
+            for role, content, timestamp in results
+        ]
 
 class ConversationManager:
     def __init__(self):
@@ -477,44 +486,61 @@ def execute_function(function_name, arguments, user_message):
             "message": f"Une erreur s'est produite lors de l'exécution de {function_name}: {str(e)}"
         }
 
+# def init_db():
+#     with sqlite3.connect(DATABASE) as conn:
+#         conn.execute('''CREATE TABLE IF NOT EXISTS users
+#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                          username TEXT UNIQUE NOT NULL,
+#                          password TEXT NOT NULL)''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS portfolios
+#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                          user_id INTEGER,
+#                          name TEXT NOT NULL,
+#                          data TEXT NOT NULL)''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS portfolio (
+#                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                         user_id INTEGER,
+#                         name TEXT,
+#                         symbol TEXT,
+#                         weight REAL,
+#                         entry_price REAL,
+#                         FOREIGN KEY (user_id) REFERENCES users(id))''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
+#                         user_id INTEGER PRIMARY KEY,
+#                         setting_name TEXT,
+#                         setting_value TEXT,
+#                         FOREIGN KEY (user_id) REFERENCES users(id)
+#                     )''')
+#         conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
+#                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                         task_type TEXT NOT NULL,
+#                         status TEXT NOT NULL,
+#                         result TEXT
+#                     )''')
+#         conn.execute('''DROP TABLE IF EXISTS chat_history''')
+#         conn.execute('''CREATE TABLE chat_history
+#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                          user_id INTEGER,
+#                          role TEXT,
+#                          content TEXT,
+#                          timestamp DATETIME,
+#                          FOREIGN KEY (user_id) REFERENCES users(id))''')
+
 def init_db():
-    with sqlite3.connect(DATABASE) as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS users
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         username TEXT UNIQUE NOT NULL,
-                         password TEXT NOT NULL)''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS portfolios
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         user_id INTEGER,
-                         name TEXT NOT NULL,
-                         data TEXT NOT NULL)''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS portfolio (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        name TEXT,
-                        symbol TEXT,
-                        weight REAL,
-                        entry_price REAL,
-                        FOREIGN KEY (user_id) REFERENCES users(id))''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
-                        user_id INTEGER PRIMARY KEY,
-                        setting_name TEXT,
-                        setting_value TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id)
-                    )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        task_type TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        result TEXT
-                    )''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS chat_history
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         user_id INTEGER,
-                         role TEXT,
-                         content TEXT,
-                         timestamp DATETIME,
-                         FOREIGN KEY (user_id) REFERENCES users(id))''')
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"DATABASE path: {DATABASE}")
+    print(f"Directory contents of /litefs: {os.listdir('/litefs')}")
+    print(f"Directory contents of /var/lib/litefs: {os.listdir('/var/lib/litefs')}")
+    
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            print("Successfully connected to the database")
+            # Rest of your initialization code
+    except sqlite3.OperationalError as e:
+        print(f"SQLite operational error: {e}")
+        print(f"SQLite version: {sqlite3.sqlite_version}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
 
 @app.route('/clear_chat', methods=['POST'])
 @jwt_required()
@@ -563,6 +589,17 @@ def get_portfolio(user_id, name=None):
         portfolio = cursor.fetchall()
     return [{"symbol": row[3], "weight": row[4], "entry_price": row[5]} for row in portfolio]
 
+print(f"Current working directory: {os.getcwd()}")
+print(f"Contents of /: {os.listdir('/')}")
+print(f"Contents of /var: {os.listdir('/var')}")
+print(f"Contents of /var/lib: {os.listdir('/var/lib')}")
+
+if not os.path.exists('/litefs'):
+    print("WARNING: /litefs does not exist!")
+else:
+    print(f"Contents of /litefs: {os.listdir('/litefs')}")
+
+print(f"Contents of /proc/mounts: {open('/proc/mounts').read()}")
 init_db()
 
 class Agents:
@@ -787,12 +824,12 @@ def chat():
                 return jsonify({"reply": response.content[0].text, "conversation_id": conversation_id})
             assistant_message = response.content[0]
             # Sauvegardez la réponse de l'assistant
-            save_chat_history(user_id, 'assistant', assistant_message.content)
+            save_chat_message(user_id, 'assistant', assistant_message.content)
 
         else:
             assistant_message = response.choices[0].message
             # Sauvegardez la réponse de l'assistant
-            save_chat_history(user_id, 'assistant', assistant_message.content)
+            save_chat_message(user_id, 'assistant', assistant_message.content)
 
         messages.append(assistant_message)
 
@@ -1217,7 +1254,7 @@ def chat_history():
     if request.method == 'GET':
         try:
             history = get_chat_history(user_id)
-            return jsonify([{"role": role, "content": content, "timestamp": timestamp} for role, content, timestamp in history]), 200
+            return jsonify(history), 200
         except Exception as e:
             app.logger.error(f"Error retrieving chat history: {str(e)}")
             return jsonify({"error": "Failed to retrieve chat history"}), 500
@@ -1225,7 +1262,7 @@ def chat_history():
     elif request.method == 'POST':
         data = request.json
         try:
-            save_chat_history(user_id, data)
+            save_chat_message(user_id, 'user', data)
             return jsonify({"message": "Chat history updated successfully"}), 200
         except Exception as e:
             app.logger.error(f"Error saving chat history: {str(e)}")

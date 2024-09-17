@@ -35,11 +35,13 @@ def create_paragraph(text, style_name='Normal'):
         style_name = 'Normal'
     style = styles[style_name]
     
+    # Nettoyer le texte et ajouter des retours à la ligne
     cleaned_text = clean_text(text)
+    wrapped_text = textwrap.fill(cleaned_text, width=80)
     
     custom_style = ParagraphStyle('CustomStyle', parent=style, wordWrap='CJK')
     
-    return Paragraph(cleaned_text, custom_style)
+    return Paragraph(wrapped_text, custom_style)
 
 def clean_text(text):
     if not isinstance(text, str):
@@ -58,7 +60,9 @@ def generate_report(data):
     
     # Création du document PDF
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 
+                               rightMargin=0.5*inch, leftMargin=0.5*inch, 
+                               topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
     
@@ -142,19 +146,26 @@ def create_title_page(title, subtitle, date):
     elements = []
     styles = getSampleStyleSheet()
     
-    subtitle_style = ParagraphStyle(name='CustomSubtitle',
-                                    parent=styles['Normal'],
-                                    fontSize=14,
-                                    leading=16,
-                                    alignment=1,
-                                    spaceAfter=12)
+    # Ajouter le logo
+    logo_path = "copilot/public/logo.jpg"  # Remplacez par le chemin de votre logo
+    logo = Image(logo_path, width=2*inch, height=1*inch)
+    elements.append(logo)
     
-    elements.append(Spacer(1, 2*inch))
-    elements.append(Paragraph(title, styles['Title']))
+    elements.append(Spacer(1, 1*inch))
+    
+    title_style = ParagraphStyle(name='Title', parent=styles['Title'], fontSize=24, alignment=1)
+    elements.append(Paragraph(title, title_style))
+    
     elements.append(Spacer(1, 0.5*inch))
+    
+    subtitle_style = ParagraphStyle(name='Subtitle', parent=styles['Normal'], fontSize=18, alignment=1)
     elements.append(Paragraph(subtitle, subtitle_style))
+    
     elements.append(Spacer(1, 0.5*inch))
-    elements.append(Paragraph(date, styles['Normal']))
+    
+    date_style = ParagraphStyle(name='Date', parent=styles['Normal'], fontSize=14, alignment=1)
+    elements.append(Paragraph(date, date_style))
+    
     elements.append(PageBreak())
     return elements
 

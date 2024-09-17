@@ -158,7 +158,6 @@ function App() {
     const [darkMode, setDarkMode] = useState(false);
     const [open, setOpen] = useState(true);
     const [anchorEl, setAnchorEl] = useState(null);
-    const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);

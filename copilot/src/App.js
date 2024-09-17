@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar, Switch, FormControlLabel } from '@mui/material';
+import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar, Switch, FormControlLabel, Toolbar, IconButton, Drawer, ListItemIcon, } from '@mui/material';
+import {
+    Menu as MenuIcon,
+    Dashboard as DashboardIcon,
+    AccountBalance as PortfolioIcon,
+    TrendingUp as MarketSentimentIcon,
+    Settings as SettingsIcon,
+    Logout as LogoutIcon,
+} from '@mui/icons-material';
 import Settings from './Settings';
 import Portfolio from './Portfolio';
 import Login from './Login';
@@ -23,8 +31,120 @@ function a11yProps(index) {
     };
 }
 
+const drawerWidth = 240;
+
+const Root = styled('div')(({ theme }) => ({
+    display: 'flex',
+}));
+
+const AppBarStyled = styled(AppBar, {
+    shouldForwardProp: (prop) => prop !== 'open',
+})(({ theme, open }) => ({
+    zIndex: theme.zIndex.drawer + 1,
+    transition: theme.transitions.create(['width', 'margin'], {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.leavingScreen,
+    }),
+    ...(open && {
+        marginLeft: drawerWidth,
+        width: `calc(100% - ${drawerWidth}px)`,
+        transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+        }),
+    }),
+}));
+
+const DrawerStyled = styled(Drawer, { shouldForwardProp: (prop) => prop !== 'open' })(
+    ({ theme, open }) => ({
+        '& .MuiDrawer-paper': {
+            position: 'relative',
+            whiteSpace: 'nowrap',
+            width: drawerWidth,
+            transition: theme.transitions.create('width', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+            }),
+            boxSizing: 'border-box',
+            ...(!open && {
+                overflowX: 'hidden',
+                transition: theme.transitions.create('width', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.leavingScreen,
+                }),
+                width: theme.spacing(7),
+                [theme.breakpoints.up('sm')]: {
+                    width: theme.spacing(9),
+                },
+            }),
+        },
+    }),
+);
+
+const SearchIconWrapper = styled('div')(({ theme }) => ({
+    padding: theme.spacing(0, 2),
+    height: '100%',
+    position: 'absolute',
+    pointerEvents: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+}));
+
+const Search = styled('div')(({ theme }) => ({
+    position: 'relative',
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: alpha(theme.palette.common.white, 0.15),
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.common.white, 0.25),
+    },
+    marginRight: theme.spacing(2),
+    marginLeft: 0,
+    width: '100%',
+    [theme.breakpoints.up('sm')]: {
+        marginLeft: theme.spacing(3),
+        width: 'auto',
+    },
+}));
+
+const StyledInputBase = styled(InputBase)(({ theme }) => ({
+    color: 'inherit',
+    '& .MuiInputBase-input': {
+        padding: theme.spacing(1, 1, 1, 0),
+        paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+        transition: theme.transitions.create('width'),
+        width: '100%',
+        [theme.breakpoints.up('md')]: {
+            width: '20ch',
+        },
+    },
+}));
+
+const MainContent = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
+    ({ theme, open }) => ({
+        flexGrow: 1,
+        padding: theme.spacing(3),
+        transition: theme.transitions.create('margin', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+        }),
+        marginLeft: `-${drawerWidth}px`,
+        ...(open && {
+            transition: theme.transitions.create('margin', {
+                easing: theme.transitions.easing.easeOut,
+                duration: theme.transitions.duration.enteringScreen,
+            }),
+            marginLeft: 0,
+        }),
+    }),
+);
+
+
 function App() {
     const [darkMode, setDarkMode] = useState(false);
+    const [open, setOpen] = useState(true);
+    const [anchorEl, setAnchorEl] = useState(null);
+    const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [activeTab, setActiveTab] = useState(0);
@@ -49,6 +169,26 @@ function App() {
         risk_tolerance: 'moderate',
     });
 
+    const handleDrawerOpen = () => {
+        setOpen(true);
+    };
+
+    const handleDrawerClose = () => {
+        setOpen(false);
+    };
+
+    const handleMenu = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    const toggleDarkMode = () => {
+        setDarkMode(!darkMode);
+    };
+
     const theme = createTheme({
         palette: {
             mode: darkMode ? 'dark' : 'light',
@@ -57,6 +197,28 @@ function App() {
             },
             secondary: {
                 main: '#dc004e',
+            },
+        },
+        typography: {
+            fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+            h4: {
+                fontWeight: 600,
+            },
+        },
+        components: {
+            MuiButton: {
+                styleOverrides: {
+                    root: {
+                        textTransform: 'none',
+                    },
+                },
+            },
+            MuiPaper: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 8,
+                    },
+                },
             },
         },
     });
@@ -458,387 +620,411 @@ function App() {
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
-            <Fade in={true} timeout={1000}>
-                <Slide direction="up" in={true} mountOnEnter unmountOnExit>
-                    <Container maxWidth="md">
-                        <Paper elevation={3} style={{ padding: '20px', marginTop: '20px', borderRadius: '15px' }}>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Button onClick={handleLogout} variant="outlined" color="secondary">Logout</Button>
-                                <img src="/logo.jpg" alt="FinPilot Logo" style={{ width: '150px', height: 'auto' }} />
-                                <FormControlLabel
-                                    control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
-                                    label="Dark Mode"
-                                />
-                            </Box>
-                            <AppBar position="static" color="default">
-                                <Tabs
-                                    value={activeTab}
-                                    onChange={(e, newValue) => setActiveTab(newValue)}
-                                    indicatorColor="primary"
-                                    textColor="primary"
-                                    variant="scrollable"
-                                    scrollButtons="auto"
-                                    aria-label="scrollable auto tabs example"
-                                >
-                                    <Tab label="Copilot" {...a11yProps(0)} />
-                                    <Tab label="Agents" {...a11yProps(1)} />
-                                    <Tab label="PDF Analysis" {...a11yProps(2)} />
-                                    <Tab label="Settings" {...a11yProps(3)} />
-                                    <Tab label="Portfolio" {...a11yProps(4)} />
-                                    <Tab label="Chargement Portfolio" {...a11yProps(5)} />
-                                    <Tab label="Market Sentiment" {...a11yProps(6)} />
-                                    <Tab label="Investment Recommendation" {...a11yProps(7)} />
-                                    <Tab label="Historical Data Analysis" {...a11yProps(8)} />
-                                    <Tab label="User Profile Analysis" {...a11yProps(9)} />
-                                </Tabs>
-                            </AppBar>
-                            <Box p={3}>
-                                {activeTab === 0 && (
-                                    <>
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={<MessageContent content={message.content} graphs={message.graphs} />}
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                        <form onSubmit={handleSubmit}>
+            <Box sx={{ display: 'flex' }}>
+                <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+                    <Toolbar>
+                        <IconButton
+                            color="inherit"
+                            aria-label="open drawer"
+                            edge="start"
+                            onClick={() => setDrawerOpen(!drawerOpen)}
+                            sx={{ marginRight: 2, display: { sm: 'none' } }}
+                        >
+                            <MenuIcon />
+                        </IconButton>
+                        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+                            FinPilot
+                        </Typography>
+                        <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+                            <IconButton color="inherit">
+                                <Badge badgeContent={4} color="secondary">
+                                    <NotificationsIcon />
+                                </Badge>
+                            </IconButton>
+                            <IconButton
+                                edge="end"
+                                aria-label="account of current user"
+                                aria-haspopup="true"
+                                onClick={handleMenu}
+                                color="inherit"
+                            >
+                                <AccountCircle />
+                            </IconButton>
+                        </Box>
+                        <FormControlLabel
+                            control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
+                            label="Dark Mode"
+                            sx={{ ml: 2 }}
+                        />
+                    </Toolbar>
+                </AppBar>
+                <Drawer
+                    variant="permanent"
+                    sx={{
+                        width: drawerWidth,
+                        flexShrink: 0,
+                        [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box' },
+                    }}
+                >
+                    <Toolbar />
+                    <Box sx={{ overflow: 'auto' }}>
+                        <List>
+                            {['Copilot', 'Agents', 'PDF Analysis', 'Settings', 'Portfolio', 'Market Sentiment', 'Investment Recommendation', 'Historical Data Analysis', 'User Profile Analysis'].map((text, index) => (
+                                <ListItem button key={text} onClick={() => setActiveTab(index)}>
+                                    <ListItemIcon>
+                                        {index === 0 && <ChatIcon />}
+                                        {index === 1 && <GroupWorkIcon />}
+                                        {index === 2 && <PictureAsPdfIcon />}
+                                        {index === 3 && <SettingsIcon />}
+                                        {index === 4 && <AccountBalanceIcon />}
+                                        {index === 5 && <TrendingUpIcon />}
+                                        {index === 6 && <MonetizationOnIcon />}
+                                        {index === 7 && <HistoryIcon />}
+                                        {index === 8 && <PersonIcon />}
+                                    </ListItemIcon>
+                                    <ListItemText primary={text} />
+                                </ListItem>
+                            ))}
+                        </List>
+                    </Box>
+                </Drawer>
+                <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+                    <Toolbar />
+                    <Fade in={true} timeout={1000}>
+                        <Slide direction="up" in={true} mountOnEnter unmountOnExit>
+                            <Container maxWidth="lg">
+                                <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+                                    {activeTab === 0 && (
+                                        <>
+                                            <List>
+                                                {messages.map((message, index) => (
+                                                    <ListItem key={index} alignItems="flex-start">
+                                                        <ListItemText
+                                                            primary={message.role === 'user' ? 'You' : 'AI'}
+                                                            secondary={<MessageContent content={message.content} graphs={message.graphs} />}
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                            <form onSubmit={handleSubmit}>
+                                                <TextField
+                                                    fullWidth
+                                                    variant="outlined"
+                                                    value={input}
+                                                    onChange={(e) => setInput(e.target.value)}
+                                                    placeholder="Type your message..."
+                                                    margin="normal"
+                                                />
+                                                <Button type="submit" variant="contained" color="primary" disabled={loading}>
+                                                    {loading ? <CircularProgress size={24} /> : 'Send'}
+                                                </Button>
+                                            </form>
+                                            <input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={handlePDFUpload}
+                                                style={{ display: 'none' }}
+                                                id="pdf-upload"
+                                            />
+                                            <label htmlFor="pdf-upload">
+                                                <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
+                                                    Upload PDF
+                                                </Button>
+                                            </label>
+                                            <Typography variant="body2" sx={{ mt: 1 }}>
+                                                You can also drag and drop a PDF file here
+                                            </Typography>
+                                        </>
+                                    )}
+                                    {activeTab === 1 && (
+                                        <>
                                             <TextField
                                                 fullWidth
                                                 variant="outlined"
                                                 value={input}
                                                 onChange={(e) => setInput(e.target.value)}
-                                                placeholder="Type your message..."
+                                                placeholder="Enter data for agent..."
                                                 margin="normal"
                                             />
-                                            <Button type="submit" variant="contained" color="primary" disabled={loading}>
-                                                {loading ? <CircularProgress size={24} /> : 'Send'}
-                                            </Button>
-                                        </form>
-                                        <input
-                                            type="file"
-                                            accept=".pdf"
-                                            onChange={handlePDFUpload}
-                                            style={{ display: 'none' }}
-                                            id="pdf-upload"
-                                        />
-                                        <label htmlFor="pdf-upload">
-                                            <Button variant="contained" component="span" color="primary">
-                                                Upload PDF
-                                            </Button>
-                                        </label>
-                                        <Typography variant="body2" style={{ marginTop: '10px' }}>
-                                            You can also drag and drop a PDF file here
-                                        </Typography>
-                                    </>
-                                )}
-                                {activeTab === 1 && (
-                                    <>
-                                        <TextField
-                                            fullWidth
-                                            variant="outlined"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Enter data for agent..."
-                                            margin="normal"
-                                        />
-                                        <Button onClick={() => handleAgentCall('document')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Document Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Sentiment Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('financial_modeling')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Financial Modeling
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('portfolio_optimization')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Portfolio Optimization
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('risk_management')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Risk Management
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('reporting')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Reporting
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('compliance')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Compliance Check
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('market_sentiment')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Market Sentiment
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('user_profile_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            User Profile Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('historical_data_analysis')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Historical Data Analysis
-                                        </Button>
-                                        <Button onClick={() => handleAgentCall('investment_recommendation')} variant="contained" color="primary" style={{ margin: '5px' }} disabled={loading}>
-                                            Investment Recommendation
-                                        </Button>
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={
-                                                            <>
-                                                                <MessageContent content={message.content} />
-                                                                {message.graphs && message.graphs.map((graph, graphIndex) => (
-                                                                    <img
-                                                                        key={graphIndex}
-                                                                        src={`data:image/png;base64,${graph}`}
-                                                                        alt={`Portfolio Graph ${graphIndex + 1}`}
-                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
+                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+                                                {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
+                                                    <Button
+                                                        key={agent}
+                                                        onClick={() => handleAgentCall(agent)}
+                                                        variant="contained"
+                                                        color="primary"
+                                                        disabled={loading}
+                                                    >
+                                                        {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                    </Button>
+                                                ))}
+                                            </Box>
+                                            <List>
+                                                {messages.map((message, index) => (
+                                                    <ListItem key={index} alignItems="flex-start">
+                                                        <ListItemText
+                                                            primary={message.role === 'user' ? 'You' : 'AI'}
+                                                            secondary={
+                                                                <>
+                                                                    <MessageContent content={message.content} />
+                                                                    {message.graphs && message.graphs.map((graph, graphIndex) => (
+                                                                        <img
+                                                                            key={graphIndex}
+                                                                            src={`data:image/png;base64,${graph}`}
+                                                                            alt={`Portfolio Graph ${graphIndex + 1}`}
+                                                                            style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                        />
+                                                                    ))}
+                                                                    {message.graph && (
+                                                                        <img
+                                                                            src={`data:image/png;base64,${message.graph}`}
+                                                                            alt="Graph"
+                                                                            style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                        />
+                                                                    )}
+                                                                </>
+                                                            }
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </>
+                                    )}
+                                    {activeTab === 2 && (
+                                        <>
+                                            <input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={handleFileUpload}
+                                                style={{ display: 'none' }}
+                                                id="pdf-upload"
+                                            />
+                                            <label htmlFor="pdf-upload">
+                                                <Button variant="contained" component="span" color="primary" disabled={loading}>
+                                                    Upload PDF
+                                                </Button>
+                                            </label>
+                                            {file && <Typography variant="body1" sx={{ mt: 2 }}>{file.name}</Typography>}
+                                            {loading && <CircularProgress sx={{ mt: 2 }} />}
+                                            <List>
+                                                {messages.map((message, index) => (
+                                                    <ListItem key={index} alignItems="flex-start">
+                                                        <ListItemText
+                                                            primary={message.role === 'user' ? 'You' : 'AI'}
+                                                            secondary={<MessageContent content={message.content} />}
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </>
+                                    )}
+                                    {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
+                                    {activeTab === 4 && <Portfolio />}
+                                    {activeTab === 5 && (
+                                        <ErrorBoundary>
+                                            {portfolioLoading ? (
+                                                <Typography>Chargement du portfolio...</Typography>
+                                            ) : portfolio ? (
+                                                <Dashboard portfolio={portfolio} />
+                                            ) : (
+                                                <Typography>Erreur lors du chargement du portfolio</Typography>
+                                            )}
+                                        </ErrorBoundary>
+                                    )}
+                                    {activeTab === 6 && <MarketSentiment />}
+                                    {activeTab === 7 && <InvestmentRecommendation />}
+                                    {activeTab === 8 && <HistoricalDataAnalysis />}
+                                    {activeTab === 9 && <UserProfileAnalysis />}
+
+                                    <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+                                        <Button onClick={() => setOpenBacktest(true)} variant="outlined">Run Backtest</Button>
+                                        <Button onClick={() => setOpenComparison(true)} variant="outlined">Compare with Benchmark</Button>
+                                    </Box>
+
+                                    <Dialog
+                                        open={openBacktest}
+                                        onClose={() => setOpenBacktest(false)}
+                                        fullWidth
+                                        maxWidth="lg"
+                                    >
+                                        <DialogTitle>Backtest Results</DialogTitle>
+                                        <DialogContent>
+                                            <TextField
+                                                label="Start Date"
+                                                type="date"
+                                                value={startDate}
+                                                onChange={(e) => setStartDate(e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                fullWidth
+                                                margin="normal"
+                                            />
+                                            <TextField
+                                                label="End Date"
+                                                type="date"
+                                                value={endDate}
+                                                onChange={(e) => setEndDate(e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                fullWidth
+                                                margin="normal"
+                                            />
+                                            <Button onClick={runBacktest} variant="contained" sx={{ mt: 2 }}>Run Backtest</Button>
+                                            {backtestResults && (
+                                                <Box sx={{ mt: 2 }}>
+                                                    <Typography>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</Typography>
+                                                    <Box sx={{ width: '100%', height: 400, mt: 2 }}>
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
+                                                                <XAxis
+                                                                    dataKey="date"
+                                                                    tickFormatter={(tick) => {
+                                                                        const date = new Date(startDate);
+                                                                        date.setDate(date.getDate() + tick);
+                                                                        return date.toLocaleDateString();
+                                                                    }}
+                                                                    interval={Math.floor(backtestResults.portfolio_values.length / 5)}
+                                                                />
+                                                                <YAxis
+                                                                    domain={['dataMin', 'dataMax']}
+                                                                    tickFormatter={(value) => `$${value.toLocaleString()}`}
+                                                                />
+                                                                <CartesianGrid strokeDasharray="3 3" />
+                                                                <Tooltip
+                                                                    formatter={(value) => [`$${value.toLocaleString()}`, "Portfolio Value"]}
+                                                                    labelFormatter={(label) => {
+                                                                        const date = new Date(startDate);
+                                                                        date.setDate(date.getDate() + label);
+                                                                        return date.toLocaleDateString();
+                                                                    }}
+                                                                />
+                                                                <Legend />
+                                                                <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
+                                                            </LineChart>
+                                                        </ResponsiveContainer>
+                                                    </Box>
+                                                </Box>
+                                            )}
+                                        </DialogContent>
+                                        <DialogActions>
+                                            <Button onClick={() => setOpenBacktest(false)}>Close</Button>
+                                        </DialogActions>
+                                    </Dialog>
+
+                                    <Dialog
+                                        open={openComparison}
+                                        onClose={() => setOpenComparison(false)}
+                                        fullWidth
+                                        maxWidth="lg"
+                                    >
+                                        <DialogTitle>Portfolio Comparison</DialogTitle>
+                                        <DialogContent>
+                                            <Select
+                                                value={benchmark}
+                                                onChange={(e) => setBenchmark(e.target.value)}
+                                                fullWidth
+                                                margin="normal"
+                                            >
+                                                <MenuItem value="SPY">S&P 500 (SPY)</MenuItem>
+                                                <MenuItem value="QQQ">Nasdaq 100 (QQQ)</MenuItem>
+                                                <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
+                                            </Select>
+                                            <TextField
+                                                label="Start Date"
+                                                type="date"
+                                                value={comparisonStartDate}
+                                                onChange={(e) => setComparisonStartDate(e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                fullWidth
+                                                margin="normal"
+                                            />
+                                            <TextField
+                                                label="End Date"
+                                                type="date"
+                                                value={comparisonEndDate}
+                                                onChange={(e) => setComparisonEndDate(e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                fullWidth
+                                                margin="normal"
+                                            />
+                                            {comparisonResults && (
+                                                <Box sx={{ mt: 2 }}>
+                                                    <Typography>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</Typography>
+                                                    <Typography>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</Typography>
+                                                    <Typography>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</Typography>
+                                                    {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
+                                                        <Box sx={{ width: '100%', height: 400, mt: 2 }}>
+                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                <LineChart data={comparisonResults.portfolio_cumulative.map((value, index) => ({
+                                                                    date: index,
+                                                                    portfolio: value,
+                                                                    benchmark: comparisonResults.benchmark_cumulative[index]
+                                                                }))}>
+                                                                    <XAxis
+                                                                        dataKey="date"
+                                                                        tickFormatter={(tick) => {
+                                                                            const date = new Date(comparisonStartDate);
+                                                                            date.setDate(date.getDate() + tick);
+                                                                            return date.toLocaleDateString();
+                                                                        }}
+                                                                        interval={Math.floor(comparisonResults.portfolio_cumulative.length / 5)}
                                                                     />
-                                                                ))}
-                                                                {message.graph && (
-                                                                    <img
-                                                                        src={`data:image/png;base64,${message.graph}`}
-                                                                        alt="Graph"
-                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                    <YAxis
+                                                                        tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
                                                                     />
-                                                                )}
-                                                            </>
-                                                        }
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                    </>
-                                )}
-                                {activeTab === 2 && (
-                                    <>
-                                        <input
-                                            type="file"
-                                            accept=".pdf"
-                                            onChange={handleFileUpload}
-                                            style={{ display: 'none' }}
-                                            id="pdf-upload"
-                                        />
-                                        <label htmlFor="pdf-upload">
-                                            <Button variant="contained" component="span" color="primary" disabled={loading}>
-                                                Upload PDF
-                                            </Button>
-                                        </label>
-                                        {file && <Typography variant="body1">{file.name}</Typography>}
-                                        {loading && <CircularProgress />}
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={<MessageContent content={message.content} />}
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                    </>
-                                )}
-                                {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
-                                {activeTab === 4 && <Portfolio />}
-
-                                <Button onClick={() => setOpenBacktest(true)}>Run Backtest</Button>
-
-                                <Dialog
-                                    open={openBacktest}
-                                    onClose={() => setOpenBacktest(false)}
-                                    fullWidth
-                                    maxWidth="lg"
-                                    PaperProps={{
-                                        style: {
-                                            width: '67%',
-                                            height: '73%',
-                                            maxWidth: 'none',
-                                            maxHeight: 'none',
-                                            margin: 'auto'
-                                        }
-                                    }}
-                                >
-                                    <DialogTitle>Backtest Results</DialogTitle>
-                                    <DialogContent>
-                                        <TextField
-                                            label="Start Date"
-                                            type="date"
-                                            value={startDate}
-                                            onChange={(e) => setStartDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        <TextField
-                                            label="End Date"
-                                            type="date"
-                                            value={endDate}
-                                            onChange={(e) => setEndDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        <Button onClick={runBacktest}>Run Backtest</Button>
-                                        {backtestResults && (
-                                            <>
-                                                <p>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</p>
-                                                <p>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</p>
-                                                <p>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</p>
-                                                <p>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</p>
-                                                <div style={{ width: '100%', height: '41%' }}>
-                                                    <ResponsiveContainer width="100%" height={400}>
-                                                        <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
-                                                            <XAxis
-                                                                dataKey="date"
-                                                                tickFormatter={(tick) => {
-                                                                    const date = new Date(startDate);
-                                                                    date.setDate(date.getDate() + tick);
-                                                                    return date.toLocaleDateString();
-                                                                }}
-                                                                interval={Math.floor(backtestResults.portfolio_values.length / 5)}
-                                                            />
-                                                            <YAxis
-                                                                domain={['dataMin', 'dataMax']}
-                                                                tickFormatter={(value) => `$${value.toLocaleString()}`}
-                                                            />
-                                                            <CartesianGrid strokeDasharray="3 3" />
-                                                            <Tooltip
-                                                                formatter={(value) => [`$${value.toLocaleString()}`, "Portfolio Value"]}
-                                                                labelFormatter={(label) => {
-                                                                    const date = new Date(startDate);
-                                                                    date.setDate(date.getDate() + label);
-                                                                    return date.toLocaleDateString();
-                                                                }}
-                                                            />
-                                                            <Legend />
-                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
-                                                        </LineChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </>
-                                        )}
-                                    </DialogContent>
-                                    <DialogActions>
-                                        <Button onClick={() => setOpenBacktest(false)}>Close</Button>
-                                    </DialogActions>
-                                </Dialog>
-                                <Button onClick={() => setOpenComparison(true)}>Compare with Benchmark</Button>
-
-                                <Dialog
-                                    open={openComparison}
-                                    onClose={() => setOpenComparison(false)}
-                                    fullWidth
-                                    maxWidth="lg"
-                                    PaperProps={{
-                                        style: {
-                                            width: '67%',
-                                            height: '73%',
-                                            maxWidth: 'none',
-                                            maxHeight: 'none',
-                                            margin: 'auto'
-                                        }
-                                    }}
-                                >
-                                    <DialogTitle>Portfolio Comparison</DialogTitle>
-                                    <DialogContent>
-                                        <Select
-                                            value={benchmark}
-                                            onChange={(e) => setBenchmark(e.target.value)}
-                                            fullWidth
-                                            margin="normal"
-                                        >
-                                            <MenuItem value="SPY">S&P 500 (SPY)</MenuItem>
-                                            <MenuItem value="QQQ">Nasdaq 100 (QQQ)</MenuItem>
-                                            <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
-                                        </Select>
-                                        <TextField
-                                            label="Start Date"
-                                            type="date"
-                                            value={comparisonStartDate}
-                                            onChange={(e) => setComparisonStartDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        <TextField
-                                            label="End Date"
-                                            type="date"
-                                            value={comparisonEndDate}
-                                            onChange={(e) => setComparisonEndDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            fullWidth
-                                            margin="normal"
-                                        />
-                                        {/* <Button onClick={compareWithBenchmark}>Compare</Button> */}
-                                        {comparisonResults && (
-                                            <>
-                                                <p>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</p>
-                                                <p>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</p>
-                                                <p>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</p>
-                                                <p>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</p>
-                                                <p>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</p>
-                                                <p>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</p>
-                                                {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
-                                                    <ResponsiveContainer width="100%" height={400}>
-                                                        <LineChart data={comparisonResults.portfolio_cumulative.map((value, index) => ({
-                                                            date: index,
-                                                            portfolio: value,
-                                                            benchmark: comparisonResults.benchmark_cumulative[index]
-                                                        }))}>
-                                                            <XAxis
-                                                                dataKey="date"
-                                                                tickFormatter={(tick) => {
-                                                                    const date = new Date(comparisonStartDate);
-                                                                    date.setDate(date.getDate() + tick);
-                                                                    return date.toLocaleDateString();
-                                                                }}
-                                                                interval={Math.floor(comparisonResults.portfolio_cumulative.length / 5)}
-                                                            />
-                                                            <YAxis
-                                                                tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
-                                                            />
-                                                            <CartesianGrid strokeDasharray="3 3" />
-                                                            <Tooltip
-                                                                formatter={(value) => [`${(value * 100).toFixed(2)}%`, ""]}
-                                                                labelFormatter={(label) => {
-                                                                    const date = new Date(comparisonStartDate);
-                                                                    date.setDate(date.getDate() + label);
-                                                                    return date.toLocaleDateString();
-                                                                }}
-                                                            />
-                                                            <Legend />
-                                                            <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
-                                                            <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
-                                                        </LineChart>
-                                                    </ResponsiveContainer>
-                                                )}
-                                            </>
-                                        )}
-                                    </DialogContent>
-                                    <DialogActions>
-                                        <Button onClick={compareWithBenchmark}>Compare</Button>
-                                        <Button onClick={() => setOpenComparison(false)}>Close</Button>
-                                    </DialogActions>
-                                </Dialog>
-                                {activeTab === 5 && (
-                                    <ErrorBoundary>
-                                        {portfolioLoading ? (
-                                            <Typography>Chargement du portfolio...</Typography>
-                                        ) : portfolio ? (
-                                            <Dashboard portfolio={portfolio} />
-                                        ) : (
-                                            <Typography>Erreur lors du chargement du portfolio</Typography>
-                                        )}
-                                    </ErrorBoundary>
-                                )}
-                                {activeTab === 6 && <MarketSentiment />}
-                                {activeTab === 7 && <InvestmentRecommendation />}
-                                {activeTab === 8 && <HistoricalDataAnalysis />}
-                                {activeTab === 9 && <UserProfileAnalysis />}
-                            </Box>
-                        </Paper>
-                    </Container>
-                </Slide >
-            </Fade >
+                                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                                    <Tooltip
+                                                                        formatter={(value) => [`${(value * 100).toFixed(2)}%`, ""]}
+                                                                        labelFormatter={(label) => {
+                                                                            const date = new Date(comparisonStartDate);
+                                                                            date.setDate(date.getDate() + label);
+                                                                            return date.toLocaleDateString();
+                                                                        }}
+                                                                    />
+                                                                    <Legend />
+                                                                    <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
+                                                                    <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
+                                                                </LineChart>
+                                                            </ResponsiveContainer>
+                                                        </Box>
+                                                    )}
+                                                </Box>
+                                            )}
+                                        </DialogContent>
+                                        <DialogActions>
+                                            <Button onClick={compareWithBenchmark} variant="contained" color="primary">Compare</Button>
+                                            <Button onClick={() => setOpenComparison(false)}>Close</Button>
+                                        </DialogActions>
+                                    </Dialog>
+                                </Paper>
+                            </Container>
+                        </Slide>
+                    </Fade>
+                </Box>
+            </Box>
+            <Menu
+                id="menu-appbar"
+                anchorEl={anchorEl}
+                anchorOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+                keepMounted
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+                open={Boolean(anchorEl)}
+                onClose={handleClose}
+            >
+                <MenuItem onClick={handleClose}>Profile</MenuItem>
+                <MenuItem onClick={handleClose}>My account</MenuItem>
+                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+            </Menu>
         </ThemeProvider>
     );
 }

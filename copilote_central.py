@@ -348,7 +348,7 @@ def login():
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):
-    with sqlite3.connect('copilote.db') as conn:
+    with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         # Convertir le contenu en JSON s'il s'agit d'un dictionnaire
         if isinstance(content, dict):
@@ -361,22 +361,22 @@ def save_chat_message(user_id, role, content):
 
 # Fonction pour récupérer l'historique des chats
 def get_chat_history(user_id):
-    query = """
-        SELECT role, content FROM chat_history
-        WHERE user_id = ?
-        ORDER BY timestamp DESC
-        LIMIT 50
-    """
-    print(f"Exécution de la requête: {query}")
-    try:
-        with sqlite3.connect(DATABASE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, (user_id,))
-            messages = cursor.fetchall()
-        return [{"role": msg[0], "content": msg[1]} for msg in messages]
-    except sqlite3.Error as e:
-        print(f"Erreur SQLite dans get_chat_history: {e}")
-        raise
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT role, content, timestamp FROM chat_history
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
+        """, (user_id,))
+        results = cursor.fetchall()
+        return [
+            {
+                "role": role,
+                "content": json.loads(content) if content.startswith('{') else content,
+                "timestamp": timestamp
+            }
+            for role, content, timestamp in results
+        ]
 
 class ConversationManager:
     def __init__(self):
@@ -525,17 +525,7 @@ def init_db():
                          user_id INTEGER NOT NULL,
                          role TEXT NOT NULL,
                          content TEXT NOT NULL,
-                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                         FOREIGN KEY (user_id) REFERENCES users(id))''')
-        
-def check_table_structure():
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(chat_history)")
-        columns = cursor.fetchall()
-        print("Structure de la table chat_history:")
-        for column in columns:
-            print(column)
+                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
 
 @app.route('/clear_chat', methods=['POST'])
 @jwt_required()
@@ -583,10 +573,6 @@ def get_portfolio(user_id, name=None):
             cursor.execute("SELECT * FROM portfolio WHERE user_id = ?", (user_id,))
         portfolio = cursor.fetchall()
     return [{"symbol": row[3], "weight": row[4], "entry_price": row[5]} for row in portfolio]
-
-
-init_db()
-check_table_structure()
 
 class Agents:
     @staticmethod
@@ -1441,4 +1427,5 @@ def get_portfolio_value():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    init_db()
     app.run(debug=True)

@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar, Switch, FormControlLabel, Toolbar, IconButton, Drawer, ListItemIcon, } from '@mui/material';
+import {
+    Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText,
+    Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle,
+    DialogContent, DialogActions, Select, MenuItem, AppBar, Switch,
+    FormControlLabel, Toolbar, IconButton, Drawer, ListItemIcon, InputBase,
+    Badge, Menu
+} from '@mui/material';
 import {
     Menu as MenuIcon,
     Dashboard as DashboardIcon,
@@ -9,6 +15,14 @@ import {
     TrendingUp as MarketSentimentIcon,
     Settings as SettingsIcon,
     Logout as LogoutIcon,
+    Chat as ChatIcon,
+    GroupWork as GroupWorkIcon,
+    PictureAsPdf as PictureAsPdfIcon,
+    AccountCircle,
+    Notifications as NotificationsIcon,
+    MonetizationOn as MonetizationOnIcon,
+    History as HistoryIcon,
+    Person as PersonIcon
 } from '@mui/icons-material';
 import Settings from './Settings';
 import Portfolio from './Portfolio';
@@ -145,6 +159,7 @@ function App() {
     const [open, setOpen] = useState(true);
     const [anchorEl, setAnchorEl] = useState(null);
     const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
+    const [drawerOpen, setDrawerOpen] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [activeTab, setActiveTab] = useState(0);

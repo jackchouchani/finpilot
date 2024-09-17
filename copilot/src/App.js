@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ThemeProvider, createTheme, CssBaseline, styled, alpha, useMediaQuery } from '@mui/material/styles';
+import { ThemeProvider, createTheme, CssBaseline, styled, alpha } from '@mui/material/styles';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
     Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText,
     Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle,
     DialogContent, DialogActions, Select, MenuItem, AppBar, Switch,
     FormControlLabel, Toolbar, IconButton, Drawer, ListItemIcon, InputBase,
-    Badge, Menu
+    Badge, Menu, useMediaQuery
 } from '@mui/material';
 import {
     Menu as MenuIcon,

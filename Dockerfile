@@ -1,23 +1,36 @@
-FROM python:3.12.5 AS builder
+FROM python:3.12.5-slim
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
+
 WORKDIR /app
-RUN python -m venv .venv
-COPY requirements.txt ./
-RUN .venv/bin/pip install -r requirements.txt
 
-# OU pour les images basées sur debian/ubuntu
-# If you're using a Debian/Ubuntu-based image
-RUN apt-get update && apt-get install -y ca-certificates fuse3 sqlite3
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    fuse3 \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the LiteFS binary into your container
+# Copy the LiteFS binary
 COPY --from=flyio/litefs:0.5 /usr/local/bin/litefs /usr/local/bin/litefs
-ENTRYPOINT ["litefs", "mount"]
 
-FROM python:3.12.5-slim
-WORKDIR /app
-COPY --from=builder /app/.venv .venv/
+# Set up Python environment
+RUN python -m venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
 
-ENV PATH="/app/.venv/bin:$PATH"
-CMD ["gunicorn", "--timeout", "180", "wsgi:app", "--bind", "0.0.0.0:8080"]
+# Create necessary directories for LiteFS
+RUN mkdir -p /var/lib/litefs /litefs
+
+# Copy LiteFS configuration
+COPY litefs.yml /etc/litefs.yml
+
+# Set the command to use LiteFS
+CMD ["litefs", "mount"]

@@ -62,6 +62,9 @@ anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 # Configuration de la base de données SQLite
 DATABASE = '/litefs/copilot-db.db'
 
+def get_db():
+    return sqlite3.connect(DATABASE)
+
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
@@ -358,22 +361,22 @@ def save_chat_message(user_id, role, content):
 
 # Fonction pour récupérer l'historique des chats
 def get_chat_history(user_id):
-    with sqlite3.connect('copilote.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT role, content, timestamp FROM chat_history
-            WHERE user_id = ?
-            ORDER BY timestamp DESC
-        """, (user_id,))
-        results = cursor.fetchall()
-        return [
-            {
-                "role": role,
-                "content": json.loads(content) if content.startswith('{') else content,
-                "timestamp": timestamp
-            }
-            for role, content, timestamp in results
-        ]
+    query = """
+        SELECT role, content FROM chat_history
+        WHERE user_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 50
+    """
+    print(f"Exécution de la requête: {query}")
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_id,))
+            messages = cursor.fetchall()
+        return [{"role": msg[0], "content": msg[1]} for msg in messages]
+    except sqlite3.Error as e:
+        print(f"Erreur SQLite dans get_chat_history: {e}")
+        raise
 
 class ConversationManager:
     def __init__(self):
@@ -486,61 +489,53 @@ def execute_function(function_name, arguments, user_message):
             "message": f"Une erreur s'est produite lors de l'exécution de {function_name}: {str(e)}"
         }
 
-# def init_db():
-#     with sqlite3.connect(DATABASE) as conn:
-#         conn.execute('''CREATE TABLE IF NOT EXISTS users
-#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                          username TEXT UNIQUE NOT NULL,
-#                          password TEXT NOT NULL)''')
-#         conn.execute('''CREATE TABLE IF NOT EXISTS portfolios
-#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                          user_id INTEGER,
-#                          name TEXT NOT NULL,
-#                          data TEXT NOT NULL)''')
-#         conn.execute('''CREATE TABLE IF NOT EXISTS portfolio (
-#                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                         user_id INTEGER,
-#                         name TEXT,
-#                         symbol TEXT,
-#                         weight REAL,
-#                         entry_price REAL,
-#                         FOREIGN KEY (user_id) REFERENCES users(id))''')
-#         conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
-#                         user_id INTEGER PRIMARY KEY,
-#                         setting_name TEXT,
-#                         setting_value TEXT,
-#                         FOREIGN KEY (user_id) REFERENCES users(id)
-#                     )''')
-#         conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
-#                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                         task_type TEXT NOT NULL,
-#                         status TEXT NOT NULL,
-#                         result TEXT
-#                     )''')
-#         conn.execute('''DROP TABLE IF EXISTS chat_history''')
-#         conn.execute('''CREATE TABLE chat_history
-#                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                          user_id INTEGER,
-#                          role TEXT,
-#                          content TEXT,
-#                          timestamp DATETIME,
-#                          FOREIGN KEY (user_id) REFERENCES users(id))''')
-
 def init_db():
-    print(f"Current working directory: {os.getcwd()}")
-    print(f"DATABASE path: {DATABASE}")
-    print(f"Directory contents of /litefs: {os.listdir('/litefs')}")
-    print(f"Directory contents of /var/lib/litefs: {os.listdir('/var/lib/litefs')}")
-    
-    try:
-        with sqlite3.connect(DATABASE) as conn:
-            print("Successfully connected to the database")
-            # Rest of your initialization code
-    except sqlite3.OperationalError as e:
-        print(f"SQLite operational error: {e}")
-        print(f"SQLite version: {sqlite3.sqlite_version}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
+    with sqlite3.connect(DATABASE) as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS users
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         username TEXT UNIQUE NOT NULL,
+                         password TEXT NOT NULL)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS portfolios
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         user_id INTEGER,
+                         name TEXT NOT NULL,
+                         data TEXT NOT NULL)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS portfolio (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        name TEXT,
+                        symbol TEXT,
+                        weight REAL,
+                        entry_price REAL,
+                        FOREIGN KEY (user_id) REFERENCES users(id))''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
+                        user_id INTEGER PRIMARY KEY,
+                        setting_name TEXT,
+                        setting_value TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users(id)
+                    )''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        task_type TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        result TEXT
+                    )''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS chat_history
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         user_id INTEGER NOT NULL,
+                         role TEXT NOT NULL,
+                         content TEXT NOT NULL,
+                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                         FOREIGN KEY (user_id) REFERENCES users(id))''')
+        
+def check_table_structure():
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(chat_history)")
+        columns = cursor.fetchall()
+        print("Structure de la table chat_history:")
+        for column in columns:
+            print(column)
 
 @app.route('/clear_chat', methods=['POST'])
 @jwt_required()
@@ -589,18 +584,9 @@ def get_portfolio(user_id, name=None):
         portfolio = cursor.fetchall()
     return [{"symbol": row[3], "weight": row[4], "entry_price": row[5]} for row in portfolio]
 
-print(f"Current working directory: {os.getcwd()}")
-print(f"Contents of /: {os.listdir('/')}")
-print(f"Contents of /var: {os.listdir('/var')}")
-print(f"Contents of /var/lib: {os.listdir('/var/lib')}")
 
-if not os.path.exists('/litefs'):
-    print("WARNING: /litefs does not exist!")
-else:
-    print(f"Contents of /litefs: {os.listdir('/litefs')}")
-
-print(f"Contents of /proc/mounts: {open('/proc/mounts').read()}")
 init_db()
+check_table_structure()
 
 class Agents:
     @staticmethod
@@ -650,7 +636,7 @@ def structure_data(data):
     return json.loads(response.choices[0].message.content)
 
 def generate_verbose_response(result, function_name):
-    client = openai.OpenAI()
+    client = openai_client.OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -1041,7 +1027,7 @@ def analyze_pdf():
             text += page.extract_text()
         
         # Analyse du texte extrait avec l'agent d'analyse de documents
-        result = agent_document.analyser_rapport_financier(text)
+        result = document_agent.analyser_rapport_financier(text)
         
         # Convertir le résultat Pydantic en dictionnaire pour la sérialisation JSON
         result_dict = result.dict()
@@ -1255,18 +1241,27 @@ def chat_history():
         try:
             history = get_chat_history(user_id)
             return jsonify(history), 200
-        except Exception as e:
-            app.logger.error(f"Error retrieving chat history: {str(e)}")
+        except sqlite3.Error as e:
+            app.logger.error(f"Database error retrieving chat history: {str(e)}")
             return jsonify({"error": "Failed to retrieve chat history"}), 500
+        except Exception as e:
+            app.logger.error(f"Unexpected error retrieving chat history: {str(e)}")
+            return jsonify({"error": "An unexpected error occurred"}), 500
 
     elif request.method == 'POST':
         data = request.json
+        if not data or not isinstance(data, dict) or 'role' not in data or 'content' not in data:
+            return jsonify({"error": "Invalid data format. Expected 'role' and 'content'"}), 400
+        
         try:
-            save_chat_message(user_id, 'user', data)
-            return jsonify({"message": "Chat history updated successfully"}), 200
+            save_chat_message(user_id, data['role'], data['content'])
+            return jsonify({"message": "Chat message saved successfully"}), 200
+        except sqlite3.Error as e:
+            app.logger.error(f"Database error saving chat message: {str(e)}")
+            return jsonify({"error": "Failed to save chat message"}), 500
         except Exception as e:
-            app.logger.error(f"Error saving chat history: {str(e)}")
-            return jsonify({"error": "Failed to save chat history"}), 500
+            app.logger.error(f"Unexpected error saving chat message: {str(e)}")
+            return jsonify({"error": "An unexpected error occurred"}), 500
 
 @app.route('/compare_portfolios', methods=['POST'])
 @jwt_required()

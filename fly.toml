@@ -17,20 +17,8 @@ primary_region = 'cdg'
     soft_limit = 20
 
 [mounts]
-  source = "litefs_data"
+  source = "litefs"
   destination = "/var/lib/litefs"
-
-[[services]]
-  internal_port = 8080
-  protocol = "tcp"
-
-[[services.ports]]
-  handlers = ["http"]
-  port = 80
-
-[[services.ports]]
-  handlers = ["tls", "http"]
-  port = 443
 
 [[vm]]
   size = "shared-cpu-1x"
@@ -41,4 +29,4 @@ primary_region = 'cdg'
   path = "/metrics"
 
 [env]
-  NGINX_WORKER_TIMEOUT = "300s"  # Set the worker timeout to 300 seconds (5 minutes)
+  NGINX_WORKER_TIMEOUT = "300s"

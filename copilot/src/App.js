@@ -11,8 +11,8 @@ import {
 import {
     Menu as MenuIcon,
     Dashboard as DashboardIcon,
-    AccountBalance as PortfolioIcon,
-    TrendingUp as MarketSentimentIcon,
+    AccountBalance as AccountBalanceIcon,
+    TrendingUp as TrendingUpIcon,
     Settings as SettingsIcon,
     Logout as LogoutIcon,
     Chat as ChatIcon,

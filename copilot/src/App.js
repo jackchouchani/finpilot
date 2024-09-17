@@ -740,7 +740,6 @@ function AppContent({
 
     return (
         <Box sx={{ display: 'flex' }}>
-            <Box sx={{ display: 'flex' }}>
                 <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
                     <Toolbar>
                         <IconButton
@@ -1125,7 +1124,6 @@ function AppContent({
                         </Slide>
                     </Fade>
                 </Box>
-            </Box>
             <Menu
                 id="menu-appbar"
                 anchorEl={anchorEl}

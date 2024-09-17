@@ -727,6 +727,7 @@ function AppContent({
     setComparisonEndDate,
     backtestResults,
     comparisonResults,
+    isMobile,
 }) {
     const [anchorEl, setAnchorEl] = React.useState(null);
 

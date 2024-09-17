@@ -611,30 +611,130 @@ function App() {
 
     if (!isLoggedIn) {
         return (
-            <Container maxWidth="sm">
-                <Box mt={4}>
-                    {showLogin ? (
-                        <>
-                            <Login onLogin={handleLogin} />
-                            <Button onClick={() => setShowLogin(false)}>
-                                Don't have an account? Register
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                            <Register onRegisterSuccess={() => setShowLogin(true)} />
-                            <Button onClick={() => setShowLogin(true)}>
-                                Already have an account? Login
-                            </Button>
-                        </>
-                    )}
-                </Box>
-            </Container>
+            <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <Container maxWidth="sm">
+                    <Box mt={4}>
+                        {showLogin ? (
+                            <>
+                                <Login onLogin={handleLogin} />
+                                <Button onClick={() => setShowLogin(false)}>
+                                    Don't have an account? Register
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Register onRegisterSuccess={() => setShowLogin(true)} />
+                                <Button onClick={() => setShowLogin(true)}>
+                                    Already have an account? Login
+                                </Button>
+                            </>
+                        )}
+                    </Box>
+                </Container>
+            </ThemeProvider>
         );
     }
+
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
+            <AppContent 
+                darkMode={darkMode} 
+                setDarkMode={setDarkMode}
+                drawerOpen={open}
+                setDrawerOpen={setOpen}
+                // Passez toutes les autres props nécessaires ici
+                handleLogout={handleLogout}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                messages={messages}
+                input={input}
+                setInput={setInput}
+                handleSubmit={handleSubmit}
+                loading={loading}
+                handlePDFUpload={handlePDFUpload}
+                handleAgentCall={handleAgentCall}
+                handleFileUpload={handleFileUpload}
+                file={file}
+                clearChatHistory={clearChatHistory}
+                portfolio={portfolio}
+                portfolioLoading={portfolioLoading}
+                openBacktest={openBacktest}
+                setOpenBacktest={setOpenBacktest}
+                openComparison={openComparison}
+                setOpenComparison={setOpenComparison}
+                runBacktest={runBacktest}
+                compareWithBenchmark={compareWithBenchmark}
+                startDate={startDate}
+                setStartDate={setStartDate}
+                endDate={endDate}
+                setEndDate={setEndDate}
+                benchmark={benchmark}
+                setBenchmark={setBenchmark}
+                comparisonStartDate={comparisonStartDate}
+                setComparisonStartDate={setComparisonStartDate}
+                comparisonEndDate={comparisonEndDate}
+                setComparisonEndDate={setComparisonEndDate}
+                backtestResults={backtestResults}
+                comparisonResults={comparisonResults}
+            />
+        </ThemeProvider>
+    );
+}
+
+function AppContent({ 
+    darkMode, 
+    setDarkMode, 
+    drawerOpen, 
+    setDrawerOpen,
+    handleLogout,
+    activeTab,
+    setActiveTab,
+    messages,
+    input,
+    setInput,
+    handleSubmit,
+    loading,
+    handlePDFUpload,
+    handleAgentCall,
+    handleFileUpload,
+    file,
+    clearChatHistory,
+    portfolio,
+    portfolioLoading,
+    openBacktest,
+    setOpenBacktest,
+    openComparison,
+    setOpenComparison,
+    runBacktest,
+    compareWithBenchmark,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    benchmark,
+    setBenchmark,
+    comparisonStartDate,
+    setComparisonStartDate,
+    comparisonEndDate,
+    setComparisonEndDate,
+    backtestResults,
+    comparisonResults,
+}) {
+    const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
+    const [anchorEl, setAnchorEl] = React.useState(null);
+
+    const handleMenu = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    return (
+        <Box sx={{ display: 'flex' }}>
             <Box sx={{ display: 'flex' }}>
                 <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
                     <Toolbar>
@@ -1040,7 +1140,7 @@ function App() {
                 <MenuItem onClick={handleClose}>My account</MenuItem>
                 <MenuItem onClick={handleLogout}>Logout</MenuItem>
             </Menu>
-        </ThemeProvider>
+        </Box>
     );
 }
 

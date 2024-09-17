@@ -639,7 +639,7 @@ function App() {
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
-            <AppContent 
+            <ResponsiveAppContent 
                 darkMode={darkMode} 
                 setDarkMode={setDarkMode}
                 drawerOpen={open}
@@ -683,6 +683,13 @@ function App() {
     );
 }
 
+// Nouveau composant qui gère la requête média
+function ResponsiveAppContent(props) {
+    const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
+
+    return <AppContent {...props} isMobile={isMobile} />;
+}
+
 function AppContent({ 
     darkMode, 
     setDarkMode, 
@@ -722,7 +729,6 @@ function AppContent({
     backtestResults,
     comparisonResults,
 }) {
-    const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
     const [anchorEl, setAnchorEl] = React.useState(null);
 
     const handleMenu = (event) => {

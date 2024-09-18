@@ -10,11 +10,28 @@ primary_region = 'cdg'
   auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
-
+  
   [http_service.concurrency]
     type = "connections"
     hard_limit = 25
     soft_limit = 20
+  
+  [http_service.http_options]
+    h2_push = false
+    response_header_timeout = "300s"
+
+[[http_service.headers]]
+  for = "/*"
+  [http_service.headers.values]
+    Access-Control-Allow-Origin = "https://www.finpilot.one"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    Access-Control-Allow-Credentials = "true"
+
+[http_service.tcp_options]
+  keep_alive_idle_time = "300s"
+  keep_alive_interval = "300s"
+  keep_alive_count = 5
 
 [mounts]
   source = "litefs"

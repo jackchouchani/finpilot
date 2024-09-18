@@ -50,6 +50,7 @@ CORS(app, resources={r"/*": {
     "expose_headers": ["Content-Type", "X-CSRFToken"],
     "send_wildcard": False
 }})
+
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'ALLOWALL'  # Permettre tous les domaines
@@ -1389,23 +1390,23 @@ def simulate_scenario():
 @app.route('/generate_report', methods=['GET'])
 @jwt_required()
 def generate_report_route():
-    user_id = get_jwt_identity()
-    
     def generate():
-        total_steps = 10  # Nombre total d'étapes dans generate_report
-        for i in range(total_steps):
-            # Simuler une étape de génération de rapport
-            time.sleep(1)
-            yield f"data: {json.dumps({'progress': (i+1) / total_steps * 100, 'step': f'Step {i+1}'})}\n\n"
+        total_steps = 16  # Nombre total d'étapes dans generate_report
+        for i, (title, function) in enumerate(sections):
+            yield f"data: {json.dumps({'progress': (i / total_steps) * 100, 'step': f'Generating {title}'})}\n\n"
+            function(portfolio, portfolio_data, returns, weights)  # Assurez-vous que ces variables sont définies
 
         # Générer le PDF final
-        pdf_data = generate_report(user_id)  # Assurez-vous que cette fonction existe et prend user_id comme paramètre
+        data = request.json
+        pdf_data = generate_report(data)
         pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
         yield f"data: {json.dumps({'progress': 100, 'step': 'Completed', 'report': pdf_base64})}\n\n"
 
     response = Response(stream_with_context(generate()), mimetype='text/event-stream')
     response.headers['Access-Control-Allow-Origin'] = 'https://www.finpilot.one'
     response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
     return response
 
 @app.route('/update_portfolio_value', methods=['POST'])

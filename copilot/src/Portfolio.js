@@ -261,11 +261,19 @@ function Portfolio() {
 
             const token = localStorage.getItem('token');
             const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
                 withCredentials: true
             });
+
+            eventSource.onerror = (error) => {
+                console.error("EventSource failed:", error);
+                eventSource.close();
+                setGeneratingReport(false);
+                alert('Error generating report. Please try again.');
+            };
+
+            eventSource.onopen = () => {
+                console.log("EventSource connection opened");
+            };
 
             eventSource.onmessage = (event) => {
                 console.log("Received message:", event.data);
@@ -279,17 +287,6 @@ function Portfolio() {
                     eventSource.close();
                     setGeneratingReport(false);
                 }
-            };
-
-            eventSource.onerror = (error) => {
-                console.error("EventSource failed:", error);
-                eventSource.close();
-                setGeneratingReport(false);
-                alert('Error generating report. Please try again.');
-            };
-
-            eventSource.onopen = () => {
-                console.log("EventSource connection opened");
             };
 
         } catch (error) {

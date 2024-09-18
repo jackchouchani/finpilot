@@ -1,26 +1,32 @@
-import pandas as pd
-import numpy as np
-from io import BytesIO
-import base64
+# Bibliothèques standard
 import os
-import time
+import base64
+import json
+import re
+import textwrap
 from datetime import datetime, timedelta
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, portrait
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
+from io import BytesIO
+
+# Bibliothèques tierces
+import numpy as np
+import pandas as pd
+import yfinance as yf
+import anthropic
+from flask import jsonify
+from tqdm import tqdm
+from sklearn.decomposition import PCA
+
+# Bibliothèques de visualisation
+import plotly.express as px
 from plotly import graph_objects as go
 from plotly import figure_factory as ff
-from sklearn.decomposition import PCA
-import plotly.express as px
-import yfinance as yf
-from flask import jsonify
-import anthropic
-import textwrap
-import re
-from tqdm import tqdm
-import json
+
+# Bibliothèques de génération de rapports
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, portrait
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
@@ -71,13 +77,22 @@ def clean_text(text):
     # Rejoindre les paragraphes avec des retours à la ligne doubles
     return '\n\n'.join(wrapped_paragraphs)
 
-def calculate_portfolio_returns(portfolio_data, weights):
+def calculate_portfolio_performance(portfolio, start_date, end_date):
+    portfolio_data = {}
+    for stock in portfolio['stocks']:
+        try:
+            ticker = yf.Ticker(stock['symbol'])
+            hist = ticker.history(start=start_date, end=end_date)
+            portfolio_data[stock['symbol']] = hist['Close']
+        except Exception as e:
+            print(f"Erreur lors de la récupération des données pour {stock['symbol']}: {e}")
+            continue
+
     df = pd.DataFrame(portfolio_data)
     returns = df.pct_change().dropna()
-    weighted_returns = (returns * weights).sum(axis=1)
-    total_return = (1 + weighted_returns).prod() - 1
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
-    return weighted_returns, total_return, annualized_return
+    weights = np.array([float(stock['weight']) / 100 for stock in portfolio['stocks']])
+    
+    return portfolio_data, returns, weights
 
 
 def generate_report(data):
@@ -87,6 +102,9 @@ def generate_report(data):
     
     # Calcul des rendements et des métriques de performance
     portfolio_data, returns, weights = calculate_portfolio_performance(portfolio, start_date, end_date)
+    
+    # Calcul des rendements pondérés une seule fois
+    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
     
     # Création du document PDF
     buffer = BytesIO()
@@ -113,24 +131,23 @@ def generate_report(data):
 
     # Sections du rapport
     sections = [
-        ("Résumé Exécutif", lambda p, pd, r, w: generate_executive_summary(p, pd, r, w)),
-        ("Vue d'Ensemble du Portefeuille", lambda p, pd, r, w: generate_portfolio_overview(p, pd, r, w)),
-        ("Analyse de Performance", lambda p, pd, r, w: generate_performance_analysis(p, pd, r, w, start_date, end_date)),
-        ("Comparaison de Performance des Actions", lambda p, pd, r, w: generate_stock_performance_comparison(pd, w)),
-        ("Contribution au Rendement", lambda p, pd, r, w: generate_contribution_to_return(p, pd, r, w)),
-        ("Ratios Supplémentaires", lambda p, pd, r, w: generate_additional_ratios_table(p, pd, r, w, start_date, end_date)),
-        ("Analyse des Risques", lambda p, pd, r, w: generate_risk_analysis(p, pd, r, w)),
-        ("Corrélation des Actions", lambda p, pd, r, w: generate_correlation_heatmap(pd)),
-        ("Meilleures et Pires Performances", lambda p, pd, r, w: generate_best_worst_performers(p, pd, r, w)),
-        ("Analyse des Dividendes", lambda p, pd, r, w: generate_dividend_table(p)),
-        ("Analyse ESG", lambda p, pd, r, w: generate_esg_analysis(p)),
-        ("Allocation Sectorielle", lambda p, pd, r, w: generate_sector_allocation(p, pd, r, w)),
-        ("Simulation Monte Carlo", lambda p, pd, r, w: generate_monte_carlo_simulation(p, pd, r, w)),
-        ("Tests de Stress", lambda p, pd, r, w: generate_stress_tests(p, pd, r, w)),
-        ("Perspectives Futures", lambda p, pd, r, w: generate_future_outlook(p, pd, r, w)),
-        ("Recommandations", lambda p, pd, r, w: generate_recommendations(p, pd, r, w))
+        ("Résumé Exécutif", lambda p, pd, r, w, wr, tr, ar: generate_executive_summary(p, pd, r, w, wr, tr, ar)),
+        ("Vue d'Ensemble du Portefeuille", lambda p, pd, r, w, wr, tr, ar: generate_portfolio_overview(p, pd, r, w)),
+        ("Analyse de Performance", lambda p, pd, r, w, wr, tr, ar: generate_performance_analysis(p, pd, r, w, wr, tr, ar, start_date, end_date)),
+        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w)),
+        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w)),
+        ("Ratios Supplémentaires", lambda p, pd, r, w, wr, tr, ar: generate_additional_ratios_table(p, pd, r, w, start_date, end_date)),
+        ("Analyse des Risques", lambda p, pd, r, w, wr, tr, ar: generate_risk_analysis(p, pd, r, w, wr)),
+        ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
+        ("Meilleures et Pires Performances", lambda p, pd, r, w, wr, tr, ar: generate_best_worst_performers(p, pd, r, w)),
+        ("Analyse des Dividendes", lambda p, pd, r, w, wr, tr, ar: generate_dividend_table(p)),
+        ("Analyse ESG", lambda p, pd, r, w, wr, tr, ar: generate_esg_analysis(p)),
+        ("Allocation Sectorielle", lambda p, pd, r, w, wr, tr, ar: generate_sector_allocation(p, pd, r, w)),
+        ("Simulation Monte Carlo", lambda p, pd, r, w, wr, tr, ar: generate_monte_carlo_simulation(p, pd, r, w, wr)),
+        ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w)),
+        ("Perspectives Futures", lambda p, pd, r, w, wr, tr, ar: generate_future_outlook(p, pd, r, w)),
+        ("Recommandations", lambda p, pd, r, w, wr, tr, ar: generate_recommendations(p, pd, r, w, wr, tr, ar))
     ]
-
     total_steps = len(sections)
     
     for index, (title, function) in enumerate(sections, 1):
@@ -143,8 +160,6 @@ def generate_report(data):
             elements.append(create_formatted_paragraph(str(new_elements)))
         elements.append(PageBreak())
         
-        progress = (index / total_steps) * 100
-        yield json.dumps({"progress": progress, "step": title})
 
     # Glossaire et avertissements
     elements.append(create_section_header("Glossaire"))
@@ -189,29 +204,23 @@ def create_title_page(title, subtitle, date):
     elements.append(PageBreak())
     return elements
 
-def calculate_portfolio_performance(portfolio, start_date, end_date):
-    portfolio_data = {}
-    for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
-        hist = ticker.history(start=start_date, end=end_date)
-        portfolio_data[stock['symbol']] = hist['Close']
-
+def calculate_portfolio_returns(portfolio_data, weights):
     df = pd.DataFrame(portfolio_data)
     returns = df.pct_change().dropna()
-    weights = np.array([float(stock['weight']) / 100 for stock in portfolio['stocks']])
-    
-    return portfolio_data, returns, weights
+    weighted_returns = (returns * weights).sum(axis=1)
+    total_return = (1 + weighted_returns).prod() - 1
+    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
+    return weighted_returns, total_return, annualized_return
 
-def generate_executive_summary(portfolio, portfolio_data, returns, weights):
+def generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return):
     elements = []
     
-    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
     portfolio_volatility = weighted_returns.std() * np.sqrt(252)
     
     risk_free_rate = 0.02
     sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility
 
-    sp500_data = get_sp500_data(df.index[0], df.index[-1])
+    sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
     sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
     sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
     sp500_sharpe = (sp500_return - risk_free_rate) / sp500_volatility
@@ -219,7 +228,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights):
     summary = f"""
     Résumé Exécutif
 
-    Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du {df.index[0].strftime('%d/%m/%Y')} au {df.index[-1].strftime('%d/%m/%Y')}.
+    Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du {portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au {portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.
 
     Points clés :
     • Rendement total du portefeuille : {total_return:.2%}
@@ -262,13 +271,11 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights):
 def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
     elements = []
     
-    df = pd.DataFrame(portfolio_data)
-    
     data = [['Titre', 'Poids', 'Prix d\'entrée', 'Prix actuel', 'Rendement']]
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
         entry_price = float(stock['entry_price'])
-        current_price = df[symbol].iloc[-1]
+        current_price = pd.DataFrame(portfolio_data)[symbol].iloc[-1]
         stock_return = (current_price / entry_price - 1)
         data.append([symbol, f"{weight:.2%}", f"{entry_price:.2f} €", f"{current_price:.2f} €", f"{stock_return:.2%}"])
     
@@ -287,8 +294,8 @@ def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
     elements.append(Spacer(1, 12))
     
     fig = go.Figure()
-    portfolio_value = (df * weights).sum(axis=1)
-    fig.add_trace(go.Scatter(x=df.index, y=portfolio_value,
+    portfolio_value = (pd.DataFrame(portfolio_data) * weights).sum(axis=1)
+    fig.add_trace(go.Scatter(x=pd.DataFrame(portfolio_data).index, y=portfolio_value,
                              mode='lines', name='Valeur du Portefeuille'))
     fig.update_layout(title="Évolution de la Valeur du Portefeuille",
                       xaxis_title="Date", yaxis_title="Valeur")
@@ -334,8 +341,7 @@ def generate_disclaimer():
 def generate_stock_performance_comparison(portfolio_data, weights):
     elements = []
     
-    df = pd.DataFrame(portfolio_data)
-    stock_returns = df.pct_change().mean() * 252
+    stock_returns = pd.DataFrame(portfolio_data).pct_change().mean() * 252
     
     stock_performance = list(zip(stock_returns.index, stock_returns.values * 100))
     stock_performance.sort(key=lambda x: x[1], reverse=True)
@@ -367,12 +373,11 @@ def generate_stock_performance_comparison(portfolio_data, weights):
 def generate_contribution_to_return(portfolio, portfolio_data, returns, weights):
     elements = []
     
-    df = pd.DataFrame(portfolio_data)
-    total_return = (df.iloc[-1] / df.iloc[0] - 1).sum()
+    total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
     contributions = []
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
-        stock_return = df[symbol].iloc[-1] / df[symbol].iloc[0] - 1
+        stock_return = pd.DataFrame(portfolio_data)[symbol].iloc[-1] / pd.DataFrame(portfolio_data)[symbol].iloc[0] - 1
         contribution = stock_return * weight
         contributions.append((symbol, contribution, contribution / total_return))
     
@@ -544,10 +549,9 @@ def generate_correlation_heatmap(portfolio_data):
     
     return elements
 
-def generate_performance_analysis(portfolio, portfolio_data, returns, weights, start_date, end_date):
+def generate_performance_analysis(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date):
     elements = []
     
-    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
     volatility = weighted_returns.std() * np.sqrt(252)
     cumulative_returns = (1 + weighted_returns).cumprod()
     sharpe_ratio = annualized_return / volatility
@@ -618,13 +622,11 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, s
     
     return elements
 
-def generate_risk_analysis(portfolio, portfolio_data, returns, weights):
+def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted_returns):
     elements = []
     
-    weighted_returns, _, _ = calculate_portfolio_returns(portfolio_data, weights)
-    
     var_95 = np.percentile(weighted_returns, 5) * np.sqrt(252)
-    cvar_95 = portfolio_returns[weighted_returns <= var_95].mean() * np.sqrt(252)
+    cvar_95 = weighted_returns[weighted_returns <= var_95].mean() * np.sqrt(252)
     cumulative_returns = (1 + weighted_returns).cumprod()
     max_drawdown = (cumulative_returns.cummax() - cumulative_returns).max()
     
@@ -649,7 +651,7 @@ def generate_risk_analysis(portfolio, portfolio_data, returns, weights):
     elements.append(table)
     elements.append(Spacer(1, 12))
     
-    fig = ff.create_distplot([portfolio_returns], ['Rendements du Portefeuille'], show_hist=False, show_rug=False)
+    fig = ff.create_distplot([weighted_returns], ['Rendements du Portefeuille'], show_hist=False, show_rug=False)
     fig.update_layout(title="Distribution des Rendements du Portefeuille",
                       xaxis_title="Rendement", yaxis_title="Densité")
     
@@ -808,7 +810,9 @@ def generate_esg_analysis(portfolio):
     elements = []
     
     def normalize_esg_score(score):
-        return (score - 0) / (100 - 0)  # Supposons que les scores ESG sont entre 0 et 100
+    if score is None or score == 'N/A':
+        return 0
+    return (score - min_score) / (max_score - min_score)  # Adapté selon l'échelle réelle
 
     esg_data = [['Titre', 'Score ESG', 'Environnement', 'Social', 'Gouvernance']]
     total_weight = 0
@@ -863,7 +867,7 @@ def generate_esg_analysis(portfolio):
     
     return elements
 
-def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights):
+def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights, weighted_returns):
     elements = []
     
     # Paramètres de la simulation
@@ -871,14 +875,13 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights)
     num_days = 252  # un an de trading
     
     # Calcul des paramètres de la distribution des rendements
-    weighted_returns, _, _ = calculate_portfolio_returns(portfolio_data, weights)
     mean_return = weighted_returns.mean()
     std_return = weighted_returns.std()
     
     # Simulation
     simulations = np.zeros((num_simulations, num_days))
     for i in range(num_simulations):
-        simulations[i] = np.random.choice(portfolio_returns, size=num_days, replace=True)
+        simulations[i] = np.random.choice(weighted_returns, size=num_days, replace=True)
     simulations = np.cumprod(1 + simulations, axis=1)
     
     # Calcul des percentiles
@@ -931,11 +934,14 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights)
     
     return elements
 
-def generate_stress_tests(portfolio, portfolio_data, returns, weights):
+def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_returns):
     elements = []
     
-    def historical_stress_test(returns, weights, start_date, end_date):
-        period_returns = returns.loc[start_date:end_date]
+    def historical_stress_test(portfolio_data, weights, start_date, end_date):
+        df = pd.DataFrame(portfolio_data)
+        if start_date not in df.index or end_date not in df.index:
+            return None  # Ou une valeur par défaut appropriée
+        period_returns = df.loc[start_date:end_date].pct_change().dropna()
         portfolio_returns = (period_returns * weights).sum(axis=1)
         return (1 + portfolio_returns).prod() - 1
 
@@ -947,8 +953,11 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights):
 
     stress_data = [['Scénario', 'Impact sur le Portefeuille']]
     for scenario, (start_date, end_date) in scenarios.items():
-        impact = historical_stress_test(returns, weights, start_date, end_date)
-        stress_data.append([scenario, f"{impact:.2%}"])
+        impact = historical_stress_test(portfolio_data, weights, start_date, end_date)
+        if impact is not None:
+            stress_data.append([scenario, f"{impact:.2%}"])
+        else:
+            stress_data.append([scenario, "N/A"])
     
     table = Table(stress_data)
     table.setStyle(TableStyle([
@@ -964,8 +973,11 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights):
     elements.append(table)
     
     # Graphique des impacts des scénarios
-    fig = go.Figure(data=[go.Bar(x=list(scenarios.keys()), 
-                                 y=[sum(impact * weight for weight in weights) for impact in scenarios.values()])])
+    # Utiliser les impacts calculés précédemment
+    fig = go.Figure(data=[go.Bar(
+        x=[scenario for scenario in scenarios.keys()],
+        y=[impact[1] * 100 for impact in stress_data[1:]]  # impact[1] est l'impact en pourcentage
+    )])
     fig.update_layout(title="Impact des Scénarios de Stress sur le Portefeuille",
                       xaxis_title="Scénario", yaxis_title="Impact (%)")
     
@@ -996,16 +1008,15 @@ def create_section_header(text, level=1):
     style = getSampleStyleSheet()[f'Heading{level}']
     return Paragraph(text, style)
 
-def generate_recommendations(portfolio, portfolio_data, returns, weights):
+def generate_recommendations(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return):
     elements = []
     
-    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
     portfolio_volatility = weighted_returns.std() * np.sqrt(252)
     
     sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility  # Assuming 2% risk-free rate
 
     # Comparer avec le S&P 500
-    sp500_data = get_sp500_data(df.index[0], df.index[-1])
+    sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
     sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
     sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
 
@@ -1035,7 +1046,7 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights):
     Pour chaque recommandation, fournissez une brève explication de son raisonnement et de son impact potentiel.
     """)
 
-    elements.append(create_formatted_paragraph("Recommandations", 'Heading2'))
+    elements.append(create_section_header("Recommandations", level=2))
     elements.append(create_formatted_paragraph(recommendations_text, 'BodyText'))
 
     return elements
@@ -1052,8 +1063,7 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
     
     # Calculer le rendement total du portefeuille
-    df = pd.DataFrame(portfolio_data)
-    total_return = (df.iloc[-1] / df.iloc[0] - 1).sum()
+    total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
     
     # Générer le texte des perspectives futures
     outlook_text = generate_ai_content(f"""
@@ -1079,10 +1089,13 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
 
 def calculate_sector_allocation(portfolio):
     sector_weights = {}
+    sector_cache = {}
     for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
-        info = ticker.info
-        sector = info.get('sector', 'Unknown')
+        if stock['symbol'] not in sector_cache:
+            ticker = yf.Ticker(stock['symbol'])
+            info = ticker.info
+            sector_cache[stock['symbol']] = info.get('sector', 'Unknown')
+        sector = sector_cache[stock['symbol']]
         weight = float(stock['weight']) / 100
         sector_weights[sector] = sector_weights.get(sector, 0) + weight
     return sector_weights

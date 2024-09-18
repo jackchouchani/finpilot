@@ -82,8 +82,8 @@ def generate_report(data):
     # Création du document PDF
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 
-                               rightMargin=0.5*inch, leftMargin=0.5*inch, 
-                               topMargin=0.5*inch, bottomMargin=0.5*inch)
+                            rightMargin=0.5*inch, leftMargin=0.5*inch, 
+                            topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
     
@@ -96,12 +96,6 @@ def generate_report(data):
 
     # Table des matières
     elements.append(create_section_header("Table des Matières"))
-        # Supprimez cette ligne
-    # from reportlab.platypus import TableOfContents
-
-    # Remplacez la section de création de la table des matières par un simple paragraphe
-    elements.append(create_section_header("Table des Matières"))
-    # Ajoutez manuellement les sections que vous avez dans votre rapport
     elements.append(create_formatted_paragraph("1. Résumé Exécutif", 'Normal'))
     elements.append(create_formatted_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
     elements.append(create_formatted_paragraph("3. Analyse de Performance", 'Normal'))
@@ -128,27 +122,20 @@ def generate_report(data):
         ("Recommandations", lambda p, pd, r, w: generate_recommendations(p, pd, r, w))
     ]
 
-    def format_time(seconds):
-        return f"{seconds:.2f} secondes"
-
     total_steps = len(sections)
-    progress = 0
     
-    for title, function in tqdm(sections, desc="Generating report", total=total_steps):
+    for index, (title, function) in enumerate(sections, 1):
         elements.append(create_section_header(title))
-        start_time = time.time()
         new_elements = function(portfolio, portfolio_data, returns, weights)
-        end_time = time.time()
-        execution_time = end_time - start_time
-        
-        progress += 1
-        yield json.dumps({"progress": progress / total_steps * 100, "step": title})
         
         if isinstance(new_elements, list):
             elements.extend(new_elements)
         else:
             elements.append(create_formatted_paragraph(str(new_elements)))
         elements.append(PageBreak())
+        
+        progress = (index / total_steps) * 100
+        yield json.dumps({"progress": progress, "step": title})
 
     # Glossaire et avertissements
     elements.append(create_section_header("Glossaire"))

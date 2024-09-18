@@ -86,7 +86,6 @@ function Portfolio() {
     const [editingStock, setEditingStock] = useState(null);
     const [reportProgress, setReportProgress] = useState(0);
     const [currentStep, setCurrentStep] = useState('');
-    const [generatingReport, setGeneratingReport] = useState(false);
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -254,8 +253,11 @@ function Portfolio() {
     };
 
     const generateReport = async () => {
+        setLoading(true);
+        setReportProgress(0);
+        setCurrentStep('');
+
         try {
-            setLoading(true);
             const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/generate_report`,
                 { portfolio: portfolio },
@@ -267,12 +269,20 @@ function Portfolio() {
                     }
                 }
             );
+
+            // Mise à jour de la progression
             const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report_progress`);
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 setReportProgress(data.progress);
                 setCurrentStep(data.step);
+
+                if (data.progress === 100) {
+                    eventSource.close();
+                    setLoading(false);
+                    // Ici, vous pouvez déclencher l'affichage du PDF si nécessaire
+                }
             };
 
             eventSource.onerror = () => {
@@ -538,7 +548,6 @@ function Portfolio() {
                 <DialogContent>
                     {loading ? (
                         <Box sx={{ width: '100%', textAlign: 'center' }}>
-                            <CircularProgress />
                             <Typography variant="h6">{currentStep}</Typography>
                             <LinearProgress variant="determinate" value={reportProgress} />
                             <Typography variant="body2">{`${Math.round(reportProgress)}%`}</Typography>

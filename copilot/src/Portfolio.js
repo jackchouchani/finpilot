@@ -84,8 +84,9 @@ function Portfolio() {
     const [portfolioValue, setPortfolioValue] = useState(100000); // Valeur par défaut
     const [displayMode, setDisplayMode] = useState('weight'); // 'weight' ou 'shares'
     const [editingStock, setEditingStock] = useState(null);
-    const [progress, setProgress] = useState(0);
+    const [reportProgress, setReportProgress] = useState(0);
     const [currentStep, setCurrentStep] = useState('');
+    const [generatingReport, setGeneratingReport] = useState(false);
 
     const handleSubmit = (event) => {
         event.preventDefault();

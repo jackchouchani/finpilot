@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, Paper, List, ListItem, ListItemText, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, CircularProgress, InputAdornment, Autocomplete, IconButton, Box, Switch, FormControlLabel, Tooltip
+    TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, Paper, List, ListItem, ListItemText, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, CircularProgress, InputAdornment, Autocomplete, IconButton, Box, Switch, FormControlLabel, Tooltip, LinearProgress
 } from '@mui/material';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid
@@ -84,6 +84,8 @@ function Portfolio() {
     const [portfolioValue, setPortfolioValue] = useState(100000); // Valeur par défaut
     const [displayMode, setDisplayMode] = useState('weight'); // 'weight' ou 'shares'
     const [editingStock, setEditingStock] = useState(null);
+    const [reportProgress, setReportProgress] = useState(0);
+    const [currentStep, setCurrentStep] = useState('');
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -252,14 +254,38 @@ function Portfolio() {
 
     const generateReport = async () => {
         try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/generate_report', {
-                portfolio: portfolio
-            });
-            setReportData(response.data.report);
+            setLoading(true);
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_URL}/generate_report`,
+                { portfolio: portfolio },
+                {
+                    responseType: 'text',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }
+            );
+            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report_progress`);
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                setReportProgress(data.progress);
+                setCurrentStep(data.step);
+            };
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                setLoading(false);
+            };
+
+            setReportData(response.data);
             setOpenReport(true);
         } catch (error) {
             console.error("Error generating report:", error);
             alert('Error generating report. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -509,13 +535,22 @@ function Portfolio() {
             <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
                 <DialogTitle>Portfolio Report</DialogTitle>
                 <DialogContent>
-                    {reportData && (
+                    {loading ? (
+                        <Box sx={{ width: '100%', textAlign: 'center' }}>
+                            <CircularProgress />
+                            <Typography variant="h6">{currentStep}</Typography>
+                            <LinearProgress variant="determinate" value={reportProgress} />
+                            <Typography variant="body2">{`${Math.round(reportProgress)}%`}</Typography>
+                        </Box>
+                    ) : reportData ? (
                         <iframe
                             src={`data:application/pdf;base64,${reportData}`}
                             width="100%"
                             height="500px"
                             style={{ border: 'none' }}
                         />
+                    ) : (
+                        <Typography>No report data available</Typography>
                     )}
                 </DialogContent>
                 <DialogActions>

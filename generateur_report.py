@@ -16,6 +16,8 @@ import plotly.express as px
 import yfinance as yf
 from flask import jsonify
 import anthropic
+import textwrap
+import re
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
@@ -35,20 +37,24 @@ def create_paragraph(text, style_name='Normal'):
         style_name = 'Normal'
     style = styles[style_name]
     
-    # Nettoyer le texte et ajouter des retours à la ligne
     cleaned_text = clean_text(text)
-    wrapped_text = textwrap.fill(cleaned_text, width=80)
     
-    custom_style = ParagraphStyle('CustomStyle', parent=style, wordWrap='CJK')
+    custom_style = ParagraphStyle('CustomStyle', parent=style, spaceAfter=12)
     
-    return Paragraph(wrapped_text, custom_style)
+    return Paragraph(cleaned_text, custom_style)
 
 def clean_text(text):
     if not isinstance(text, str):
         text = str(text)
-    text = text.replace('\n', ' ')
-    text = ''.join(char for char in text if ord(char) > 31 or char == ' ')
-    return text
+    # Remplacer les retours à la ligne multiples par un seul
+    text = re.sub(r'\n+', '\n', text)
+    # Diviser le texte en paragraphes
+    paragraphs = text.split('\n')
+    # Wrapper chaque paragraphe individuellement
+    wrapped_paragraphs = [textwrap.fill(p.strip(), width=80) for p in paragraphs]
+    # Rejoindre les paragraphes avec des retours à la ligne doubles
+    return '\n\n'.join(wrapped_paragraphs)
+
 
 def generate_report(data):
     portfolio = data['portfolio']
@@ -147,8 +153,7 @@ def create_title_page(title, subtitle, date):
     styles = getSampleStyleSheet()
     
     # Ajouter le logo
-    logo_path = "copilot/public/logo.jpg"  # Remplacez par le chemin de votre logo
-    logo = Image(logo_path, width=2*inch, height=1*inch)
+    logo = Image("/app/logo.jpg", width=2*inch, height=1*inch)
     elements.append(logo)
     
     elements.append(Spacer(1, 1*inch))

@@ -26,6 +26,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Copy the logo file
+COPY logo.jpg /app/logo.jpg
+
 # Create necessary directories for LiteFS
 RUN mkdir -p /var/lib/litefs /litefs
 

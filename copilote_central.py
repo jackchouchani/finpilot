@@ -1389,7 +1389,12 @@ def simulate_scenario():
 @jwt_required()
 def generate_report_route():
     data = request.json
-    return generate_report(data)
+    
+    def generate():
+        for progress in generate_report(data):
+            yield f"data: {progress}\n\n"
+    
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/update_portfolio_value', methods=['POST'])
 @jwt_required()

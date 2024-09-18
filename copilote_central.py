@@ -69,6 +69,10 @@ def get_db():
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+app.config['JWT_TOKEN_LOCATION'] = ['cookies']
+app.config['JWT_COOKIE_SECURE'] = True  # Utilisez True en production
+app.config['JWT_COOKIE_HTTPONLY'] = True
+app.config['JWT_COOKIE_SAMESITE'] = 'Lax'
 jwt = JWTManager(app)
 
 # Augmentez la durée de validité du token JWT
@@ -336,17 +340,23 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    username = data.get('username')
-    password = data.get('password')
+    username = request.json.get('username', None)
+    password = request.json.get('password', None)
     
     user = get_user_by_username(username)
     if user and check_password(password, user[2]):
-        access_token = create_access_token(identity=user[0])
+        access_token = create_access_token(identity=username)
         response = jsonify(access_token=access_token)
         set_access_cookies(response, access_token)
         return response, 200
     else:
         return jsonify({"error": "Invalid username or password"}), 401
+    
+@app.route('/logout', methods=['POST'])
+def logout():
+    response = jsonify({"msg": "Logout successful"})
+    unset_jwt_cookies(response)
+    return response
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):

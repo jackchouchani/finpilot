@@ -257,27 +257,26 @@ function Portfolio() {
         try {
             setGeneratingReport(true);
             setReportProgress(0);
-            setCurrentStep('Initializing report generation');
+            setCurrentStep('Initialisation de la génération du rapport');
 
-            const token = localStorage.getItem('token');
             const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
                 withCredentials: true
             });
 
             eventSource.onerror = (error) => {
-                console.error("EventSource failed:", error);
+                console.error("La connexion EventSource a échoué:", error);
                 eventSource.close();
                 setGeneratingReport(false);
-                alert('Error generating report. Please try again.');
+                alert('Erreur lors de la génération du rapport. Veuillez réessayer.');
             };
 
             eventSource.onopen = () => {
-                console.log("EventSource connection opened");
+                console.log("Connexion EventSource établie");
             };
 
             eventSource.onmessage = (event) => {
-                console.log("Received message:", event.data);
-                const data = JSON.parse(event.data);
+                console.log("Message reçu:", event.data);
+                const data = JSON.parse(event.data.replace("'", '"')); // Remplacer les apostrophes si nécessaire
                 setReportProgress(data.progress);
                 setCurrentStep(data.step);
 
@@ -290,9 +289,9 @@ function Portfolio() {
             };
 
         } catch (error) {
-            console.error("Error in generateReport:", error);
+            console.error("Erreur dans generateReport:", error);
             setGeneratingReport(false);
-            alert('Error generating report. Please try again.');
+            alert('Erreur lors de la génération du rapport. Veuillez réessayer.');
         }
     };
 

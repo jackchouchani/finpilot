@@ -538,14 +538,12 @@ function App() {
         }
     );
 
-    const handleLogin = async () => {
-        try {
-            const response = await axios.post('/login', { username, password });
-            console.log(response.data.msg);
-            // Rediriger ou mettre à jour l'état de l'application
-        } catch (error) {
-            console.error("Erreur lors de la connexion :", error);
-            alert('Échec de la connexion. Vérifiez vos identifiants.');
+    const handleLogin = () => {
+        setIsLoggedIn(true);
+        // Assurez-vous que le token est stocké dans localStorage
+        const token = localStorage.getItem('token');
+        if (token) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         }
     };
 

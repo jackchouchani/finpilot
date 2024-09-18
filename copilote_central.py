@@ -1,6 +1,6 @@
 #!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 from threading import Thread
@@ -18,7 +18,7 @@ from io import BytesIO
 import os
 import re
 import bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies, verify_jwt_in_request
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -45,7 +45,8 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {
     "origins": ["https://www.finpilot.one", "http://localhost:3000"],
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "supports_credentials": True,
+    "allow_headers": ["Content-Type", "Authorization"],
+    "supports_credentials": True
 }})
 
 @app.after_request
@@ -66,11 +67,6 @@ def get_db():
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
-app.config['JWT_TOKEN_LOCATION'] = ['cookies']
-app.config['JWT_COOKIE_SECURE'] = True  # Utilisez True en production
-app.config['JWT_COOKIE_HTTPONLY'] = True
-app.config['JWT_COOKIE_SAMESITE'] = 'Lax'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
 jwt = JWTManager(app)
 
 # Augmentez la durée de validité du token JWT
@@ -338,23 +334,17 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    username = request.json.get('username', None)
-    password = request.json.get('password', None)
+    username = data.get('username')
+    password = data.get('password')
     
     user = get_user_by_username(username)
     if user and check_password(password, user[2]):
-        access_token = create_access_token(identity=username)
+        access_token = create_access_token(identity=user[0])
         response = jsonify(access_token=access_token)
         set_access_cookies(response, access_token)
         return response, 200
     else:
         return jsonify({"error": "Invalid username or password"}), 401
-    
-@app.route('/logout', methods=['POST'])
-def logout():
-    response = jsonify({"msg": "Logout successful"})
-    unset_jwt_cookies(response)
-    return response
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):
@@ -1395,27 +1385,11 @@ def simulate_scenario():
     return jsonify(results)
 
 
-@app.route('/generate_report', methods=['GET'])
+@app.route('/generate_report', methods=['POST'])
 @jwt_required()
 def generate_report_route():
-    def generate():
-        total_steps = 16  # Nombre total d'étapes dans generate_report
-        for i, (title, function) in enumerate(sections):
-            yield f"data: {json.dumps({'progress': (i / total_steps) * 100, 'step': f'Generating {title}'})}\n\n"
-            function(portfolio, portfolio_data, returns, weights)  # Assurez-vous que ces variables sont définies
-
-        # Générer le PDF final
-        data = request.json
-        pdf_data = generate_report(data)
-        pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
-        yield f"data: {json.dumps({'progress': 100, 'step': 'Completed', 'report': pdf_base64})}\n\n"
-
-    response = Response(stream_with_context(generate()), mimetype='text/event-stream')
-    response.headers['Access-Control-Allow-Origin'] = 'https://www.finpilot.one'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Cache-Control'] = 'no-cache'
-    response.headers['X-Accel-Buffering'] = 'no'
-    return response
+    data = request.json
+    return generate_report(data)
 
 @app.route('/update_portfolio_value', methods=['POST'])
 @jwt_required()

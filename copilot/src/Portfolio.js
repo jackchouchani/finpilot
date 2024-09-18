@@ -84,9 +84,8 @@ function Portfolio() {
     const [portfolioValue, setPortfolioValue] = useState(100000); // Valeur par défaut
     const [displayMode, setDisplayMode] = useState('weight'); // 'weight' ou 'shares'
     const [editingStock, setEditingStock] = useState(null);
-    const [reportProgress, setReportProgress] = useState(0);
+    const [progress, setProgress] = useState(0);
     const [currentStep, setCurrentStep] = useState('');
-    const [generatingReport, setGeneratingReport] = useState(false);
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -253,38 +252,41 @@ function Portfolio() {
         }
     };
 
-    const generateReport = () => {
-        setGeneratingReport(true);
-        setReportProgress(0);
-        setCurrentStep('Initialisation de la génération du rapport');
+    const generateReport = async () => {
+        try {
+            setLoading(true);
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_URL}/generate_report`,
+                { portfolio: portfolio },
+                {
+                    responseType: 'text',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }
+            );
+            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report_progress`);
 
-        const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
-            withCredentials: true
-        });
-
-        eventSource.onmessage = (event) => {
-            try {
+            eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 setReportProgress(data.progress);
                 setCurrentStep(data.step);
+            };
 
-                if (data.report) {
-                    setReportData(data.report);
-                    setOpenReport(true);
-                    eventSource.close();
-                    setGeneratingReport(false);
-                }
-            } catch (error) {
-                console.error("Erreur lors de l'analyse du message EventSource :", error);
-            }
-        };
+            eventSource.onerror = () => {
+                eventSource.close();
+                setLoading(false);
+            };
 
-        eventSource.onerror = (error) => {
-            console.error("Erreur avec EventSource :", error);
-            eventSource.close();
-            setGeneratingReport(false);
-            alert('Erreur lors de la génération du rapport. Veuillez réessayer.');
-        };
+            setReportData(response.data);
+            setOpenReport(true);
+        } catch (error) {
+            console.error("Error generating report:", error);
+            alert('Error generating report. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleEditStock = (index) => {
@@ -529,27 +531,31 @@ function Portfolio() {
                     <Button onClick={() => setOpenScenario(false)}>Close</Button>
                 </DialogActions>
             </Dialog>
-            {generatingReport && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
-                    <CircularProgress variant="determinate" value={reportProgress} />
-                    <Typography variant="caption" sx={{ mt: 1 }}>{`${Math.round(reportProgress)}%`}</Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}>{currentStep}</Typography>
-                </Box>
-            )}
 
-            {reportData && (
-                <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
-                    <DialogTitle>Portfolio Report</DialogTitle>
-                    <DialogContent>
+            <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
+                <DialogTitle>Portfolio Report</DialogTitle>
+                <DialogContent>
+                    {loading ? (
+                        <Box sx={{ width: '100%', textAlign: 'center' }}>
+                            <CircularProgress />
+                            <Typography variant="h6">{currentStep}</Typography>
+                            <LinearProgress variant="determinate" value={reportProgress} />
+                            <Typography variant="body2">{`${Math.round(reportProgress)}%`}</Typography>
+                        </Box>
+                    ) : reportData ? (
                         <iframe
                             src={`data:application/pdf;base64,${reportData}`}
                             width="100%"
                             height="500px"
                             style={{ border: 'none' }}
                         />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setOpenReport(false)}>Close</Button>
+                    ) : (
+                        <Typography>No report data available</Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenReport(false)}>Close</Button>
+                    {reportData && (
                         <Button onClick={() => {
                             const linkSource = `data:application/pdf;base64,${reportData}`;
                             const downloadLink = document.createElement("a");
@@ -559,9 +565,9 @@ function Portfolio() {
                         }}>
                             Download PDF
                         </Button>
-                    </DialogActions>
-                </Dialog>
-            )}
+                    )}
+                </DialogActions>
+            </Dialog>
         </Paper>
     );
 }

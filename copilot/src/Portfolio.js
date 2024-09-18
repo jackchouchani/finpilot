@@ -262,10 +262,12 @@ function Portfolio() {
             const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+                },
+                withCredentials: true // Ajoutez ceci si vous utilisez des cookies pour l'authentification
             });
 
             eventSource.onmessage = (event) => {
+                console.log("Received message:", event.data);
                 const data = JSON.parse(event.data);
                 setReportProgress(data.progress);
                 setCurrentStep(data.step);
@@ -274,18 +276,24 @@ function Portfolio() {
                     setReportData(data.report);
                     setOpenReport(true);
                     eventSource.close();
+                    setGeneratingReport(false);
                 }
             };
 
             eventSource.onerror = (error) => {
-                console.error("Error with EventSource:", error);
+                console.error("EventSource failed:", error);
                 eventSource.close();
                 setGeneratingReport(false);
                 alert('Error generating report. Please try again.');
             };
 
+            eventSource.onopen = () => {
+                console.log("EventSource connection opened");
+            };
+
         } catch (error) {
-            console.error("Error generating report:", error);
+            console.error("Error in generateReport:", error);
+            setGeneratingReport(false);
             alert('Error generating report. Please try again.');
         }
     };

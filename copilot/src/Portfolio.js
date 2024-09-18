@@ -254,15 +254,12 @@ function Portfolio() {
 
     const generateReport = async () => {
         setLoading(true);
-        setReportProgress(0);
-        setCurrentStep('');
-
         try {
             const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/generate_report`,
                 { portfolio: portfolio },
                 {
-                    responseType: 'text',
+                    responseType: 'json',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -270,28 +267,12 @@ function Portfolio() {
                 }
             );
 
-            // Mise à jour de la progression
-            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report_progress`);
-
-            eventSource.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                setReportProgress(data.progress);
-                setCurrentStep(data.step);
-
-                if (data.progress === 100) {
-                    eventSource.close();
-                    setLoading(false);
-                    // Ici, vous pouvez déclencher l'affichage du PDF si nécessaire
-                }
-            };
-
-            eventSource.onerror = () => {
-                eventSource.close();
-                setLoading(false);
-            };
-
-            setReportData(response.data);
-            setOpenReport(true);
+            if (response.data && response.data.report) {
+                setReportData(response.data.report);
+                setOpenReport(true);
+            } else {
+                throw new Error('Invalid report data received');
+            }
         } catch (error) {
             console.error("Error generating report:", error);
             alert('Error generating report. Please try again.');
@@ -546,13 +527,7 @@ function Portfolio() {
             <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
                 <DialogTitle>Portfolio Report</DialogTitle>
                 <DialogContent>
-                    {loading ? (
-                        <Box sx={{ width: '100%', textAlign: 'center' }}>
-                            <Typography variant="h6">{currentStep}</Typography>
-                            <LinearProgress variant="determinate" value={reportProgress} />
-                            <Typography variant="body2">{`${Math.round(reportProgress)}%`}</Typography>
-                        </Box>
-                    ) : reportData ? (
+                    {reportData ? (
                         <iframe
                             src={`data:application/pdf;base64,${reportData}`}
                             width="100%"

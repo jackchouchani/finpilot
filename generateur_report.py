@@ -70,6 +70,14 @@ def clean_text(text):
     # Rejoindre les paragraphes avec des retours à la ligne doubles
     return '\n\n'.join(wrapped_paragraphs)
 
+def calculate_portfolio_returns(portfolio_data, weights):
+    df = pd.DataFrame(portfolio_data)
+    returns = df.pct_change().dropna()
+    weighted_returns = (returns * weights).sum(axis=1)
+    total_return = (1 + weighted_returns).prod() - 1
+    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
+    return weighted_returns, total_return, annualized_return
+
 
 def generate_report(data):
     portfolio = data['portfolio']
@@ -151,8 +159,6 @@ def generate_report(data):
 
     # Encodage du PDF en base64
     pdf_base64 = base64.b64encode(pdf).decode('utf-8')
-    
-    yield json.dumps({"progress": 100, "step": "Completed"})
 
     return {"report": pdf_base64}
 

@@ -1,6 +1,6 @@
 #!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import sqlite3
 from threading import Thread
@@ -1385,16 +1385,24 @@ def simulate_scenario():
     return jsonify(results)
 
 
-@app.route('/generate_report', methods=['POST'])
+@app.route('/generate_report', methods=['GET'])
 @jwt_required()
 def generate_report_route():
-    data = request.json
-    
+    user_id = get_jwt_identity()
+    portfolio = get_portfolio(user_id)  # Assurez-vous que cette fonction existe et récupère le portfolio de l'utilisateur
+
     def generate():
-        for progress in generate_report(data):
-            yield f"data: {progress}\n\n"
-    
-    return Response(generate(), mimetype='text/event-stream')
+        total_steps = 16  # Nombre total d'étapes dans generate_report
+        for i, (title, function) in enumerate(sections):
+            yield f"data: {json.dumps({'progress': (i / total_steps) * 100, 'step': f'Generating {title}'})}\n\n"
+            function(portfolio, portfolio_data, returns, weights)  # Assurez-vous que ces variables sont définies
+
+        # Générer le PDF final
+        pdf_data = generate_final_pdf()  # Implémentez cette fonction pour générer le PDF
+        pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
+        yield f"data: {json.dumps({'progress': 100, 'step': 'Completed', 'report': pdf_base64})}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 @app.route('/update_portfolio_value', methods=['POST'])
 @jwt_required()

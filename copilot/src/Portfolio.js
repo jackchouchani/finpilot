@@ -86,6 +86,7 @@ function Portfolio() {
     const [editingStock, setEditingStock] = useState(null);
     const [reportProgress, setReportProgress] = useState(0);
     const [currentStep, setCurrentStep] = useState('');
+    const [generatingReport, setGeneratingReport] = useState(false);
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -254,38 +255,38 @@ function Portfolio() {
 
     const generateReport = async () => {
         try {
-            setLoading(true);
-            const response = await axios.post(
-                `${process.env.REACT_APP_API_URL}/generate_report`,
-                { portfolio: portfolio },
-                {
-                    responseType: 'text',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+            setGeneratingReport(true);
+            setReportProgress(0);
+            setCurrentStep('Initializing report generation');
+
+            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
-            );
-            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report_progress`);
+            });
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 setReportProgress(data.progress);
                 setCurrentStep(data.step);
+
+                if (data.report) {
+                    setReportData(data.report);
+                    setOpenReport(true);
+                    eventSource.close();
+                }
             };
 
-            eventSource.onerror = () => {
+            eventSource.onerror = (error) => {
+                console.error("Error with EventSource:", error);
                 eventSource.close();
-                setLoading(false);
+                setGeneratingReport(false);
+                alert('Error generating report. Please try again.');
             };
 
-            setReportData(response.data);
-            setOpenReport(true);
         } catch (error) {
             console.error("Error generating report:", error);
             alert('Error generating report. Please try again.');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -531,31 +532,27 @@ function Portfolio() {
                     <Button onClick={() => setOpenScenario(false)}>Close</Button>
                 </DialogActions>
             </Dialog>
+            {generatingReport && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                    <CircularProgress variant="determinate" value={reportProgress} />
+                    <Typography variant="caption" sx={{ mt: 1 }}>{`${Math.round(reportProgress)}%`}</Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>{currentStep}</Typography>
+                </Box>
+            )}
 
-            <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
-                <DialogTitle>Portfolio Report</DialogTitle>
-                <DialogContent>
-                    {loading ? (
-                        <Box sx={{ width: '100%', textAlign: 'center' }}>
-                            <CircularProgress />
-                            <Typography variant="h6">{currentStep}</Typography>
-                            <LinearProgress variant="determinate" value={reportProgress} />
-                            <Typography variant="body2">{`${Math.round(reportProgress)}%`}</Typography>
-                        </Box>
-                    ) : reportData ? (
+            {reportData && (
+                <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
+                    <DialogTitle>Portfolio Report</DialogTitle>
+                    <DialogContent>
                         <iframe
                             src={`data:application/pdf;base64,${reportData}`}
                             width="100%"
                             height="500px"
                             style={{ border: 'none' }}
                         />
-                    ) : (
-                        <Typography>No report data available</Typography>
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenReport(false)}>Close</Button>
-                    {reportData && (
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setOpenReport(false)}>Close</Button>
                         <Button onClick={() => {
                             const linkSource = `data:application/pdf;base64,${reportData}`;
                             const downloadLink = document.createElement("a");
@@ -565,9 +562,9 @@ function Portfolio() {
                         }}>
                             Download PDF
                         </Button>
-                    )}
-                </DialogActions>
-            </Dialog>
+                    </DialogActions>
+                </Dialog>
+            )}
         </Paper>
     );
 }

@@ -18,6 +18,8 @@ from flask import jsonify
 import anthropic
 import textwrap
 import re
+from tqdm import tqdm
+import json
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
@@ -31,17 +33,30 @@ def generate_ai_content(prompt):
     )
     return message.content[0].text
 
-def create_paragraph(text, style_name='Normal'):
+def create_formatted_paragraph(text, style_name='Normal'):
     styles = getSampleStyleSheet()
-    if style_name not in styles:
-        style_name = 'Normal'
-    style = styles[style_name]
+    custom_style = ParagraphStyle(
+        'CustomStyle',
+        parent=styles[style_name],
+        spaceAfter=12,
+        bulletIndent=20,
+        leftIndent=35
+    )
     
-    cleaned_text = clean_text(text)
+    # Remplacer les balises <bullet> par le caractère de puce HTML
+    text = text.replace('<bullet>•</bullet>', '&bull;')
     
-    custom_style = ParagraphStyle('CustomStyle', parent=style, spaceAfter=12)
+    # Traiter les puces
+    lines = text.split('<br/>')
+    formatted_lines = []
+    for line in lines:
+        if line.strip().startswith('•'):
+            formatted_lines.append(f'<bullet>&bull;</bullet>{line.strip()[1:]}')
+        else:
+            formatted_lines.append(line)
     
-    return Paragraph(cleaned_text, custom_style)
+    formatted_text = '<br/>'.join(formatted_lines)
+    return Paragraph(formatted_text, custom_style)
 
 def clean_text(text):
     if not isinstance(text, str):
@@ -87,9 +102,9 @@ def generate_report(data):
     # Remplacez la section de création de la table des matières par un simple paragraphe
     elements.append(create_section_header("Table des Matières"))
     # Ajoutez manuellement les sections que vous avez dans votre rapport
-    elements.append(create_paragraph("1. Résumé Exécutif", 'Normal'))
-    elements.append(create_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
-    elements.append(create_paragraph("3. Analyse de Performance", 'Normal'))
+    elements.append(create_formatted_paragraph("1. Résumé Exécutif", 'Normal'))
+    elements.append(create_formatted_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
+    elements.append(create_formatted_paragraph("3. Analyse de Performance", 'Normal'))
     # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
@@ -116,19 +131,23 @@ def generate_report(data):
     def format_time(seconds):
         return f"{seconds:.2f} secondes"
 
-    for title, function in sections:
+    total_steps = len(sections)
+    progress = 0
+    
+    for title, function in tqdm(sections, desc="Generating report", total=total_steps):
         elements.append(create_section_header(title))
         start_time = time.time()
         new_elements = function(portfolio, portfolio_data, returns, weights)
         end_time = time.time()
         execution_time = end_time - start_time
         
-        print(f"Temps d'exécution pour '{title}': {format_time(execution_time)}")
+        progress += 1
+        yield json.dumps({"progress": progress / total_steps * 100, "step": title})
         
         if isinstance(new_elements, list):
             elements.extend(new_elements)
         else:
-            elements.append(create_paragraph(str(new_elements), 'Normal'))
+            elements.append(create_formatted_paragraph(str(new_elements)))
         elements.append(PageBreak())
 
     # Glossaire et avertissements
@@ -136,7 +155,7 @@ def generate_report(data):
     elements.extend(generate_glossary())
     
     elements.append(create_section_header("Avertissements et Divulgations"))
-    elements.append(create_paragraph(generate_disclaimer(), 'Normal'))
+    elements.append(create_formatted_paragraph(generate_disclaimer(), 'Normal'))
 
     # Génération du PDF
     doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
@@ -145,8 +164,10 @@ def generate_report(data):
 
     # Encodage du PDF en base64
     pdf_base64 = base64.b64encode(pdf).decode('utf-8')
+    
+    yield json.dumps({"progress": 100, "step": "Completed"})
 
-    return jsonify({"report": pdf_base64})
+    return {"report": pdf_base64}
 
 def create_title_page(title, subtitle, date):
     elements = []
@@ -224,7 +245,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights):
     Le portefeuille a {['sous-performé', 'sur-performé'][total_return > sp500_return]} l'indice S&P 500 sur la période, avec un {['risque plus élevé', 'risque plus faible'][portfolio_volatility < sp500_volatility]}.
     """
     
-    elements.append(create_paragraph(summary, 'BodyText'))
+    elements.append(create_formatted_paragraph(summary, 'BodyText'))
 
     additional_analysis = generate_ai_content(f"""
     En vous basant sur les données suivantes :
@@ -243,7 +264,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights):
     4. Des recommandations préliminaires pour l'amélioration du portefeuille.
     """)
     
-    elements.append(create_paragraph(additional_analysis, 'BodyText'))
+    elements.append(create_formatted_paragraph(additional_analysis, 'BodyText'))
     
     return elements
 
@@ -349,7 +370,7 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     Identifiez les meilleures et les pires performances, et suggérez des explications possibles pour ces écarts de performance.
     Considérez également l'impact de la pondération de chaque action (poids: {weights}) sur la performance globale du portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -389,7 +410,7 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in contributions])}
     Identifiez les actions qui ont le plus contribué positivement et négativement, et expliquez l'impact de la pondération sur ces contributions.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -466,7 +487,7 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     Sortino Ratio: {ratios['Sortino Ratio']:.4f}
     Expliquez ce que chaque ratio signifie et comment interpréter ces valeurs dans le contexte de ce portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -495,7 +516,7 @@ def generate_correlation_heatmap(portfolio_data):
     Discutez de l'impact de ces corrélations sur la diversification du portefeuille.
     Suggérez des moyens d'améliorer la diversification du portefeuille en fonction de ces corrélations.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -561,7 +582,7 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, s
     - Ratio de Sharpe du portefeuille: {sharpe_ratio:.2f}
     - Ratio de Sharpe du S&P 500: {sp500_sharpe_ratio:.2f}
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     # Graphique des rendements cumulés
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=cumulative_returns.index, y=cumulative_returns,
@@ -650,7 +671,7 @@ def generate_sector_allocation(portfolio, portfolio_data, returns, weights):
     Identifiez les secteurs surpondérés et sous-pondérés par rapport à un indice de référence (comme le S&P 500).
     Commentez sur les risques et opportunités potentiels liés à cette allocation sectorielle.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -717,7 +738,7 @@ def generate_best_worst_performers(portfolio, portfolio_data, returns, weights):
     {', '.join([f"{p['symbol']}: rendement {p['return']:.2%}, volatilité {p['volatility']:.2%}, Sharpe {p['sharpe']:.2f}" for p in performance_data[-3:]])}
     Discutez des facteurs qui pourraient expliquer ces performances. Commentez sur l'impact de ces performances sur l'ensemble du portefeuille, en tenant compte des pondérations.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -757,7 +778,7 @@ def generate_dividend_table(portfolio):
     Discutez de l'impact des dividendes sur le rendement total du portefeuille.
     Commentez sur la durabilité des dividendes en fonction des taux de distribution (si disponibles).
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -799,7 +820,7 @@ def generate_esg_analysis(portfolio):
     ]))
     elements.append(table)
     
-    elements.append(create_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
+    elements.append(create_formatted_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
     
     explanation = generate_ai_content(f"""
     Analysez les scores ESG du portefeuille en vous basant sur les données du tableau.
@@ -808,7 +829,7 @@ def generate_esg_analysis(portfolio):
     Discutez de l'importance des critères ESG dans la gestion de portefeuille moderne.
     Suggérez des moyens d'améliorer le profil ESG global du portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -874,7 +895,7 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights)
     Discutez des implications de ces résultats pour l'investisseur.
     Commentez sur la dispersion des résultats et ce qu'elle signifie en termes de risque pour le portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -925,7 +946,7 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights):
     Identifiez les scénarios qui posent le plus grand risque pour le portefeuille.
     Suggérez des stratégies pour atténuer ces risques, comme la diversification ou l'utilisation d'instruments de couverture.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -985,8 +1006,8 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights):
     Pour chaque recommandation, fournissez une brève explication de son raisonnement et de son impact potentiel.
     """)
 
-    elements.append(create_paragraph("Recommandations", 'Heading2'))
-    elements.append(create_paragraph(recommendations_text, 'BodyText'))
+    elements.append(create_formatted_paragraph("Recommandations", 'Heading2'))
+    elements.append(create_formatted_paragraph(recommendations_text, 'BodyText'))
 
     return elements
 
@@ -1021,8 +1042,8 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     5. Des suggestions pour diversifier davantage le portefeuille si nécessaire.
     """)
     
-    elements.append(create_paragraph("Perspectives Futures", 'Heading2'))
-    elements.append(create_paragraph(outlook_text, 'BodyText'))
+    elements.append(create_formatted_paragraph("Perspectives Futures", 'Heading2'))
+    elements.append(create_formatted_paragraph(outlook_text, 'BodyText'))
     
     return elements
 

@@ -433,6 +433,10 @@ import plotly.express as px
 import yfinance as yf
 from flask import jsonify
 import anthropic
+import textwrap
+import re
+from tqdm import tqdm
+import json
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
@@ -446,26 +450,43 @@ def generate_ai_content(prompt):
     )
     return message.content[0].text
 
-def create_paragraph(text, style_name='Normal'):
+def create_formatted_paragraph(text, style_name='Normal'):
     styles = getSampleStyleSheet()
-    if style_name not in styles:
-        style_name = 'Normal'
-    style = styles[style_name]
+    custom_style = ParagraphStyle(
+        'CustomStyle',
+        parent=styles[style_name],
+        spaceAfter=12,
+        bulletIndent=20,
+        leftIndent=35
+    )
     
-    # Nettoyer le texte et ajouter des retours à la ligne
-    cleaned_text = clean_text(text)
-    wrapped_text = textwrap.fill(cleaned_text, width=80)
+    # Remplacer les balises <bullet> par le caractère de puce HTML
+    text = text.replace('<bullet>•</bullet>', '&bull;')
     
-    custom_style = ParagraphStyle('CustomStyle', parent=style, wordWrap='CJK')
+    # Traiter les puces
+    lines = text.split('<br/>')
+    formatted_lines = []
+    for line in lines:
+        if line.strip().startswith('•'):
+            formatted_lines.append(f'<bullet>&bull;</bullet>{line.strip()[1:]}')
+        else:
+            formatted_lines.append(line)
     
-    return Paragraph(wrapped_text, custom_style)
+    formatted_text = '<br/>'.join(formatted_lines)
+    return Paragraph(formatted_text, custom_style)
 
 def clean_text(text):
     if not isinstance(text, str):
         text = str(text)
-    text = text.replace('\n', ' ')
-    text = ''.join(char for char in text if ord(char) > 31 or char == ' ')
-    return text
+    # Remplacer les retours à la ligne multiples par un seul
+    text = re.sub(r'\n+', '\n', text)
+    # Diviser le texte en paragraphes
+    paragraphs = text.split('\n')
+    # Wrapper chaque paragraphe individuellement
+    wrapped_paragraphs = [textwrap.fill(p.strip(), width=80) for p in paragraphs]
+    # Rejoindre les paragraphes avec des retours à la ligne doubles
+    return '\n\n'.join(wrapped_paragraphs)
+
 
 def generate_report(data):
     portfolio = data['portfolio']
@@ -498,9 +519,9 @@ def generate_report(data):
     # Remplacez la section de création de la table des matières par un simple paragraphe
     elements.append(create_section_header("Table des Matières"))
     # Ajoutez manuellement les sections que vous avez dans votre rapport
-    elements.append(create_paragraph("1. Résumé Exécutif", 'Normal'))
-    elements.append(create_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
-    elements.append(create_paragraph("3. Analyse de Performance", 'Normal'))
+    elements.append(create_formatted_paragraph("1. Résumé Exécutif", 'Normal'))
+    elements.append(create_formatted_paragraph("2. Vue d'Ensemble du Portefeuille", 'Normal'))
+    elements.append(create_formatted_paragraph("3. Analyse de Performance", 'Normal'))
     # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
@@ -527,19 +548,23 @@ def generate_report(data):
     def format_time(seconds):
         return f"{seconds:.2f} secondes"
 
-    for title, function in sections:
+    total_steps = len(sections)
+    progress = 0
+    
+    for title, function in tqdm(sections, desc="Generating report", total=total_steps):
         elements.append(create_section_header(title))
         start_time = time.time()
         new_elements = function(portfolio, portfolio_data, returns, weights)
         end_time = time.time()
         execution_time = end_time - start_time
         
-        print(f"Temps d'exécution pour '{title}': {format_time(execution_time)}")
+        progress += 1
+        yield json.dumps({"progress": progress / total_steps * 100, "step": title})
         
         if isinstance(new_elements, list):
             elements.extend(new_elements)
         else:
-            elements.append(create_paragraph(str(new_elements), 'Normal'))
+            elements.append(create_formatted_paragraph(str(new_elements)))
         elements.append(PageBreak())
 
     # Glossaire et avertissements
@@ -547,7 +572,7 @@ def generate_report(data):
     elements.extend(generate_glossary())
     
     elements.append(create_section_header("Avertissements et Divulgations"))
-    elements.append(create_paragraph(generate_disclaimer(), 'Normal'))
+    elements.append(create_formatted_paragraph(generate_disclaimer(), 'Normal'))
 
     # Génération du PDF
     doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
@@ -556,16 +581,17 @@ def generate_report(data):
 
     # Encodage du PDF en base64
     pdf_base64 = base64.b64encode(pdf).decode('utf-8')
+    
+    yield json.dumps({"progress": 100, "step": "Completed"})
 
-    return jsonify({"report": pdf_base64})
+    return {"report": pdf_base64}
 
 def create_title_page(title, subtitle, date):
     elements = []
     styles = getSampleStyleSheet()
     
     # Ajouter le logo
-    logo_path = "copilot/public/logo.jpg"  # Remplacez par le chemin de votre logo
-    logo = Image(logo_path, width=2*inch, height=1*inch)
+    logo = Image("/app/logo.jpg", width=2*inch, height=1*inch)
     elements.append(logo)
     
     elements.append(Spacer(1, 1*inch))
@@ -636,7 +662,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights):
     Le portefeuille a {['sous-performé', 'sur-performé'][total_return > sp500_return]} l'indice S&P 500 sur la période, avec un {['risque plus élevé', 'risque plus faible'][portfolio_volatility < sp500_volatility]}.
     """
     
-    elements.append(create_paragraph(summary, 'BodyText'))
+    elements.append(create_formatted_paragraph(summary, 'BodyText'))
 
     additional_analysis = generate_ai_content(f"""
     En vous basant sur les données suivantes :
@@ -655,7 +681,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights):
     4. Des recommandations préliminaires pour l'amélioration du portefeuille.
     """)
     
-    elements.append(create_paragraph(additional_analysis, 'BodyText'))
+    elements.append(create_formatted_paragraph(additional_analysis, 'BodyText'))
     
     return elements
 
@@ -761,7 +787,7 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     Identifiez les meilleures et les pires performances, et suggérez des explications possibles pour ces écarts de performance.
     Considérez également l'impact de la pondération de chaque action (poids: {weights}) sur la performance globale du portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -801,7 +827,7 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in contributions])}
     Identifiez les actions qui ont le plus contribué positivement et négativement, et expliquez l'impact de la pondération sur ces contributions.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -878,7 +904,7 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     Sortino Ratio: {ratios['Sortino Ratio']:.4f}
     Expliquez ce que chaque ratio signifie et comment interpréter ces valeurs dans le contexte de ce portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -907,7 +933,7 @@ def generate_correlation_heatmap(portfolio_data):
     Discutez de l'impact de ces corrélations sur la diversification du portefeuille.
     Suggérez des moyens d'améliorer la diversification du portefeuille en fonction de ces corrélations.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -973,7 +999,7 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, s
     - Ratio de Sharpe du portefeuille: {sharpe_ratio:.2f}
     - Ratio de Sharpe du S&P 500: {sp500_sharpe_ratio:.2f}
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     # Graphique des rendements cumulés
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=cumulative_returns.index, y=cumulative_returns,
@@ -1062,7 +1088,7 @@ def generate_sector_allocation(portfolio, portfolio_data, returns, weights):
     Identifiez les secteurs surpondérés et sous-pondérés par rapport à un indice de référence (comme le S&P 500).
     Commentez sur les risques et opportunités potentiels liés à cette allocation sectorielle.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -1129,7 +1155,7 @@ def generate_best_worst_performers(portfolio, portfolio_data, returns, weights):
     {', '.join([f"{p['symbol']}: rendement {p['return']:.2%}, volatilité {p['volatility']:.2%}, Sharpe {p['sharpe']:.2f}" for p in performance_data[-3:]])}
     Discutez des facteurs qui pourraient expliquer ces performances. Commentez sur l'impact de ces performances sur l'ensemble du portefeuille, en tenant compte des pondérations.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -1169,7 +1195,7 @@ def generate_dividend_table(portfolio):
     Discutez de l'impact des dividendes sur le rendement total du portefeuille.
     Commentez sur la durabilité des dividendes en fonction des taux de distribution (si disponibles).
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -1211,7 +1237,7 @@ def generate_esg_analysis(portfolio):
     ]))
     elements.append(table)
     
-    elements.append(create_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
+    elements.append(create_formatted_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
     
     explanation = generate_ai_content(f"""
     Analysez les scores ESG du portefeuille en vous basant sur les données du tableau.
@@ -1220,7 +1246,7 @@ def generate_esg_analysis(portfolio):
     Discutez de l'importance des critères ESG dans la gestion de portefeuille moderne.
     Suggérez des moyens d'améliorer le profil ESG global du portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -1286,7 +1312,7 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights)
     Discutez des implications de ces résultats pour l'investisseur.
     Commentez sur la dispersion des résultats et ce qu'elle signifie en termes de risque pour le portefeuille.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -1337,7 +1363,7 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights):
     Identifiez les scénarios qui posent le plus grand risque pour le portefeuille.
     Suggérez des stratégies pour atténuer ces risques, comme la diversification ou l'utilisation d'instruments de couverture.
     """)
-    elements.append(create_paragraph(explanation, 'BodyText'))
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
@@ -1397,8 +1423,8 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights):
     Pour chaque recommandation, fournissez une brève explication de son raisonnement et de son impact potentiel.
     """)
 
-    elements.append(create_paragraph("Recommandations", 'Heading2'))
-    elements.append(create_paragraph(recommendations_text, 'BodyText'))
+    elements.append(create_formatted_paragraph("Recommandations", 'Heading2'))
+    elements.append(create_formatted_paragraph(recommendations_text, 'BodyText'))
 
     return elements
 
@@ -1433,8 +1459,8 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     5. Des suggestions pour diversifier davantage le portefeuille si nécessaire.
     """)
     
-    elements.append(create_paragraph("Perspectives Futures", 'Heading2'))
-    elements.append(create_paragraph(outlook_text, 'BodyText'))
+    elements.append(create_formatted_paragraph("Perspectives Futures", 'Heading2'))
+    elements.append(create_formatted_paragraph(outlook_text, 'BodyText'))
     
     return elements
 
@@ -1561,7 +1587,7 @@ historical_data_agent = HistoricalDataAnalysisAgent()
 <<<
 #!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import sqlite3
 from threading import Thread
@@ -1579,7 +1605,7 @@ from io import BytesIO
 import os
 import re
 import bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies, verify_jwt_in_request
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -2946,11 +2972,33 @@ def simulate_scenario():
     return jsonify(results)
 
 
-@app.route('/generate_report', methods=['POST'])
+@app.route('/generate_report', methods=['GET'])
 @jwt_required()
 def generate_report_route():
-    data = request.json
-    return generate_report(data)
+    token = request.args.get('token')
+    if not token:
+        return jsonify({"error": "No token provided"}), 401
+
+    try:
+        verify_jwt_in_request(optional=True)
+        user_id = get_jwt_identity()
+        if not user_id:
+            return jsonify({"error": "Invalid token"}), 401
+        portfolio = get_portfolio(user_id)  # Assurez-vous que cette fonction existe et récupère le portfolio de l'utilisateur
+
+        def generate():
+            total_steps = 16  # Nombre total d'étapes dans generate_report
+            for i, (title, function) in enumerate(sections):
+                yield f"data: {json.dumps({'progress': (i / total_steps) * 100, 'step': f'Generating {title}'})}\n\n"
+                function(portfolio, portfolio_data, returns, weights)  # Assurez-vous que ces variables sont définies
+
+            # Générer le PDF final
+            data = request.json
+            pdf_data = generate_report(data)
+            pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
+            yield f"data: {json.dumps({'progress': 100, 'step': 'Completed', 'report': pdf_base64})}\n\n"
+
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 @app.route('/update_portfolio_value', methods=['POST'])
 @jwt_required()
@@ -6562,5 +6610,2490 @@ from copilote_central import app
 
 if __name__ == "__main__":
     app.run()
+>>>
+
+./copilot/src/HistoricalDataAnalysis.js :
+<<<
+import React, { useState } from 'react';
+import axios from 'axios';
+import { TextField, Button, Typography, CircularProgress } from '@mui/material';
+
+function HistoricalDataAnalysis() {
+    const [ticker, setTicker] = useState('');
+    const [analysis, setAnalysis] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const analyzeHistoricalData = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post('/previous_day_analysis', { ticker });
+            setAnalysis(response.data.analysis);
+        } catch (error) {
+            console.error('Error analyzing historical data:', error);
+            setAnalysis('Error analyzing data');
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div>
+            <Typography variant="h6">Previous Day Data Analysis</Typography>
+            <TextField
+                label="Stock Ticker"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value)}
+            />
+            <Button onClick={analyzeHistoricalData} disabled={loading}>
+                Analyze Data
+            </Button>
+            {loading ? (
+                <CircularProgress />
+            ) : (
+                <Typography>{analysis}</Typography>
+            )}
+        </div>
+    );
+}
+
+export default HistoricalDataAnalysis;
+>>>
+
+./copilot/src/reportWebVitals.js :
+<<<
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+>>>
+
+./copilot/src/MessageContent.js :
+<<<
+import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Typography, Paper, Box } from '@mui/material';
+
+const MessageContent = ({ content, graphs }) => {
+    // Fonction pour vérifier si le contenu est valide
+    const isValidContent = (content) => {
+        return content !== null && content !== undefined && content !== '';
+    };
+
+    const isMarkdown = (str) => {
+        return typeof str === 'string' && (str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## '));
+    };
+
+    // Fonction pour formater le contenu
+    const formatContent = (text) => {
+        if (!isValidContent(text)) return '';
+        return text.replace(/\\n/g, '\n').replace(/\n(?!\n)/g, '\n\n');
+    };
+
+    // Fonction pour vérifier si c'est du JSON valide
+    const isJSON = (str) => {
+        if (!isValidContent(str)) return false;
+        try {
+            const parsed = JSON.parse(str);
+            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && Object.keys(parsed).length > 0;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // Fonction pour vérifier si c'est un objet string
+    const isStringObject = (str) => {
+        if (!isValidContent(str)) return false;
+        try {
+            const parsed = JSON.parse(str);
+            return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).every(key => !isNaN(parseInt(key)));
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // Gestion du contenu invalide
+    if (!isValidContent(content)) {
+        console.error("Contenu invalide reçu:", content);
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography color="error">Contenu invalide ou non disponible</Typography>
+            </Paper>
+        );
+    }
+
+    // Traitement du contenu JSON
+    if (isJSON(content)) {
+        try {
+            const jsonData = JSON.parse(content);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+                </Paper>
+            );
+        } catch (error) {
+            console.error("Erreur lors du parsing JSON:", error);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography color="error">Erreur lors de l'affichage du contenu JSON</Typography>
+                </Paper>
+            );
+        }
+    }
+
+    // Traitement du contenu string object
+    if (isStringObject(content)) {
+        try {
+            const stringContent = Object.values(JSON.parse(content)).join('');
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography>{formatContent(stringContent)}</Typography>
+                </Paper>
+            );
+        } catch (error) {
+            console.error("Erreur lors du parsing de l'objet string:", error);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography color="error">Erreur lors de l'affichage du contenu</Typography>
+                </Paper>
+            );
+        }
+    }
+    // Traitement pour l'agent de reporting
+    if (typeof content === 'object' && content.report) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography variant="h6">Rapport généré</Typography>
+                <Box component="a" href={`data:application/pdf;base64,${content.report}`} download="report.pdf">
+                    <Typography color="primary">Télécharger le rapport PDF</Typography>
+                </Box>
+            </Paper>
+        );
+    }
+
+    // Traitement pour les autres types de contenu
+    return (
+        <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+            <ReactMarkdown
+                components={{
+                    h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,
+                    h2: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
+                    h3: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
+                    p: ({ node, ...props }) => <Typography paragraph {...props} />,
+                    li: ({ node, ...props }) => <Typography component="li" sx={{ ml: 2 }} {...props} />,
+                    ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
+                    code: ({ node, inline, ...props }) =>
+                        inline ? (
+                            <Box component="code" sx={{ bgcolor: 'grey.100', p: 0.5, borderRadius: 1 }} {...props} />
+                        ) : (
+                            <Box component="pre" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, overflow: 'auto' }}>
+                                <code {...props} />
+                            </Box>
+                        ),
+                    img: ({ node, ...props }) => {
+                        if (props.src.startsWith('data:image')) {
+                            return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
+                        }
+                        // Gérer les autres types d'images si nécessaire
+                        return null;
+                    },
+                }}
+            >
+                {formatContent(content)}
+            </ReactMarkdown>
+            {graphs && graphs.map((graph, index) => (
+                <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+            ))}
+        </Paper>
+    );
+};
+
+export default MessageContent;
+>>>
+
+./copilot/src/Auth.js :
+<<<
+import axios from 'axios';
+
+export const login = async (username, password) => {
+    try {
+        const response = await axios.post(process.env.REACT_APP_API_URL + '/login', { username, password });
+        const { access_token } = response.data;
+        localStorage.setItem('token', access_token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+        return true;
+    } catch (error) {
+        console.error("Login failed", error);
+        return false;
+    }
+};
+
+export const logout = () => {
+    localStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
+};
+>>>
+
+./copilot/src/index.js :
+<<<
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+reportWebVitals();
+
+>>>
+
+./copilot/src/Register.js :
+<<<
+import React, { useState } from 'react';
+import { TextField, Button, Box } from '@mui/material';
+import axios from 'axios';
+
+function Register({ onRegisterSuccess }) {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/register`, {
+                username,
+                password
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log(response.data); // Pour le débogage
+
+            alert('Registration successful! Please log in.');
+            onRegisterSuccess();
+        } catch (error) {
+            console.error("Registration error:", error.response ? error.response.data : error.message);
+            alert('Registration failed. Please try again.');
+        }
+    };
+
+    return (
+        <Box component="form" onSubmit={handleSubmit}>
+            <TextField
+                label="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                fullWidth
+                margin="normal"
+            />
+            <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                fullWidth
+                margin="normal"
+            />
+            <Button type="submit" variant="contained" color="primary">
+                Register
+            </Button>
+        </Box>
+    );
+}
+
+export default Register;
+
+>>>
+
+./copilot/src/InvestmentRecommendation.js :
+<<<
+import React, { useState } from 'react';
+import axios from 'axios';
+import { TextField, Button, Typography, CircularProgress, Select, MenuItem } from '@mui/material';
+
+function InvestmentRecommendation() {
+    const [portfolio, setPortfolio] = useState('');
+    const [riskProfile, setRiskProfile] = useState('moderate');
+    const [recommendation, setRecommendation] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const getRecommendation = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post('/investment_recommendation', {
+                portfolio: portfolio.split(',').map(stock => stock.trim()),
+                risk_profile: riskProfile
+            });
+            setRecommendation(response.data.recommendation);
+        } catch (error) {
+            console.error('Error getting investment recommendation:', error);
+            setRecommendation('Error getting recommendation');
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div>
+            <Typography variant="h6">Investment Recommendation</Typography>
+            <TextField
+                label="Portfolio (comma-separated tickers)"
+                value={portfolio}
+                onChange={(e) => setPortfolio(e.target.value)}
+            />
+            <Select
+                value={riskProfile}
+                onChange={(e) => setRiskProfile(e.target.value)}
+            >
+                <MenuItem value="conservative">Conservative</MenuItem>
+                <MenuItem value="moderate">Moderate</MenuItem>
+                <MenuItem value="aggressive">Aggressive</MenuItem>
+            </Select>
+            <Button onClick={getRecommendation} disabled={loading}>
+                Get Recommendation
+            </Button>
+            {loading ? (
+                <CircularProgress />
+            ) : (
+                <Typography>{recommendation}</Typography>
+            )}
+        </div>
+    );
+}
+
+export default InvestmentRecommendation;
+>>>
+
+./copilot/src/Login.js :
+<<<
+import React, { useState } from 'react';
+import { TextField, Button, Box } from '@mui/material';
+import { login } from './Auth'
+
+function Login({ onLogin }) {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        const success = await login(username, password);
+        if (success) {
+            onLogin();
+        } else {
+            alert('Login failed');
+        }
+    };
+
+    return (
+        <Box component="form" onSubmit={handleSubmit}>
+            <TextField
+                label="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                fullWidth
+                margin="normal"
+            />
+            <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                fullWidth
+                margin="normal"
+            />
+            <Button type="submit" variant="contained" color="primary">
+                Login
+            </Button>
+        </Box>
+    );
+}
+
+export default Login;
+>>>
+
+./copilot/src/ErrorBoundary.js :
+<<<
+import React from 'react';
+
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.log('Error caught by ErrorBoundary:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return <h1>Something went wrong.</h1>;
+        }
+
+        return this.props.children;
+    }
+}
+
+export default ErrorBoundary;
+>>>
+
+./copilot/src/MarketSentiment.js :
+<<<
+import React, { useState } from 'react';
+import axios from 'axios';
+import { TextField, Button, Typography, CircularProgress } from '@mui/material';
+
+function MarketSentiment() {
+    const [ticker, setTicker] = useState('');
+    const [sentiment, setSentiment] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const analyzeSentiment = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post('/market_sentiment', { ticker });
+            setSentiment(response.data.sentiment);
+        } catch (error) {
+            console.error('Error analyzing market sentiment:', error);
+            setSentiment('Error analyzing sentiment');
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div>
+            <Typography variant="h6">Market Sentiment Analysis</Typography>
+            <TextField
+                label="Stock Ticker"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value)}
+            />
+            <Button onClick={analyzeSentiment} disabled={loading}>
+                Analyze Sentiment
+            </Button>
+            {loading ? (
+                <CircularProgress />
+            ) : (
+                <Typography>{sentiment}</Typography>
+            )}
+        </div>
+    );
+}
+
+export default MarketSentiment;
+>>>
+
+./copilot/src/UserProfileAnalysis.js :
+<<<
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Typography, CircularProgress, Button } from '@mui/material';
+
+function UserProfileAnalysis() {
+    const [analysis, setAnalysis] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const getProfileAnalysis = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post('/user_profile_analysis');
+            setAnalysis(response.data.analysis);
+        } catch (error) {
+            console.error('Error getting user profile analysis:', error);
+            setAnalysis('Error analyzing user profile');
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div>
+            <Typography variant="h6">User Profile Analysis</Typography>
+            <Button onClick={getProfileAnalysis} disabled={loading}>
+                Analyze My Profile
+            </Button>
+            {loading ? (
+                <CircularProgress />
+            ) : (
+                <Typography>{analysis}</Typography>
+            )}
+        </div>
+    );
+}
+
+export default UserProfileAnalysis;
+>>>
+
+./copilot/src/Portfolio.js :
+<<<
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, Paper, List, ListItem, ListItemText, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, CircularProgress, InputAdornment, Autocomplete, IconButton, Box, Switch, FormControlLabel, Tooltip, LinearProgress
+} from '@mui/material';
+import {
+    PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid
+} from 'recharts';
+import { Info } from '@mui/icons-material';
+import axios from 'axios';
+
+export const PortfolioPieChart = ({ portfolio }) => {
+    if (!portfolio || !portfolio.stocks || portfolio.stocks.length === 0) {
+        return <Typography>Aucune donnée de portefeuille disponible pour le graphique</Typography>;
+    }
+
+    const data = portfolio.stocks.map(stock => ({
+        name: stock.symbol,
+        value: parseFloat(stock.weight),
+        entryPrice: parseFloat(stock.entry_price)
+    }));
+
+    const COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+
+    const renderCustomizedLabel = ({
+        cx, cy, midAngle, innerRadius, outerRadius, percent, index
+    }) => {
+        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+        const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+        const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+
+        return (
+            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+                {`${data[index].name} ${(percent * 100).toFixed(0)}%`}
+            </text>
+        );
+    };
+
+    return (
+        <ResponsiveContainer width="100%" height={400}>
+            <PieChart>
+                <Pie
+                    data={data}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={renderCustomizedLabel}
+                    outerRadius={150}
+                    fill="#8884d8"
+                    dataKey="value"
+                >
+                    {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                </Pie>
+                <RechartsTooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                            <div style={{ backgroundColor: '#fff', padding: '5px', border: '1px solid #ccc' }}>
+                                <p>{`${data.name} : ${(data.value * 100).toFixed(2)}%`}</p>
+                                <p>{`Prix d'entrée : $${data.entryPrice}`}</p>
+                            </div>
+                        );
+                    }
+                    return null;
+                }} />
+                <Legend />
+            </PieChart>
+        </ResponsiveContainer>
+    );
+};
+
+function Portfolio() {
+    const [portfolio, setPortfolio] = useState({ name: 'default', stocks: [] });
+    const [newStock, setNewStock] = useState({ symbol: '', weight: '', entryPrice: '' });
+    const [livePrices, setLivePrices] = useState({});
+    const [news, setNews] = useState([]);
+    const [scenarioResults, setScenarioResults] = useState(null);
+    const [openScenario, setOpenScenario] = useState(false);
+    const [selectedScenario, setSelectedScenario] = useState('market_crash');
+    const [openReport, setOpenReport] = useState(false);
+    const [reportData, setReportData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [portfolioValue, setPortfolioValue] = useState(100000); // Valeur par défaut
+    const [displayMode, setDisplayMode] = useState('weight'); // 'weight' ou 'shares'
+    const [editingStock, setEditingStock] = useState(null);
+    const [reportProgress, setReportProgress] = useState(0);
+    const [currentStep, setCurrentStep] = useState('');
+    const [generatingReport, setGeneratingReport] = useState(false);
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        if (newStock.symbol && newStock.weight && newStock.entryPrice) {
+            addStock();
+        } else {
+            alert('Veuillez remplir tous les champs');
+        }
+    };
+
+    const handleChange = (e) => {
+        setNewStock({ ...newStock, [e.target.name]: e.target.value });
+    };
+
+    useEffect(() => {
+        fetchPortfolio();
+    }, []);
+
+    useEffect(() => {
+        if (portfolio.stocks && portfolio.stocks.length > 0) {
+            fetchLatestPrices();
+        }
+    }, [portfolio]);
+
+    useEffect(() => {
+        const fetchNews = async () => {
+            if (!portfolio || !portfolio.stocks) {
+                console.error("Portfolio or portfolio.stocks is undefined");
+                return;
+            }
+            const tickers = portfolio.stocks.map(stock => stock.symbol).join(',');
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
+                setNews(response.data);
+            } catch (error) {
+                console.error("Erreur lors de la récupération des nouvelles:", error);
+            }
+        };
+        fetchNews();
+    }, [portfolio]);
+
+    useEffect(() => {
+        if (newStock.symbol) {
+            const fetchNewStockPrice = async () => {
+                try {
+                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
+                    if (response.data && response.data.price) {
+                        setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
+                    }
+                } catch (error) {
+                    console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
+                }
+            };
+            fetchNewStockPrice();
+        }
+    }, [newStock.symbol]);
+
+    useEffect(() => {
+        const fetchPortfolioValue = async () => {
+            try {
+                const response = await axios.get(process.env.REACT_APP_API_URL + '/get_portfolio_value', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                setPortfolioValue(response.data.portfolio_value);
+            } catch (error) {
+                console.error("Error fetching portfolio value:", error);
+            }
+        };
+        fetchPortfolioValue();
+    }, []);
+
+    const updatePortfolioValue = async (newValue) => {
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/update_portfolio_value',
+                { portfolio_value: newValue },
+                { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+            );
+            setPortfolioValue(newValue);
+        } catch (error) {
+            console.error("Error updating portfolio value:", error);
+        }
+    };
+
+    const fetchPortfolio = async () => {
+        try {
+            const response = await axios.get(process.env.REACT_APP_API_URL + '/portfolio');
+            setPortfolio(response.data);
+        } catch (error) {
+            console.error("Erreur lors de la récupération du portfolio:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const calculateValue = (stock) => {
+        const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
+        return displayMode === 'weight'
+            ? (parseFloat(stock.weight) / 100) * portfolioValue
+            : parseFloat(stock.shares || stock.weight) * currentPrice;
+    };
+
+    const fetchLatestPrices = async () => {
+        if (!portfolio || !portfolio.stocks) {
+            console.error("Portfolio or portfolio.stocks is undefined");
+            return;
+        }
+        const updatedPrices = { ...livePrices };
+        for (const stock of portfolio.stocks) {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
+                if (response.data && response.data.price) {
+                    updatedPrices[stock.symbol] = response.data.price;
+                }
+            } catch (error) {
+                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
+            }
+        }
+        setLivePrices(updatedPrices);
+    };
+
+    const addStock = () => {
+        setPortfolio(prevPortfolio => ({
+            ...prevPortfolio,
+            stocks: [...(prevPortfolio.stocks || []), {
+                symbol: newStock.symbol,
+                weight: newStock.weight,
+                entry_price: newStock.entryPrice
+            }]
+        }));
+        setNewStock({ symbol: '', weight: '', entryPrice: '' });
+    };
+
+    const savePortfolio = async () => {
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/portfolio', portfolio);
+            if (response.status === 200) {
+                alert('Portfolio sauvegardé avec succès!');
+                fetchPortfolio();
+            } else {
+                alert('Erreur lors de la sauvegarde du portfolio.');
+            }
+        } catch (error) {
+            console.error("Erreur lors de la sauvegarde du portfolio:", error);
+            alert('Erreur lors de la sauvegarde du portfolio. Veuillez réessayer.');
+        }
+    };
+
+    const simulateScenario = async () => {
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/simulate_scenario', {
+                portfolio: {
+                    stocks: portfolio.stocks.map(stock => ({
+                        symbol: stock.symbol,
+                        weight: parseFloat(stock.weight)
+                    }))
+                },
+                scenario: selectedScenario
+            });
+            setScenarioResults(response.data);
+            setOpenScenario(true);
+        } catch (error) {
+            console.error("Error simulating scenario:", error);
+            alert('Error simulating scenario. Please try again.');
+        }
+    };
+
+    const generateReport = async () => {
+        try {
+            setGeneratingReport(true);
+            setReportProgress(0);
+            setCurrentStep('Initializing report generation');
+
+            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                withCredentials: true // Ajoutez ceci si vous utilisez des cookies pour l'authentification
+            });
+
+            eventSource.onmessage = (event) => {
+                console.log("Received message:", event.data);
+                const data = JSON.parse(event.data);
+                setReportProgress(data.progress);
+                setCurrentStep(data.step);
+
+                if (data.report) {
+                    setReportData(data.report);
+                    setOpenReport(true);
+                    eventSource.close();
+                    setGeneratingReport(false);
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error("EventSource failed:", error);
+                eventSource.close();
+                setGeneratingReport(false);
+                alert('Error generating report. Please try again.');
+            };
+
+            eventSource.onopen = () => {
+                console.log("EventSource connection opened");
+            };
+
+        } catch (error) {
+            console.error("Error in generateReport:", error);
+            setGeneratingReport(false);
+            alert('Error generating report. Please try again.');
+        }
+    };
+
+    const handleEditStock = (index) => {
+        setEditingStock(index);
+    };
+
+    const handleSaveStock = (index) => {
+        setEditingStock(null);
+        // Ici, vous pouvez ajouter une logique pour sauvegarder les modifications dans la base de données
+    };
+
+    const handleStockChange = (index, field, value) => {
+        const updatedStocks = [...portfolio.stocks];
+        updatedStocks[index] = { ...updatedStocks[index], [field]: value };
+        setPortfolio({ ...portfolio, stocks: updatedStocks });
+    };
+
+    const formatNumber = (number) => {
+        return new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(number);
+    };
+
+    const calculateDiff = (entryPrice, currentPrice, shares) => {
+        const diff = (currentPrice - entryPrice) * shares;
+        const color = diff >= 0 ? 'green' : 'red';
+        return { diff, color };
+    };
+
+    if (loading) {
+        return <CircularProgress />;
+    }
+
+    return (
+        <Paper sx={{ padding: 2 }}>
+            <Typography variant="h6">Latest News</Typography>
+            {news && news.length > 0 ? (
+                <List>
+                    {news.map((item, index) => (
+                        <ListItem key={index}>
+                            <ListItemText primary={item.title} secondary={item.description} />
+                        </ListItem>
+                    ))}
+                </List>
+            ) : (
+                <Typography>No news available for the current stocks</Typography>
+            )}
+
+            <form onSubmit={handleSubmit}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                    <Autocomplete
+                        options={['AAPL', 'GOOGL', 'MSFT', 'AMZN']}
+                        renderInput={(params) => <TextField {...params} label="Symbole de l'action" />}
+                        onInputChange={(event, newValue) => setNewStock({ ...newStock, symbol: newValue })}
+                        value={newStock.symbol}
+                        sx={{ flexGrow: 1 }}
+                    />
+                    <TextField
+                        label={displayMode === 'weight' ? "Poids (%)" : "Nombre d'actions"}
+                        type="number"
+                        name={displayMode === 'weight' ? 'weight' : 'shares'}
+                        value={displayMode === 'weight' ? newStock.weight : newStock.shares}
+                        onChange={handleChange}
+                        InputProps={{
+                            endAdornment: displayMode === 'weight' ? <InputAdornment position="end">%</InputAdornment> : null,
+                        }}
+                        sx={{ flexGrow: 1 }}
+                    />
+                    <TextField
+                        label="Prix d'entrée"
+                        type="number"
+                        name="entryPrice"
+                        value={newStock.entryPrice}
+                        onChange={handleChange}
+                        sx={{ flexGrow: 1 }}
+                    />
+                    <Tooltip title={`Le ${displayMode === 'weight' ? 'poids' : 'nombre d\'actions'} représente ${displayMode === 'weight' ? 'le pourcentage' : 'la quantité'} de l'action dans votre portefeuille.`}>
+                        <IconButton>
+                            <Info />
+                        </IconButton>
+                    </Tooltip>
+                    <Button type="submit" variant="contained" color="primary">Ajouter</Button>
+                </Box>
+            </form>
+
+            {portfolio && portfolio.stocks && portfolio.stocks.length > 0 ? (
+                <>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>Symbol</TableCell>
+                                <TableCell>{displayMode === 'weight' ? 'Weight (%)' : 'Shares'}</TableCell>
+                                <TableCell>Entry Price</TableCell>
+                                <TableCell>Current Price</TableCell>
+                                <TableCell>Value</TableCell>
+                                <TableCell>Diff</TableCell>
+                                <TableCell>Actions</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {portfolio.stocks.map((stock, index) => {
+                                const shares = displayMode === 'weight'
+                                    ? (parseFloat(stock.weight) / 100) * portfolioValue / parseFloat(stock.entry_price)
+                                    : parseFloat(stock.weight);
+                                const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
+                                const value = shares * currentPrice;
+                                const { diff, color } = calculateDiff(parseFloat(stock.entry_price), currentPrice, shares);
+                                return (
+                                    <TableRow key={index}>
+                                        <TableCell>{stock.symbol}</TableCell>
+                                        <TableCell>
+                                            {editingStock === index ? (
+                                                <TextField
+                                                    type="number"
+                                                    value={displayMode === 'weight' ? stock.weight : shares}
+                                                    onChange={(e) => handleStockChange(index, displayMode === 'weight' ? 'weight' : 'shares', e.target.value)}
+                                                    InputProps={displayMode === 'weight' ? {
+                                                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                                                    } : {}}
+                                                />
+                                            ) : (
+                                                displayMode === 'weight'
+                                                    ? `${formatNumber(parseFloat(stock.weight))}%`
+                                                    : formatNumber(shares)
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {editingStock === index ? (
+                                                <TextField
+                                                    type="number"
+                                                    value={stock.entry_price}
+                                                    onChange={(e) => handleStockChange(index, 'entry_price', e.target.value)}
+                                                />
+                                            ) : (
+                                                formatNumber(parseFloat(stock.entry_price))
+                                            )}
+                                        </TableCell>
+                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Loading...'}</TableCell>
+                                        <TableCell>{formatNumber(value)}</TableCell>
+                                        <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
+                                        <TableCell>
+                                            {editingStock === index ? (
+                                                <Button onClick={() => handleSaveStock(index)}>Save</Button>
+                                            ) : (
+                                                <Button onClick={() => handleEditStock(index)}>Edit</Button>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                    <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Portfolio Allocation</Typography>
+                    <PortfolioPieChart portfolio={portfolio} />
+                </>
+            ) : (
+                <Typography sx={{ my: 2 }}>Le portefeuille est actuellement vide. Ajoutez des actions pour commencer.</Typography>
+            )}
+
+            <Box sx={{ mt: 3 }}>
+                <TextField
+                    label="Portfolio Value"
+                    value={formatNumber(portfolioValue)}
+                    onChange={(e) => {
+                        const newValue = parseFloat(e.target.value.replace(/[^0-9,-]/g, '').replace(',', '.'));
+                        if (!isNaN(newValue)) {
+                            setPortfolioValue(newValue);
+                            updatePortfolioValue(newValue);
+                        }
+                    }}
+                    fullWidth
+                    margin="normal"
+                />
+                <Typography variant="h6" sx={{ mt: 2 }}>Current Portfolio Value: {portfolioValue.toFixed(2)}</Typography>
+                <FormControlLabel
+                    control={<Switch checked={displayMode === 'shares'} onChange={() => setDisplayMode(displayMode === 'weight' ? 'shares' : 'weight')} />}
+                    label={`Switch to ${displayMode === 'weight' ? 'Shares' : 'Weight'} Mode`}
+                    sx={{ mt: 2 }}
+                />
+            </Box>
+
+            <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+                <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary">
+                    Save Portfolio
+                </Button>
+                <Button onClick={() => setOpenScenario(true)} variant="contained">Simulate Scenario</Button>
+                <Button onClick={generateReport} variant="contained">Generate Report</Button>
+            </Box>
+
+            <Dialog
+                open={openScenario}
+                onClose={() => setOpenScenario(false)}
+                fullWidth
+                maxWidth="md"
+            >
+                <DialogTitle>Scenario Simulation</DialogTitle>
+                <DialogContent>
+                    <Select
+                        value={selectedScenario}
+                        onChange={(e) => setSelectedScenario(e.target.value)}
+                        fullWidth
+                        sx={{ mb: 2 }}
+                    >
+                        <MenuItem value="market_crash">Market Crash</MenuItem>
+                        <MenuItem value="bull_market">Bull Market</MenuItem>
+                        <MenuItem value="high_inflation">High Inflation</MenuItem>
+                    </Select>
+                    <Button onClick={simulateScenario} variant="contained" sx={{ mb: 2 }}>Run Simulation</Button>
+                    {scenarioResults && scenarioResults.daily_returns && scenarioResults.daily_returns.length > 0 ? (
+                        <Box>
+                            <Typography>Scenario: {scenarioResults.scenario}</Typography>
+                            <Typography>Initial Value: ${scenarioResults.initial_value.toFixed(2)}</Typography>
+                            <Typography>Final Value: ${scenarioResults.final_value.toFixed(2)}</Typography>
+                            <Typography>Total Return: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
+                            <Box sx={{ width: '100%', height: 400 }}>
+                            <ResponsiveContainer width="100%" height={400}>
+                                <LineChart data={scenarioResults.portfolio_values.map((value, index) => ({ day: index, value: value }))}>
+                                    <XAxis 
+                                        dataKey="day"
+                                        tickFormatter={(tick) => `Day ${tick + 1}`}
+                                    />
+                                    <YAxis 
+                                        tickFormatter={(value) => `$${value.toFixed(0)}`}
+                                    />
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <Tooltip 
+                                        formatter={(value) => [`$${value.toFixed(2)}`, "Portfolio Value"]}
+                                        labelFormatter={(label) => `Day ${label + 1}`}
+                                    />
+                                    <Legend />
+                                    <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
+                                </LineChart>
+                            </ResponsiveContainer>
+                            </Box>
+                        </Box>
+                    ) : (
+                        <Typography>No scenario data available</Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenScenario(false)}>Close</Button>
+                </DialogActions>
+            </Dialog>
+            {generatingReport && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                    <CircularProgress variant="determinate" value={reportProgress} />
+                    <Typography variant="caption" sx={{ mt: 1 }}>{`${Math.round(reportProgress)}%`}</Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>{currentStep}</Typography>
+                </Box>
+            )}
+
+            {reportData && (
+                <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
+                    <DialogTitle>Portfolio Report</DialogTitle>
+                    <DialogContent>
+                        <iframe
+                            src={`data:application/pdf;base64,${reportData}`}
+                            width="100%"
+                            height="500px"
+                            style={{ border: 'none' }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setOpenReport(false)}>Close</Button>
+                        <Button onClick={() => {
+                            const linkSource = `data:application/pdf;base64,${reportData}`;
+                            const downloadLink = document.createElement("a");
+                            downloadLink.href = linkSource;
+                            downloadLink.download = "portfolio_report.pdf";
+                            downloadLink.click();
+                        }}>
+                            Download PDF
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            )}
+        </Paper>
+    );
+}
+
+export default Portfolio;
+>>>
+
+./copilot/src/Dashboard.js :
+<<<
+import React from 'react';
+import { Grid, Paper, Typography } from '@mui/material';
+import { PortfolioPieChart } from './Portfolio';  // Assurez-vous d'exporter PortfolioPieChart depuis Portfolio.js
+
+function Dashboard({ portfolio }) {
+    console.log('Dashboard portfolio:', portfolio); // Pour déboguer
+
+    if (!portfolio) {
+        return <Typography>Chargement du portfolio...</Typography>;
+    }
+
+    if (!portfolio.stocks || portfolio.stocks.length === 0) {
+        return <Typography>Aucune donnée de portfolio disponible</Typography>;
+    }
+
+    // const totalValue = portfolio.stocks.reduce((sum, stock) => sum + parseFloat(stock.weight) * parseFloat(stock.entryPrice), 0);
+
+    // return (
+    //     <Grid container spacing={3}>
+    //         <Grid item xs={12} md={6}>
+    //             <Paper elevation={3} style={{ padding: '20px' }}>
+    //                 <Typography variant="h6">Valeur du Portfolio</Typography>
+    //                 <Typography variant="h4">${totalValue.toFixed(2)}</Typography>
+    //             </Paper>
+    //         </Grid>
+    //         <Grid item xs={12} md={6}>
+    //             <Paper elevation={3} style={{ padding: '20px' }}>
+    //                 <Typography variant="h6">Allocation du Portfolio</Typography>
+    //                 <PortfolioPieChart portfolio={portfolio} />
+    //             </Paper>
+    //         </Grid>
+    //     </Grid>
+    // );
+    if (!portfolio || !portfolio.stocks) {
+        return <Typography>Aucun portefeuille disponible</Typography>;
+    }
+
+    const totalValue = portfolio.stocks.reduce((sum, stock) => sum + stock.weight * stock.entryPrice, 0);
+
+    return (
+        <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+                <Paper elevation={3} style={{ padding: '20px' }}>
+                    <Typography variant="h6">Portfolio Value</Typography>
+                    <Typography variant="h4">${totalValue.toFixed(2)}</Typography>
+                </Paper>
+            </Grid>
+            <Grid item xs={12} md={6}>
+                <Paper elevation={3} style={{ padding: '20px' }}>
+                    <Typography variant="h6">Portfolio Allocation</Typography>
+                    {portfolio && portfolio.stocks && portfolio.stocks.length > 0 ? (
+                        <PortfolioPieChart portfolio={portfolio} />
+                    ) : (
+                        <Typography>Aucune donnée disponible</Typography>
+                    )}
+                </Paper>
+            </Grid>
+            {/* Ajoutez d'autres widgets ici */}
+        </Grid>
+    );
+}
+
+export default Dashboard;
+>>>
+
+./copilot/src/setupTests.js :
+<<<
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+>>>
+
+./copilot/src/App.js :
+<<<
+import React, { useState, useEffect, useCallback } from 'react';
+import { ThemeProvider, createTheme, styled, alpha } from '@mui/material/styles';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+    Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText,
+    Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle,
+    DialogContent, DialogActions, Select, MenuItem, AppBar, Switch,
+    FormControlLabel, Toolbar, IconButton, Drawer, ListItemIcon, InputBase,
+    Badge, Menu, useMediaQuery, CssBaseline
+} from '@mui/material';
+import {
+    Menu as MenuIcon,
+    Dashboard as DashboardIcon,
+    AccountBalance as AccountBalanceIcon,
+    TrendingUp as TrendingUpIcon,
+    Settings as SettingsIcon,
+    Logout as LogoutIcon,
+    Chat as ChatIcon,
+    GroupWork as GroupWorkIcon,
+    PictureAsPdf as PictureAsPdfIcon,
+    AccountCircle,
+    Notifications as NotificationsIcon,
+    MonetizationOn as MonetizationOnIcon,
+    History as HistoryIcon,
+    Person as PersonIcon
+} from '@mui/icons-material';
+import Settings from './Settings';
+import Portfolio from './Portfolio';
+import Login from './Login';
+import Register from './Register';
+import Dashboard from './Dashboard';
+import MarketSentiment from './MarketSentiment';
+import InvestmentRecommendation from './InvestmentRecommendation';
+import HistoricalDataAnalysis from './HistoricalDataAnalysis';
+import UserProfileAnalysis from './UserProfileAnalysis';
+import MessageContent from './MessageContent'
+import axios from 'axios';
+import { logout } from './Auth';
+import ErrorBoundary from './ErrorBoundary';
+
+function a11yProps(index) {
+    return {
+        id: `scrollable-auto-tab-${index}`,
+        'aria-controls': `scrollable-auto-tabpanel-${index}`,
+    };
+}
+
+const drawerWidth = 240;
+
+const Root = styled('div')(({ theme }) => ({
+    display: 'flex',
+}));
+
+const AppBarStyled = styled(AppBar, {
+    shouldForwardProp: (prop) => prop !== 'open',
+})(({ theme, open }) => ({
+    zIndex: theme.zIndex.drawer + 1,
+    transition: theme.transitions.create(['width', 'margin'], {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.leavingScreen,
+    }),
+    ...(open && {
+        marginLeft: drawerWidth,
+        width: `calc(100% - ${drawerWidth}px)`,
+        transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+        }),
+    }),
+}));
+
+const DrawerStyled = styled(Drawer, { shouldForwardProp: (prop) => prop !== 'open' })(
+    ({ theme, open }) => ({
+        '& .MuiDrawer-paper': {
+            position: 'relative',
+            whiteSpace: 'nowrap',
+            width: drawerWidth,
+            transition: theme.transitions.create('width', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+            }),
+            boxSizing: 'border-box',
+            ...(!open && {
+                overflowX: 'hidden',
+                transition: theme.transitions.create('width', {
+                    easing: theme.transitions.easing.sharp,
+                    duration: theme.transitions.duration.leavingScreen,
+                }),
+                width: theme.spacing(7),
+                [theme.breakpoints.up('sm')]: {
+                    width: theme.spacing(9),
+                },
+            }),
+        },
+    }),
+);
+
+const SearchIconWrapper = styled('div')(({ theme }) => ({
+    padding: theme.spacing(0, 2),
+    height: '100%',
+    position: 'absolute',
+    pointerEvents: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+}));
+
+const Search = styled('div')(({ theme }) => ({
+    position: 'relative',
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: alpha(theme.palette.common.white, 0.15),
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.common.white, 0.25),
+    },
+    marginRight: theme.spacing(2),
+    marginLeft: 0,
+    width: '100%',
+    [theme.breakpoints.up('sm')]: {
+        marginLeft: theme.spacing(3),
+        width: 'auto',
+    },
+}));
+
+const StyledInputBase = styled(InputBase)(({ theme }) => ({
+    color: 'inherit',
+    '& .MuiInputBase-input': {
+        padding: theme.spacing(1, 1, 1, 0),
+        paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+        transition: theme.transitions.create('width'),
+        width: '100%',
+        [theme.breakpoints.up('md')]: {
+            width: '20ch',
+        },
+    },
+}));
+
+const MainContent = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
+    ({ theme, open }) => ({
+        flexGrow: 1,
+        padding: theme.spacing(3),
+        transition: theme.transitions.create('margin', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+        }),
+        marginLeft: `-${drawerWidth}px`,
+        ...(open && {
+            transition: theme.transitions.create('margin', {
+                easing: theme.transitions.easing.easeOut,
+                duration: theme.transitions.duration.enteringScreen,
+            }),
+            marginLeft: 0,
+        }),
+    }),
+);
+
+
+function App() {
+    const [darkMode, setDarkMode] = useState(false);
+    const [open, setOpen] = useState(true);
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [input, setInput] = useState('');
+    const [messages, setMessages] = useState([]);
+    const [activeTab, setActiveTab] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [showLogin, setShowLogin] = useState(true);
+    const [openBacktest, setOpenBacktest] = useState(false);
+    const [backtestResults, setBacktestResults] = useState(null);
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [openComparison, setOpenComparison] = useState(false);
+    const [comparisonResults, setComparisonResults] = useState(null);
+    const [benchmark, setBenchmark] = useState('SPY');
+    const [comparisonStartDate, setComparisonStartDate] = useState('');
+    const [comparisonEndDate, setComparisonEndDate] = useState('');
+    const [conversationId, setConversationId] = useState(null);
+    const [file, setFile] = useState(null);
+    const [portfolio, setPortfolio] = useState([]);
+    const [portfolioLoading, setPortfolioLoading] = useState(true);
+    const [news, setNews] = useState([]);
+    const [settings, setSettings] = useState({
+        risk_tolerance: 'moderate',
+    });
+
+    const handleDrawerOpen = () => {
+        setOpen(true);
+    };
+
+    const handleDrawerClose = () => {
+        setOpen(false);
+    };
+
+    const handleMenu = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    const toggleDarkMode = () => {
+        setDarkMode(!darkMode);
+    };
+
+    const theme = createTheme({
+        palette: {
+            mode: darkMode ? 'dark' : 'light',
+            primary: {
+                main: '#1976d2',
+            },
+            secondary: {
+                main: '#dc004e',
+            },
+        },
+        typography: {
+            fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+            h4: {
+                fontWeight: 600,
+            },
+        },
+        components: {
+            MuiButton: {
+                styleOverrides: {
+                    root: {
+                        textTransform: 'none',
+                    },
+                },
+            },
+            MuiPaper: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 8,
+                    },
+                },
+            },
+        },
+    });
+
+    const fetchSettings = async () => {
+        try {
+            const response = await axios.get(process.env.REACT_APP_API_URL + '/settings');
+            setSettings(response.data);
+        } catch (error) {
+            console.error("Error fetching settings:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchSettings();
+    }, []);
+
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            setIsLoggedIn(true);
+        }
+    }, []);
+
+    const clearChatHistory = useCallback(() => {
+        setMessages([]);
+        setConversationId(null);
+    }, []);
+
+    useEffect(() => {
+        const fetchChatHistory = async () => {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/chat_history`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                });
+                setMessages(response.data.reverse());
+            } catch (error) {
+                console.error('Error fetching chat history:', error);
+            }
+        };
+
+        if (isLoggedIn) {
+            fetchChatHistory();
+        }
+    }, [isLoggedIn]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!input.trim()) return;
+
+        setLoading(true);
+        const newMessage = { role: 'user', content: input };
+        setMessages(prevMessages => [newMessage, ...prevMessages]);
+        setInput('');
+
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
+                message: input,
+                conversation_id: conversationId
+            });
+            setConversationId(response.data.conversation_id);
+            setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
+        } catch (error) {
+            console.error('Error sending message:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchPortfolio = async () => {
+        try {
+            const response = await axios.get(process.env.REACT_APP_API_URL + '/portfolio');
+            setPortfolio(response.data);
+        } catch (error) {
+            console.error("Erreur lors de la récupération du portfolio:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchNews = async () => {
+        setLoading(true);
+        const tickers = portfolio.map(stock => stock.symbol).join(',');
+        try {
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
+            setNews(response.data);
+        } catch (error) {
+            console.error("Erreur lors de la récupération des nouvelles:", error);
+            setNews([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchLivePrice = useCallback(async (symbol) => {
+        if (!symbol) return null;
+        try {
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/live_price?symbol=${symbol}`);
+            return response.data.price;
+        } catch (error) {
+            console.error(`Error fetching live price for ${symbol}:`, error);
+            return null;
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchLivePrice();
+    }, [fetchLivePrice]);
+
+    useEffect(() => {
+        if (portfolio.length > 0) {
+            fetchNews();
+        }
+    }, [portfolio]);
+
+    const handleAgentCall = async (agentName) => {
+        setLoading(true);
+        let data = {};
+        switch (agentName) {
+            case 'document':
+                data = { text: input };
+                break;
+            case 'sentiment':
+                data = { company: input };
+                break;
+            case 'financial_modeling':
+                data = { ticker: input };
+                break;
+            case 'portfolio_optimization':
+            case 'risk_management':
+                data = { tickers: input.split(','), portfolio_value: 100000 };
+                break;
+            case 'reporting':
+                data = { portfolio_data: portfolio.stocks };
+            case 'compliance':
+                try {
+                    // Essayez de parser input comme JSON
+                    const parsedInput = JSON.parse(input);
+                    data = { portfolio_data: parsedInput };
+                } catch (error) {
+                    // Si le parsing échoue, supposons que c'est une chaîne de caractères représentant un portefeuille
+                    console.warn("Input is not valid JSON, treating it as a string representation of portfolio");
+                    // Vous pouvez implémenter ici une logique pour convertir la chaîne en objet de portfolio
+                    // Par exemple, si la chaîne est au format "AAPL:30%,GOOGL:40%,MSFT:30%"
+                    const portfolioArray = input.split(',').map(item => {
+                        const [symbol, weight] = item.split(':');
+                        return { symbol, weight: parseFloat(weight) };
+                    });
+                    data = { portfolio_data: portfolioArray };
+                }
+                break;
+            case 'market_sentiment':
+                data = { ticker: input };
+                break;
+            case 'user_profile_analysis':
+                // Nous allons utiliser l'ID de l'utilisateur connecté
+                data = { user_id: localStorage.getItem('userId') };
+                break;
+            case 'historical_data_analysis':
+                // Supposons que l'utilisateur entre le ticker dans l'input
+                data = {
+                    ticker: input,
+                    start_date: startDate,  // Assurez-vous que ces variables sont définies dans votre composant
+                    end_date: endDate
+                };
+                break;
+            case 'investment_recommendation':
+                try {
+                    const settingsResponse = await axios.get(process.env.REACT_APP_API_URL + '/settings');
+                    data = {
+                        portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
+                        risk_profile: settingsResponse.data.risk_profile || 'moderate'
+                    };
+                } catch (error) {
+                    console.error("Error fetching settings:", error);
+                    data = {
+                        portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
+                        risk_profile: 'moderate'
+                    };
+                }
+                break;
+            default:
+                data = { input: input };
+                break;
+        }
+        const userMessage = { role: 'user', content: input };
+        setMessages(prevMessages => [userMessage, ...prevMessages]);
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
+        } catch (error) {
+            console.error('Error saving user message to chat history:', error);
+        }
+
+        try {
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
+            let newMessage = {
+                role: 'assistant',
+                content: typeof response.data === 'string' ? response.data : response.data.content || 'Pas de contenu reçu de l\'agent'
+            };
+            if (response.data.graphs) {
+                newMessage.graphs = response.data.graphs;
+            }
+            setMessages(prevMessages => [newMessage, ...prevMessages]);
+
+            // Sauvegardez le message de l'agent dans la base de données
+            try {
+                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
+            } catch (saveError) {
+                console.error('Error saving agent message to chat history:', saveError);
+            }
+        } catch (error) {
+            console.error(`Error calling ${agentName} agent:`, error);
+            const errorMessage = {
+                role: 'assistant',
+                content: `Error: ${error.response?.data?.error || error.message}`
+            };
+            setMessages(prevMessages => [errorMessage, ...prevMessages]);
+
+            // Sauvegarder le message d'erreur dans l'historique du chat
+            try {
+                await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
+            } catch (saveError) {
+                console.error('Error saving error message to chat history:', saveError);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'application/pdf') {
+            setFile(file);
+            setLoading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const response = await axios.post(process.env.REACT_APP_API_URL + '/upload_pdf', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: JSON.stringify(response.data, null, 2) }]);
+            } catch (error) {
+                console.error('Error uploading PDF:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+    const handlePDFUpload = async (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'application/pdf') {
+            setLoading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const response = await axios.post(process.env.REACT_APP_API_URL + '/upload_pdf', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: JSON.stringify(response.data, null, 2) }]);
+            } catch (error) {
+                console.error('Error uploading PDF:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            setIsLoggedIn(true);
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            fetchPortfolio();
+        } else {
+            setIsLoggedIn(false);
+        }
+    }, []);
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file && file.type === 'application/pdf') {
+            handlePDFUpload({ target: { files: [file] } });
+        }
+    };
+
+    // Assurez-vous d'inclure le token dans toutes les requêtes
+    axios.interceptors.request.use(
+        (config) => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers['Authorization'] = `Bearer ${token}`;
+            }
+            return config;
+        },
+        (error) => {
+            return Promise.reject(error);
+        }
+    );
+
+    const handleLogin = () => {
+        setIsLoggedIn(true);
+        // Assurez-vous que le token est stocké dans localStorage
+        const token = localStorage.getItem('token');
+        if (token) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+    };
+
+    const handleLogout = () => {
+        logout();
+        setIsLoggedIn(false);
+    };
+
+    const runBacktest = async () => {
+        if (!portfolio || !portfolio.stocks || portfolio.stocks.length === 0) {
+            alert("Portfolio is empty. Please add some stocks before running the backtest.");
+            return;
+        }
+
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/backtest', {
+                portfolio: portfolio,
+                start_date: startDate,
+                end_date: endDate
+            });
+            setBacktestResults(response.data);
+            setOpenBacktest(true);
+        } catch (error) {
+            console.error("Error running backtest:", error);
+            if (error.response && error.response.data && error.response.data.error) {
+                alert(`Error running backtest: ${error.response.data.error}`);
+            } else {
+                alert('Error running backtest. Please try again.');
+            }
+        }
+    };
+
+    const compareWithBenchmark = async () => {
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/compare_portfolios', {
+                portfolio: portfolio.stocks, // Assurez-vous que c'est bien un tableau d'objets stock
+                benchmark: benchmark,
+                start_date: comparisonStartDate,
+                end_date: comparisonEndDate
+            });
+            setComparisonResults(response.data);
+            setOpenComparison(true);
+        } catch (error) {
+            console.error("Error comparing portfolios:", error);
+            if (error.response) {
+                console.error("Response data:", error.response.data);
+                console.error("Response status:", error.response.status);
+            }
+            alert('Error comparing portfolios. Please try again.');
+        }
+    };
+
+    const onClearChat = useCallback(async () => {
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/clear_chat');
+            setMessages([]);
+            setConversationId(null);
+            alert('Chat history cleared successfully');
+        } catch (error) {
+            console.error('Error clearing chat history:', error);
+            alert('Error clearing chat history. Please try again.');
+        }
+    }, []);
+
+    if (!isLoggedIn) {
+        return (
+            <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <Container maxWidth="sm">
+                    <Box mt={4}>
+                        {showLogin ? (
+                            <>
+                                <Login onLogin={handleLogin} />
+                                <Button onClick={() => setShowLogin(false)}>
+                                    Don't have an account? Register
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Register onRegisterSuccess={() => setShowLogin(true)} />
+                                <Button onClick={() => setShowLogin(true)}>
+                                    Already have an account? Login
+                                </Button>
+                            </>
+                        )}
+                    </Box>
+                </Container>
+            </ThemeProvider>
+        );
+    }
+
+    return (
+        <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <ResponsiveAppContent
+                darkMode={darkMode}
+                setDarkMode={setDarkMode}
+                drawerOpen={open}
+                setDrawerOpen={setOpen}
+                // Passez toutes les autres props nécessaires ici
+                handleLogout={handleLogout}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                messages={messages}
+                input={input}
+                setInput={setInput}
+                handleSubmit={handleSubmit}
+                loading={loading}
+                handlePDFUpload={handlePDFUpload}
+                handleAgentCall={handleAgentCall}
+                handleFileUpload={handleFileUpload}
+                file={file}
+                clearChatHistory={clearChatHistory}
+                portfolio={portfolio}
+                portfolioLoading={portfolioLoading}
+                openBacktest={openBacktest}
+                setOpenBacktest={setOpenBacktest}
+                openComparison={openComparison}
+                setOpenComparison={setOpenComparison}
+                runBacktest={runBacktest}
+                compareWithBenchmark={compareWithBenchmark}
+                startDate={startDate}
+                setStartDate={setStartDate}
+                endDate={endDate}
+                setEndDate={setEndDate}
+                benchmark={benchmark}
+                setBenchmark={setBenchmark}
+                comparisonStartDate={comparisonStartDate}
+                setComparisonStartDate={setComparisonStartDate}
+                comparisonEndDate={comparisonEndDate}
+                setComparisonEndDate={setComparisonEndDate}
+                backtestResults={backtestResults}
+                comparisonResults={comparisonResults}
+            />
+        </ThemeProvider>
+    );
+}
+
+// Nouveau composant qui gère la requête média
+function ResponsiveAppContent(props) {
+    const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
+
+    return <AppContent {...props} isMobile={isMobile} />;
+}
+
+function AppContent({
+    darkMode,
+    setDarkMode,
+    drawerOpen,
+    setDrawerOpen,
+    handleLogout,
+    activeTab,
+    setActiveTab,
+    messages,
+    input,
+    setInput,
+    handleSubmit,
+    loading,
+    handlePDFUpload,
+    handleAgentCall,
+    handleFileUpload,
+    file,
+    clearChatHistory,
+    portfolio,
+    portfolioLoading,
+    openBacktest,
+    setOpenBacktest,
+    openComparison,
+    setOpenComparison,
+    runBacktest,
+    compareWithBenchmark,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    benchmark,
+    setBenchmark,
+    comparisonStartDate,
+    setComparisonStartDate,
+    comparisonEndDate,
+    setComparisonEndDate,
+    backtestResults,
+    comparisonResults,
+    isMobile,
+}) {
+    const [anchorEl, setAnchorEl] = React.useState(null);
+
+    const handleMenu = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    return (
+        <Box sx={{ display: 'flex' }}>
+            <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+                <Toolbar>
+                    <IconButton
+                        color="inherit"
+                        aria-label="open drawer"
+                        edge="start"
+                        onClick={() => setDrawerOpen(!drawerOpen)}
+                        sx={{ marginRight: 2, ...(drawerOpen && { display: 'none' }) }}
+                    >
+                        <MenuIcon />
+                    </IconButton>
+                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+                        FinPilot
+                    </Typography>
+                    <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+                        <IconButton color="inherit">
+                            <Badge badgeContent={4} color="secondary">
+                                <NotificationsIcon />
+                            </Badge>
+                        </IconButton>
+                        <IconButton
+                            edge="end"
+                            aria-label="account of current user"
+                            aria-haspopup="true"
+                            onClick={handleMenu}
+                            color="inherit"
+                        >
+                            <AccountCircle />
+                        </IconButton>
+                    </Box>
+                    <FormControlLabel
+                        control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
+                        label="Dark Mode"
+                        sx={{ ml: 2 }}
+                    />
+                </Toolbar>
+            </AppBar>
+            <Drawer
+                variant={isMobile ? "temporary" : "permanent"}
+                open={isMobile ? drawerOpen : true}
+                onClose={() => setDrawerOpen(false)}
+                sx={{
+                    width: drawerWidth,
+                    flexShrink: 0,
+                    [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box' },
+                }}
+            >
+                <Toolbar />
+                <Box sx={{ overflow: 'auto' }}>
+                    <List>
+                        {['Copilot', 'Agents', 'PDF Analysis', 'Settings', 'Portfolio', 'Market Sentiment', 'Investment Recommendation', 'Historical Data Analysis', 'User Profile Analysis'].map((text, index) => (
+                            <ListItem button key={text} onClick={() => setActiveTab(index)}>
+                                <ListItemIcon>
+                                    {index === 0 && <ChatIcon />}
+                                    {index === 1 && <GroupWorkIcon />}
+                                    {index === 2 && <PictureAsPdfIcon />}
+                                    {index === 3 && <SettingsIcon />}
+                                    {index === 4 && <AccountBalanceIcon />}
+                                    {index === 5 && <TrendingUpIcon />}
+                                    {index === 6 && <MonetizationOnIcon />}
+                                    {index === 7 && <HistoryIcon />}
+                                    {index === 8 && <PersonIcon />}
+                                </ListItemIcon>
+                                <ListItemText primary={text} />
+                            </ListItem>
+                        ))}
+                    </List>
+                </Box>
+            </Drawer>
+            <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+                <Toolbar />
+                <Fade in={true} timeout={1000}>
+                    <Slide direction="up" in={true} mountOnEnter unmountOnExit>
+                        <Container maxWidth="lg">
+                            <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+                                {activeTab === 0 && (
+                                    <>
+                                        <List>
+                                            {messages.map((message, index) => (
+                                                <ListItem key={index} alignItems="flex-start">
+                                                    <ListItemText
+                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        secondary={<MessageContent content={message.content} graphs={message.graphs} />}
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                        <form onSubmit={handleSubmit}>
+                                            <TextField
+                                                fullWidth
+                                                variant="outlined"
+                                                value={input}
+                                                onChange={(e) => setInput(e.target.value)}
+                                                placeholder="Type your message..."
+                                                margin="normal"
+                                            />
+                                            <Button type="submit" variant="contained" color="primary" disabled={loading}>
+                                                {loading ? <CircularProgress size={24} /> : 'Send'}
+                                            </Button>
+                                        </form>
+                                        <input
+                                            type="file"
+                                            accept=".pdf"
+                                            onChange={handlePDFUpload}
+                                            style={{ display: 'none' }}
+                                            id="pdf-upload"
+                                        />
+                                        <label htmlFor="pdf-upload">
+                                            <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
+                                                Upload PDF
+                                            </Button>
+                                        </label>
+                                        <Typography variant="body2" sx={{ mt: 1 }}>
+                                            You can also drag and drop a PDF file here
+                                        </Typography>
+                                    </>
+                                )}
+                                {activeTab === 1 && (
+                                    <>
+                                        <TextField
+                                            fullWidth
+                                            variant="outlined"
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            placeholder="Enter data for agent..."
+                                            margin="normal"
+                                        />
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+                                            {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
+                                                <Button
+                                                    key={agent}
+                                                    onClick={() => handleAgentCall(agent)}
+                                                    variant="contained"
+                                                    color="primary"
+                                                    disabled={loading}
+                                                >
+                                                    {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                </Button>
+                                            ))}
+                                        </Box>
+                                        <List>
+                                            {messages.map((message, index) => (
+                                                <ListItem key={index} alignItems="flex-start">
+                                                    <ListItemText
+                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        secondary={
+                                                            <>
+                                                                <MessageContent content={message.content} />
+                                                                {message.graphs && message.graphs.map((graph, graphIndex) => (
+                                                                    <img
+                                                                        key={graphIndex}
+                                                                        src={`data:image/png;base64,${graph}`}
+                                                                        alt={`Portfolio Graph ${graphIndex + 1}`}
+                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                    />
+                                                                ))}
+                                                                {message.graph && (
+                                                                    <img
+                                                                        src={`data:image/png;base64,${message.graph}`}
+                                                                        alt="Graph"
+                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
+                                                                    />
+                                                                )}
+                                                            </>
+                                                        }
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </>
+                                )}
+                                {activeTab === 2 && (
+                                    <>
+                                        <input
+                                            type="file"
+                                            accept=".pdf"
+                                            onChange={handleFileUpload}
+                                            style={{ display: 'none' }}
+                                            id="pdf-upload"
+                                        />
+                                        <label htmlFor="pdf-upload">
+                                            <Button variant="contained" component="span" color="primary" disabled={loading}>
+                                                Upload PDF
+                                            </Button>
+                                        </label>
+                                        {file && <Typography variant="body1" sx={{ mt: 2 }}>{file.name}</Typography>}
+                                        {loading && <CircularProgress sx={{ mt: 2 }} />}
+                                        <List>
+                                            {messages.map((message, index) => (
+                                                <ListItem key={index} alignItems="flex-start">
+                                                    <ListItemText
+                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        secondary={<MessageContent content={message.content} />}
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </>
+                                )}
+                                {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
+                                {activeTab === 4 && <Portfolio />}
+                                {activeTab === 5 && (
+                                    <ErrorBoundary>
+                                        {portfolioLoading ? (
+                                            <Typography>Chargement du portfolio...</Typography>
+                                        ) : portfolio ? (
+                                            <Dashboard portfolio={portfolio} />
+                                        ) : (
+                                            <Typography>Erreur lors du chargement du portfolio</Typography>
+                                        )}
+                                    </ErrorBoundary>
+                                )}
+                                {activeTab === 6 && <MarketSentiment />}
+                                {activeTab === 7 && <InvestmentRecommendation />}
+                                {activeTab === 8 && <HistoricalDataAnalysis />}
+                                {activeTab === 9 && <UserProfileAnalysis />}
+
+                                <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+                                    <Button onClick={() => setOpenBacktest(true)} variant="outlined">Run Backtest</Button>
+                                    <Button onClick={() => setOpenComparison(true)} variant="outlined">Compare with Benchmark</Button>
+                                </Box>
+
+                                <Dialog
+                                    open={openBacktest}
+                                    onClose={() => setOpenBacktest(false)}
+                                    fullWidth
+                                    maxWidth="lg"
+                                >
+                                    <DialogTitle>Backtest Results</DialogTitle>
+                                    <DialogContent>
+                                        <TextField
+                                            label="Start Date"
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        <TextField
+                                            label="End Date"
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        <Button onClick={runBacktest} variant="contained" sx={{ mt: 2 }}>Run Backtest</Button>
+                                        {backtestResults && (
+                                            <Box sx={{ mt: 2 }}>
+                                                <Typography>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</Typography>
+                                                <Typography>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</Typography>
+                                                <Box sx={{ width: '100%', height: 400, mt: 2 }}>
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
+                                                            <XAxis
+                                                                dataKey="date"
+                                                                tickFormatter={(tick) => {
+                                                                    const date = new Date(startDate);
+                                                                    date.setDate(date.getDate() + tick);
+                                                                    return date.toLocaleDateString();
+                                                                }}
+                                                                interval={Math.floor(backtestResults.portfolio_values.length / 5)}
+                                                            />
+                                                            <YAxis
+                                                                domain={['dataMin', 'dataMax']}
+                                                                tickFormatter={(value) => `$${value.toLocaleString()}`}
+                                                            />
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <Tooltip
+                                                                formatter={(value) => [`$${value.toLocaleString()}`, "Portfolio Value"]}
+                                                                labelFormatter={(label) => {
+                                                                    const date = new Date(startDate);
+                                                                    date.setDate(date.getDate() + label);
+                                                                    return date.toLocaleDateString();
+                                                                }}
+                                                            />
+                                                            <Legend />
+                                                            <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
+                                                        </LineChart>
+                                                    </ResponsiveContainer>
+                                                </Box>
+                                            </Box>
+                                        )}
+                                    </DialogContent>
+                                    <DialogActions>
+                                        <Button onClick={() => setOpenBacktest(false)}>Close</Button>
+                                    </DialogActions>
+                                </Dialog>
+
+                                <Dialog
+                                    open={openComparison}
+                                    onClose={() => setOpenComparison(false)}
+                                    fullWidth
+                                    maxWidth="lg"
+                                >
+                                    <DialogTitle>Portfolio Comparison</DialogTitle>
+                                    <DialogContent>
+                                        <Select
+                                            value={benchmark}
+                                            onChange={(e) => setBenchmark(e.target.value)}
+                                            fullWidth
+                                            margin="normal"
+                                        >
+                                            <MenuItem value="SPY">S&P 500 (SPY)</MenuItem>
+                                            <MenuItem value="QQQ">Nasdaq 100 (QQQ)</MenuItem>
+                                            <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
+                                        </Select>
+                                        <TextField
+                                            label="Start Date"
+                                            type="date"
+                                            value={comparisonStartDate}
+                                            onChange={(e) => setComparisonStartDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        <TextField
+                                            label="End Date"
+                                            type="date"
+                                            value={comparisonEndDate}
+                                            onChange={(e) => setComparisonEndDate(e.target.value)}
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                            margin="normal"
+                                        />
+                                        {comparisonResults && (
+                                            <Box sx={{ mt: 2 }}>
+                                                <Typography>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</Typography>
+                                                <Typography>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</Typography>
+                                                <Typography>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</Typography>
+                                                <Typography>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</Typography>
+                                                {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
+                                                    <Box sx={{ width: '100%', height: 400, mt: 2 }}>
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <LineChart data={comparisonResults.portfolio_cumulative.map((value, index) => ({
+                                                                date: index,
+                                                                portfolio: value,
+                                                                benchmark: comparisonResults.benchmark_cumulative[index]
+                                                            }))}>
+                                                                <XAxis
+                                                                    dataKey="date"
+                                                                    tickFormatter={(tick) => {
+                                                                        const date = new Date(comparisonStartDate);
+                                                                        date.setDate(date.getDate() + tick);
+                                                                        return date.toLocaleDateString();
+                                                                    }}
+                                                                    interval={Math.floor(comparisonResults.portfolio_cumulative.length / 5)}
+                                                                />
+                                                                <YAxis
+                                                                    tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+                                                                />
+                                                                <CartesianGrid strokeDasharray="3 3" />
+                                                                <Tooltip
+                                                                    formatter={(value) => [`${(value * 100).toFixed(2)}%`, ""]}
+                                                                    labelFormatter={(label) => {
+                                                                        const date = new Date(comparisonStartDate);
+                                                                        date.setDate(date.getDate() + label);
+                                                                        return date.toLocaleDateString();
+                                                                    }}
+                                                                />
+                                                                <Legend />
+                                                                <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
+                                                                <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
+                                                            </LineChart>
+                                                        </ResponsiveContainer>
+                                                    </Box>
+                                                )}
+                                            </Box>
+                                        )}
+                                    </DialogContent>
+                                    <DialogActions>
+                                        <Button onClick={compareWithBenchmark} variant="contained" color="primary">Compare</Button>
+                                        <Button onClick={() => setOpenComparison(false)}>Close</Button>
+                                    </DialogActions>
+                                </Dialog>
+                            </Paper>
+                        </Container>
+                    </Slide>
+                </Fade>
+            </Box>
+            <Menu
+                id="menu-appbar"
+                anchorEl={anchorEl}
+                anchorOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+                keepMounted
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+                open={Boolean(anchorEl)}
+                onClose={handleClose}
+            >
+                <MenuItem onClick={handleClose}>Profile</MenuItem>
+                <MenuItem onClick={handleClose}>My account</MenuItem>
+                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+            </Menu>
+        </Box>
+    );
+}
+
+export default App;
+>>>
+
+./copilot/src/Settings.js :
+<<<
+import React, { useState, useEffect } from 'react';
+import { TextField, Button, Select, MenuItem, Chip, Box, FormControl, InputLabel } from '@mui/material';
+import axios from 'axios';
+
+function Settings({ onClearChat }) {
+    const [settings, setSettings] = useState({
+        default_portfolio_value: 100000,
+        risk_profile: 'moderate',
+        preferred_sectors: []
+    });
+
+    useEffect(() => {
+        fetchSettings();
+    }, []);
+
+    const fetchSettings = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(process.env.REACT_APP_API_URL + '/settings', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            setSettings({
+                ...response.data,
+                preferred_sectors: Array.isArray(response.data.preferred_sectors)
+                    ? response.data.preferred_sectors
+                    : []
+            });
+        } catch (error) {
+            console.error("Error fetching settings:", error);
+        }
+    };
+
+    const handleChange = (event) => {
+        setSettings({ ...settings, [event.target.name]: event.target.value });
+    };
+
+    const handleSectorChange = (event) => {
+        setSettings({ ...settings, preferred_sectors: event.target.value });
+    };
+
+    const handleSettingsChange = (setting, value) => {
+        setSettings(prevSettings => ({ ...prevSettings, [setting]: value }));
+    };
+
+    const clearChat = async () => {
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/clear_chat');
+            alert('Chat history cleared successfully');
+            onClearChat(); // Appel de la fonction pour mettre à jour l'état dans App.js
+        } catch (error) {
+            console.error('Error clearing chat history:', error);
+            alert('Error clearing chat history. Please try again.');
+        }
+    };
+
+    const saveSettings = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/settings', settings, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.data.message === "Settings updated successfully") {
+                alert('Settings saved successfully');
+            } else {
+                throw new Error('Unexpected response');
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            alert('Error saving settings. Please try again.');
+        }
+    };
+
+    return (
+        <Box>
+            <TextField
+                label="Default Portfolio Value"
+                value={settings.default_portfolio_value}
+                onChange={(e) => handleSettingsChange('default_portfolio_value', e.target.value)}
+                type="number"
+                fullWidth
+                margin="normal"
+            />
+            <FormControl fullWidth margin="normal">
+                <InputLabel>Risk Profile</InputLabel>
+                <Select
+                    value={settings.risk_profile}
+                    onChange={(e) => handleSettingsChange('risk_profile', e.target.value)}
+                >
+                    <MenuItem value="low">Low</MenuItem>
+                    <MenuItem value="moderate">Moderate</MenuItem>
+                    <MenuItem value="high">High</MenuItem>
+                </Select>
+            </FormControl>
+            <Select
+                label="Preferred Sectors"
+                name="preferred_sectors"
+                multiple
+                value={settings.preferred_sectors}
+                onChange={handleSectorChange}
+                renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                            <Chip key={value} label={value} />
+                        ))}
+                    </Box>
+                )}
+                fullWidth
+                margin="normal"
+            >
+                <MenuItem value="Technology">Technology</MenuItem>
+                <MenuItem value="Healthcare">Healthcare</MenuItem>
+                <MenuItem value="Finance">Finance</MenuItem>
+                <MenuItem value="Energy">Energy</MenuItem>
+            </Select>
+            <Button
+                onClick={clearChat}
+                variant="contained"
+                color="secondary"
+                style={{ marginTop: '20px' }}
+            >
+                Clear Chat History
+            </Button>
+            <Button onClick={saveSettings} variant="contained" color="primary">
+                Save Settings
+            </Button>
+        </Box>
+    );
+}
+
+export default Settings;
 >>>
 

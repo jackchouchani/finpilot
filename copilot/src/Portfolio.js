@@ -259,11 +259,9 @@ function Portfolio() {
             setReportProgress(0);
             setCurrentStep('Initializing report generation');
 
-            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                withCredentials: true // Ajoutez ceci si vous utilisez des cookies pour l'authentification
+            const token = localStorage.getItem('token');
+            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report?token=${token}`, {
+                withCredentials: true
             });
 
             eventSource.onmessage = (event) => {

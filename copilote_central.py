@@ -18,7 +18,7 @@ from io import BytesIO
 import os
 import re
 import bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, set_access_cookies, verify_jwt_in_request
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -1388,17 +1388,15 @@ def simulate_scenario():
 @app.route('/generate_report', methods=['GET'])
 @jwt_required()
 def generate_report_route():
-    user_id = get_jwt_identity()
-    portfolio = get_portfolio(user_id)  # Assurez-vous que cette fonction existe et récupère le portfolio de l'utilisateur
-
     def generate():
-        total_steps = 16  # Nombre total d'étapes dans generate_report
-        for i, (title, function) in enumerate(sections):
-            yield f"data: {json.dumps({'progress': (i / total_steps) * 100, 'step': f'Generating {title}'})}\n\n"
-            function(portfolio, portfolio_data, returns, weights)  # Assurez-vous que ces variables sont définies
+        total_steps = 10  # Nombre total d'étapes dans generate_report
+        for i in range(total_steps):
+            # Simuler une étape de génération de rapport
+            time.sleep(1)
+            yield f"data: {json.dumps({'progress': (i+1) / total_steps * 100, 'step': f'Step {i+1}'})}\n\n"
 
         # Générer le PDF final
-        pdf_data = generate_final_pdf()  # Implémentez cette fonction pour générer le PDF
+        pdf_data = generate_report(data)
         pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
         yield f"data: {json.dumps({'progress': 100, 'step': 'Completed', 'report': pdf_base64})}\n\n"
 

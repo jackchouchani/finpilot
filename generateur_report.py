@@ -12,6 +12,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from plotly import graph_objects as go
 from plotly import figure_factory as ff
+from sklearn.decomposition import PCA
 import plotly.express as px
 import yfinance as yf
 from flask import jsonify
@@ -204,13 +205,9 @@ def calculate_portfolio_performance(portfolio, start_date, end_date):
 def generate_executive_summary(portfolio, portfolio_data, returns, weights):
     elements = []
     
-    df = pd.DataFrame(portfolio_data)
-    total_return = (df.iloc[-1] / df.iloc[0] - 1).sum()
-    days = len(df)
-    annualized_return = (1 + total_return) ** (252 / days) - 1
-    portfolio_returns = df.pct_change().dropna()
-    portfolio_returns_weighted = (portfolio_returns * weights).sum(axis=1)
-    portfolio_volatility = portfolio_returns_weighted.std() * np.sqrt(252)
+    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
+    portfolio_volatility = weighted_returns.std() * np.sqrt(252)
+    
     risk_free_rate = 0.02
     sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility
 
@@ -484,11 +481,20 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     
     return elements
 
+def analyze_portfolio_correlation(returns):
+    correlation_matrix = returns.corr()
+    pca = PCA()
+    pca.fit(returns)
+    explained_variance_ratio = pca.explained_variance_ratio_
+    return correlation_matrix, explained_variance_ratio
+
 def generate_correlation_heatmap(portfolio_data):
     elements = []
     
-    correlation_matrix = pd.DataFrame(portfolio_data).pct_change().corr()
+    returns = pd.DataFrame(portfolio_data).pct_change().dropna()
+    correlation_matrix, explained_variance_ratio = analyze_portfolio_correlation(returns)
     
+    # Créer le heatmap de corrélation
     fig = go.Figure(data=go.Heatmap(
         z=correlation_matrix.values,
         x=correlation_matrix.index,
@@ -503,11 +509,36 @@ def generate_correlation_heatmap(portfolio_data):
     img_buffer.seek(0)
     elements.append(Image(img_buffer, width=500, height=500))
     
+    # Trouver les paires les plus et moins corrélées
+    corr_values = correlation_matrix.values[np.triu_indices_from(correlation_matrix.values, 1)]
+    max_corr = np.max(corr_values)
+    min_corr = np.min(corr_values)
+    max_corr_pair = np.unravel_index(np.argmax(correlation_matrix.values), correlation_matrix.shape)
+    min_corr_pair = np.unravel_index(np.argmin(correlation_matrix.values), correlation_matrix.shape)
+    
+    # Calculer la corrélation moyenne
+    avg_correlation = np.mean(corr_values)
+    
+    # Calculer le nombre de composantes principales nécessaires pour expliquer 80% de la variance
+    num_components = np.sum(np.cumsum(explained_variance_ratio) <= 0.8) + 1
+    
     explanation = generate_ai_content(f"""
-    Analysez la matrice de corrélation des actions du portefeuille.
-    Identifiez les paires d'actions les plus corrélées et les moins corrélées.
-    Discutez de l'impact de ces corrélations sur la diversification du portefeuille.
-    Suggérez des moyens d'améliorer la diversification du portefeuille en fonction de ces corrélations.
+    Analysez la matrice de corrélation des actions du portefeuille en vous basant sur les informations suivantes :
+    
+    1. Corrélation moyenne du portefeuille : {avg_correlation:.2f}
+    2. Paire d'actions la plus corrélée : {correlation_matrix.index[max_corr_pair[0]]} et {correlation_matrix.index[max_corr_pair[1]]} (corrélation de {max_corr:.2f})
+    3. Paire d'actions la moins corrélée : {correlation_matrix.index[min_corr_pair[0]]} et {correlation_matrix.index[min_corr_pair[1]]} (corrélation de {min_corr:.2f})
+    4. Nombre de composantes principales nécessaires pour expliquer 80% de la variance : {num_components}
+    5. Proportion de la variance expliquée par la première composante principale : {explained_variance_ratio[0]:.2%}
+    
+    Basez votre analyse sur ces points :
+    1. Interprétez la corrélation moyenne du portefeuille. Est-elle élevée, moyenne ou faible ?
+    2. Discutez des implications des paires d'actions les plus et les moins corrélées.
+    3. Analysez l'impact de ces corrélations sur la diversification du portefeuille.
+    4. Commentez sur le nombre de composantes principales nécessaires pour expliquer 80% de la variance. Qu'est-ce que cela nous dit sur la diversification du portefeuille ?
+    5. Interprétez la proportion de variance expliquée par la première composante principale. Qu'est-ce que cela implique pour le risque du portefeuille ?
+    6. Suggérez des moyens spécifiques d'améliorer la diversification du portefeuille en fonction de ces corrélations et de l'analyse en composantes principales.
+    7. Discutez des limites potentielles de cette analyse de corrélation (par exemple, la non-linéarité des relations entre les actifs).
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
@@ -516,12 +547,9 @@ def generate_correlation_heatmap(portfolio_data):
 def generate_performance_analysis(portfolio, portfolio_data, returns, weights, start_date, end_date):
     elements = []
     
-    df = pd.DataFrame(portfolio_data)
-    portfolio_returns = (returns * weights).sum(axis=1)
-    cumulative_returns = (1 + portfolio_returns).cumprod()
-    total_return = cumulative_returns.iloc[-1] - 1
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
-    volatility = portfolio_returns.std() * np.sqrt(252)
+    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
+    volatility = weighted_returns.std() * np.sqrt(252)
+    cumulative_returns = (1 + weighted_returns).cumprod()
     sharpe_ratio = annualized_return / volatility
     
     sp500_data = get_sp500_data(start_date, end_date)
@@ -593,11 +621,12 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, s
 def generate_risk_analysis(portfolio, portfolio_data, returns, weights):
     elements = []
     
-    portfolio_returns = (returns * weights).sum(axis=1)
+    weighted_returns, _, _ = calculate_portfolio_returns(portfolio_data, weights)
     
-    var_95 = np.percentile(portfolio_returns, 5)
-    cvar_95 = portfolio_returns[portfolio_returns <= var_95].mean()
-    max_drawdown = np.min(portfolio_returns.cumsum() - portfolio_returns.cumsum().cummax())
+    var_95 = np.percentile(weighted_returns, 5) * np.sqrt(252)
+    cvar_95 = portfolio_returns[weighted_returns <= var_95].mean() * np.sqrt(252)
+    cumulative_returns = (1 + weighted_returns).cumprod()
+    max_drawdown = (cumulative_returns.cummax() - cumulative_returns).max()
     
     risk_data = [
         ['Métrique', 'Valeur'],
@@ -778,8 +807,12 @@ def generate_dividend_table(portfolio):
 def generate_esg_analysis(portfolio):
     elements = []
     
+    def normalize_esg_score(score):
+        return (score - 0) / (100 - 0)  # Supposons que les scores ESG sont entre 0 et 100
+
     esg_data = [['Titre', 'Score ESG', 'Environnement', 'Social', 'Gouvernance']]
-    portfolio_esg_score = 0
+    total_weight = 0
+    weighted_score = 0
     
     for stock in portfolio['stocks']:
         ticker = yf.Ticker(stock['symbol'])
@@ -790,7 +823,9 @@ def generate_esg_analysis(portfolio):
         governance_score = info.get('governanceScore', 'N/A')
         
         if esg_score != 'N/A':
-            portfolio_esg_score += esg_score * float(stock['weight']) / 100
+            weight = float(stock['weight']) / 100
+            total_weight += weight
+            weighted_score += normalize_esg_score(esg_score) * weight
         
         esg_data.append([
             stock['symbol'],
@@ -800,6 +835,8 @@ def generate_esg_analysis(portfolio):
             f"{governance_score:.2f}" if governance_score != 'N/A' else 'N/A'
         ])
     
+    portfolio_esg_score = weighted_score / total_weight if total_weight > 0 else None
+
     table = Table(esg_data)
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
@@ -834,12 +871,14 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights)
     num_days = 252  # un an de trading
     
     # Calcul des paramètres de la distribution des rendements
-    portfolio_returns = (returns * weights).sum(axis=1)
-    mean_return = portfolio_returns.mean()
-    std_return = portfolio_returns.std()
+    weighted_returns, _, _ = calculate_portfolio_returns(portfolio_data, weights)
+    mean_return = weighted_returns.mean()
+    std_return = weighted_returns.std()
     
     # Simulation
-    simulations = np.random.normal(mean_return, std_return, (num_simulations, num_days))
+    simulations = np.zeros((num_simulations, num_days))
+    for i in range(num_simulations):
+        simulations[i] = np.random.choice(portfolio_returns, size=num_days, replace=True)
     simulations = np.cumprod(1 + simulations, axis=1)
     
     # Calcul des percentiles
@@ -895,18 +934,21 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights)
 def generate_stress_tests(portfolio, portfolio_data, returns, weights):
     elements = []
     
-    # Définition des scénarios de stress
+    def historical_stress_test(returns, weights, start_date, end_date):
+        period_returns = returns.loc[start_date:end_date]
+        portfolio_returns = (period_returns * weights).sum(axis=1)
+        return (1 + portfolio_returns).prod() - 1
+
     scenarios = {
-        "Crise financière": -0.4,
-        "Récession modérée": -0.2,
-        "Hausse des taux d'intérêt": -0.1,
-        "Choc pétrolier": -0.15
+        "Crise financière 2008": ("2008-09-01", "2009-03-31"),
+        "Éclatement bulle tech 2000": ("2000-03-01", "2002-10-31"),
+        "Crise du Covid-19": ("2020-02-20", "2020-03-23"),
     }
-    
+
     stress_data = [['Scénario', 'Impact sur le Portefeuille']]
-    for scenario, impact in scenarios.items():
-        portfolio_impact = sum(impact * weight for weight in weights)
-        stress_data.append([scenario, f"{portfolio_impact:.2%}"])
+    for scenario, (start_date, end_date) in scenarios.items():
+        impact = historical_stress_test(returns, weights, start_date, end_date)
+        stress_data.append([scenario, f"{impact:.2%}"])
     
     table = Table(stress_data)
     table.setStyle(TableStyle([
@@ -957,14 +999,8 @@ def create_section_header(text, level=1):
 def generate_recommendations(portfolio, portfolio_data, returns, weights):
     elements = []
     
-    # Calculer quelques métriques pour baser nos recommandations
-    df = pd.DataFrame(portfolio_data)
-    total_return = (df.iloc[-1] / df.iloc[0] - 1).sum()
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
-    
-    # Calculer la volatilité du portefeuille
-    portfolio_returns = (returns * weights).sum(axis=1)
-    portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
+    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
+    portfolio_volatility = weighted_returns.std() * np.sqrt(252)
     
     sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility  # Assuming 2% risk-free rate
 

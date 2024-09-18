@@ -32,3 +32,4 @@ pydantic
 typing
 kaleido
 tqdm
+sklearn

@@ -267,15 +267,18 @@ function Portfolio() {
                 }
             );
 
+            console.log("Response data:", response.data); // Ajoutez cette ligne pour déboguer
+
             if (response.data && response.data.report) {
                 setReportData(response.data.report);
                 setOpenReport(true);
             } else {
+                console.error("Invalid report data:", response.data); // Ajoutez cette ligne
                 throw new Error('Invalid report data received');
             }
         } catch (error) {
             console.error("Error generating report:", error);
-            alert('Error generating report. Please try again.');
+            alert(`Error generating report: ${error.message}`);
         } finally {
             setLoading(false);
         }

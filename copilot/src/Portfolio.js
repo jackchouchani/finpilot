@@ -253,30 +253,18 @@ function Portfolio() {
         }
     };
 
-    const generateReport = async () => {
-        try {
-            setGeneratingReport(true);
-            setReportProgress(0);
-            setCurrentStep('Initialisation de la génération du rapport');
+    const generateReport = () => {
+        setGeneratingReport(true);
+        setReportProgress(0);
+        setCurrentStep('Initialisation de la génération du rapport');
 
-            const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
-                withCredentials: true
-            });
+        const eventSource = new EventSource(`${process.env.REACT_APP_API_URL}/generate_report`, {
+            withCredentials: true
+        });
 
-            eventSource.onerror = (error) => {
-                console.error("La connexion EventSource a échoué:", error);
-                eventSource.close();
-                setGeneratingReport(false);
-                alert('Erreur lors de la génération du rapport. Veuillez réessayer.');
-            };
-
-            eventSource.onopen = () => {
-                console.log("Connexion EventSource établie");
-            };
-
-            eventSource.onmessage = (event) => {
-                console.log("Message reçu:", event.data);
-                const data = JSON.parse(event.data.replace("'", '"')); // Remplacer les apostrophes si nécessaire
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
                 setReportProgress(data.progress);
                 setCurrentStep(data.step);
 
@@ -286,13 +274,17 @@ function Portfolio() {
                     eventSource.close();
                     setGeneratingReport(false);
                 }
-            };
+            } catch (error) {
+                console.error("Erreur lors de l'analyse du message EventSource :", error);
+            }
+        };
 
-        } catch (error) {
-            console.error("Erreur dans generateReport:", error);
+        eventSource.onerror = (error) => {
+            console.error("Erreur avec EventSource :", error);
+            eventSource.close();
             setGeneratingReport(false);
             alert('Erreur lors de la génération du rapport. Veuillez réessayer.');
-        }
+        };
     };
 
     const handleEditStock = (index) => {

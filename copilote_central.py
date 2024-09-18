@@ -45,10 +45,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {
     "origins": ["https://www.finpilot.one", "http://localhost:3000"],
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization"],
     "supports_credentials": True,
-    "expose_headers": ["Content-Type", "X-CSRFToken"],
-    "send_wildcard": False
 }})
 
 @app.after_request
@@ -73,6 +70,7 @@ app.config['JWT_TOKEN_LOCATION'] = ['cookies']
 app.config['JWT_COOKIE_SECURE'] = True  # Utilisez True en production
 app.config['JWT_COOKIE_HTTPONLY'] = True
 app.config['JWT_COOKIE_SAMESITE'] = 'Lax'
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
 jwt = JWTManager(app)
 
 # Augmentez la durée de validité du token JWT

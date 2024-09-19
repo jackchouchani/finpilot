@@ -611,7 +611,7 @@ class Agents:
         return compliance_agent.check_compliance(data)
     
 def structure_data(data):
-    client = openai_client.OpenAI()
+    client = openai_client
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[

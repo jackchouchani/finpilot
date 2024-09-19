@@ -6,6 +6,7 @@ import re
 import textwrap
 from datetime import datetime, timedelta
 from io import BytesIO
+import time
 
 # Bibliothèques tierces
 import numpy as np
@@ -30,37 +31,67 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
+
 def generate_ai_content(prompt):
-    message = anthropic_client.messages.create(
-        model="claude-3-5-sonnet-20240620",
-        max_tokens=1000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return message.content[0].text
+    try:
+        message = anthropic_client.messages.create(
+            model="claude-3-5-sonnet-20240620",
+            max_tokens=1000,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return message.content[0].text
+    except (IndexError, AttributeError) as e:
+        print(f"Erreur lors de la récupération de la réponse AI: {e}")
+        return ""
 
 def create_formatted_paragraph(text, style_name='Normal'):
+    """
+    Crée un paragraphe formaté avec des retours à la ligne et des puces.
+    
+    Parameters:
+    text (str): Texte brut à formater.
+    style_name (str): Nom du style à appliquer.
+    
+    Returns:
+    Paragraph: Un objet Paragraph prêt à être ajouté au document.
+    """
     styles = getSampleStyleSheet()
     custom_style = ParagraphStyle(
-        'CustomStyle',
+        name='CustomStyle',
         parent=styles[style_name],
         spaceAfter=12,
-        bulletIndent=20,
-        leftIndent=35
+        leftIndent=35,
+        bulletIndent=20
     )
     
-    # Remplacer les balises <bullet> par le caractère de puce HTML
-    text = text.replace('<bullet>•</bullet>', '&bull;')
+    # Remplacer les retours à la ligne par <br/>
+    text = text.replace('\n', '<br/>')
     
-    # Traiter les puces
+    # Remplacer les puces manuelles par des listes HTML
+    # Identifier les lignes commençant par '•' et les convertir en éléments de liste
     lines = text.split('<br/>')
     formatted_lines = []
+    in_list = False
+    
     for line in lines:
-        if line.strip().startswith('•'):
-            formatted_lines.append(f'<bullet>&bull;</bullet>{line.strip()[1:]}')
+        stripped_line = line.strip()
+        if stripped_line.startswith('•'):
+            if not in_list:
+                formatted_lines.append('<ul>')
+                in_list = True
+            # Supprimer le caractère de puce et ajouter l'élément de liste
+            item = stripped_line.lstrip('•').strip()
+            formatted_lines.append(f'<li>{item}</li>')
         else:
+            if in_list:
+                formatted_lines.append('</ul>')
+                in_list = False
             formatted_lines.append(line)
+    
+    if in_list:
+        formatted_lines.append('</ul>')
     
     formatted_text = '<br/>'.join(formatted_lines)
     return Paragraph(formatted_text, custom_style)
@@ -78,6 +109,20 @@ def clean_text(text):
     return '\n\n'.join(wrapped_paragraphs)
 
 def calculate_portfolio_performance(portfolio, start_date, end_date):
+    """
+    Calcule la performance du portefeuille sur une période donnée.
+
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille, incluant les actions et leurs poids.
+    start_date (str): Date de début au format 'YYYY-MM-DD'.
+    end_date (str): Date de fin au format 'YYYY-MM-DD'.
+
+    Returns:
+    tuple: (portfolio_data, returns, weights)
+        - portfolio_data (dict): Données de clôture des actions.
+        - returns (DataFrame): Rendements quotidiens des actions.
+        - weights (ndarray): Poids des actions dans le portefeuille.
+    """
     portfolio_data = {}
     for stock in portfolio['stocks']:
         try:
@@ -96,6 +141,15 @@ def calculate_portfolio_performance(portfolio, start_date, end_date):
 
 
 def generate_report(data):
+    """
+    Génère un rapport de performance du portefeuille.
+
+    Parameters:
+    data (dict): Données nécessaires pour générer le rapport.
+
+    Returns:
+    dict: Un dictionnaire contenant le rapport encodé en base64.
+    """
     portfolio = data['portfolio']
     start_date = data.get('start_date', (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d'))
     end_date = data.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -141,18 +195,20 @@ def generate_report(data):
         ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
         ("Meilleures et Pires Performances", lambda p, pd, r, w, wr, tr, ar: generate_best_worst_performers(p, pd, r, w)),
         ("Analyse des Dividendes", lambda p, pd, r, w, wr, tr, ar: generate_dividend_table(p)),
-        ("Analyse ESG", lambda p, pd, r, w, wr, tr, ar: generate_esg_analysis(p)),
+        ("Analyse ESG", lambda p, pd, r, w, wr, tr, ar: generate_esg_analysis(p, pd, r, w, wr, tr, ar)),
         ("Allocation Sectorielle", lambda p, pd, r, w, wr, tr, ar: generate_sector_allocation(p, pd, r, w)),
         ("Simulation Monte Carlo", lambda p, pd, r, w, wr, tr, ar: generate_monte_carlo_simulation(p, pd, r, w, wr)),
-        ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w)),
+        ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w, wr)),
         ("Perspectives Futures", lambda p, pd, r, w, wr, tr, ar: generate_future_outlook(p, pd, r, w)),
         ("Recommandations", lambda p, pd, r, w, wr, tr, ar: generate_recommendations(p, pd, r, w, wr, tr, ar))
     ]
     total_steps = len(sections)
     
     for index, (title, function) in enumerate(sections, 1):
+        start_time = time.time()
+        
         elements.append(create_section_header(title))
-        new_elements = function(portfolio, portfolio_data, returns, weights)
+        new_elements = function(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return)
         
         if isinstance(new_elements, list):
             elements.extend(new_elements)
@@ -160,7 +216,12 @@ def generate_report(data):
             elements.append(create_formatted_paragraph(str(new_elements)))
         elements.append(PageBreak())
         
-
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        print(f"Section '{title}' traitée en {execution_time:.2f} secondes")
+        print(f"Progression : {index}/{len(sections)} sections traitées")
+        
     # Glossaire et avertissements
     elements.append(create_section_header("Glossaire"))
     elements.extend(generate_glossary())
@@ -179,6 +240,17 @@ def generate_report(data):
     return {"report": pdf_base64}
 
 def create_title_page(title, subtitle, date):
+    """
+    Crée une page de titre pour le rapport.
+
+    Parameters:
+    title (str): Titre du rapport.
+    subtitle (str): Sous-titre du rapport.
+    date (str): Date du rapport.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la page de titre.
+    """
     elements = []
     styles = getSampleStyleSheet()
     
@@ -205,6 +277,19 @@ def create_title_page(title, subtitle, date):
     return elements
 
 def calculate_portfolio_returns(portfolio_data, weights):
+    """
+    Calcule les rendements pondérés du portefeuille.
+
+    Parameters:
+    portfolio_data (dict): Données de clôture des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+
+    Returns:
+    tuple: (weighted_returns, total_return, annualized_return)
+        - weighted_returns (Series): Rendements pondérés quotidiens du portefeuille.
+        - total_return (float): Rendement total du portefeuille.
+        - annualized_return (float): Rendement annualisé du portefeuille.
+    """
     df = pd.DataFrame(portfolio_data)
     returns = df.pct_change().dropna()
     weighted_returns = (returns * weights).sum(axis=1)
@@ -213,62 +298,101 @@ def calculate_portfolio_returns(portfolio_data, weights):
     return weighted_returns, total_return, annualized_return
 
 def generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return):
-    elements = []
-    
-    portfolio_volatility = weighted_returns.std() * np.sqrt(252)
-    
-    risk_free_rate = 0.02
-    sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility
-
-    sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
-    sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
-    sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
-    sp500_sharpe = (sp500_return - risk_free_rate) / sp500_volatility
-
-    summary = f"""
-    Résumé Exécutif
-
-    Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du {portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au {portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.
-
-    Points clés :
-    • Rendement total du portefeuille : {total_return:.2%}
-    • Rendement annualisé : {annualized_return:.2%}
-    • Volatilité annualisée : {portfolio_volatility:.2%}
-    • Ratio de Sharpe : {sharpe_ratio:.2f}
-
-    Comparaison avec le S&P 500 :
-    • Rendement total S&P 500 : {sp500_return:.2%}
-    • Volatilité S&P 500 : {sp500_volatility:.2%}
-    • Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}
-
-    Le portefeuille a {['sous-performé', 'sur-performé'][total_return > sp500_return]} l'indice S&P 500 sur la période, avec un {['risque plus élevé', 'risque plus faible'][portfolio_volatility < sp500_volatility]}.
     """
+    Génère le résumé exécutif du rapport.
     
-    elements.append(create_formatted_paragraph(summary, 'BodyText'))
-
-    additional_analysis = generate_ai_content(f"""
-    En vous basant sur les données suivantes :
-    - Rendement total du portefeuille : {total_return:.2%}
-    - Rendement annualisé : {annualized_return:.2%}
-    - Volatilité du portefeuille : {portfolio_volatility:.2%}
-    - Ratio de Sharpe du portefeuille : {sharpe_ratio:.2f}
-    - Rendement total S&P 500 : {sp500_return:.2%}
-    - Volatilité S&P 500 : {sp500_volatility:.2%}
-    - Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}
-
-    Fournissez une analyse succincte de la performance du portefeuille. Incluez :
-    1. Une évaluation générale de la performance du portefeuille par rapport au marché.
-    2. Les principaux facteurs qui ont contribué à cette performance.
-    3. Les points forts et les points faibles du portefeuille.
-    4. Des recommandations préliminaires pour l'amélioration du portefeuille.
-    """)
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    portfolio_data (dict): Données de clôture des actions.
+    returns (DataFrame): Rendements quotidiens des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+    weighted_returns (Series): Rendements pondérés quotidiens du portefeuille.
+    total_return (float): Rendement total du portefeuille.
+    annualized_return (float): Rendement annualisé du portefeuille.
     
-    elements.append(create_formatted_paragraph(additional_analysis, 'BodyText'))
-    
-    return elements
+    Returns:
+    list: Éléments à ajouter au rapport.
+    """
+    try:
+        # Calcul du score ESG
+        sp500_data = get_sp500_data(
+            portfolio_data[list(portfolio_data.keys())[0]].index[0],
+            portfolio_data[list(portfolio_data.keys())[0]].index[-1]
+        )
+        
+        if sp500_data.empty:
+            sp500_return = 0
+            sp500_volatility = 0
+            sp500_sharpe = 0
+        else:
+            sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
+            sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
+            sp500_sharpe = (sp500_return - 0.02) / sp500_volatility if sp500_volatility != 0 else 0
+        
+        portfolio_volatility = weighted_returns.std() * np.sqrt(252)
+        sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
+        
+        summary = (
+            f"Résumé Exécutif\n"
+            f"Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du "
+            f"{portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au "
+            f"{portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.\n\n"
+            f"Points clés :\n"
+            f"• Rendement total du portefeuille : {total_return:.2%}\n"
+            f"• Rendement annualisé : {annualized_return:.2%}\n"
+            f"• Volatilité annualisée : {portfolio_volatility:.2%}\n"
+            f"• Ratio de Sharpe : {sharpe_ratio:.2f}\n\n"
+            f"Comparaison avec le S&P 500 :\n"
+            f"• Rendement total S&P 500 : {sp500_return:.2%}\n"
+            f"• Volatilité S&P 500 : {sp500_volatility:.2%}\n"
+            f"• Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}\n\n"
+            f"Le portefeuille a {'sous-performé' if total_return < sp500_return else 'sur-performé'} l'indice S&P 500 sur la période, avec un "
+            f"{'risque plus élevé' if portfolio_volatility > sp500_volatility else 'risque plus faible'}."
+        )
+        
+        elements = []
+        elements.append(create_formatted_paragraph(summary, 'BodyText'))
+        
+        # Ajout de l'analyse générée par l'IA
+        try:
+            additional_analysis = generate_ai_content(f"""
+            En vous basant sur les données suivantes :
+            - Rendement total du portefeuille : {total_return:.2%}
+            - Rendement annualisé : {annualized_return:.2%}
+            - Volatilité du portefeuille : {portfolio_volatility:.2%}
+            - Ratio de Sharpe du portefeuille : {sharpe_ratio:.2f}
+            - Rendement total S&P 500 : {sp500_return:.2%}
+            - Volatilité S&P 500 : {sp500_volatility:.2%}
+            - Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}
+            
+            Fournissez une analyse succincte de la performance du portefeuille. Incluez :
+            1. Une évaluation générale de la performance du portefeuille par rapport au marché.
+            2. Les principaux facteurs qui ont contribué à cette performance.
+            3. Les points forts et les points faibles du portefeuille.
+            4. Des recommandations préliminaires pour l'amélioration du portefeuille.
+            """)
+        except Exception as e:
+            print(f"Erreur lors de la génération de l'analyse AI: {e}")
+            additional_analysis = "Analyse supplémentaire indisponible."
+        
+        elements.append(create_formatted_paragraph(additional_analysis, 'BodyText'))
+        
+        return elements
 
 
 def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
+    """
+    Génère la vue d'ensemble du portefeuille.
+
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    portfolio_data (dict): Données de clôture des actions.
+    returns (DataFrame): Rendements quotidiens des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section de la vue d'ensemble du portefeuille.
+    """
     elements = []
     
     data = [['Titre', 'Poids', 'Prix d\'entrée', 'Prix actuel', 'Rendement']]
@@ -308,6 +432,12 @@ def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
     return elements
 
 def generate_glossary():
+    """
+    Génère le glossaire du rapport.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section du glossaire.
+    """
     elements = []
     styles = getSampleStyleSheet()
     body_style = styles['BodyText']
@@ -327,6 +457,12 @@ def generate_glossary():
     return elements
 
 def generate_disclaimer():
+    """
+    Génère les avertissements et divulgations du rapport.
+
+    Returns:
+    str: Le texte des avertissements et divulgations.
+    """
     disclaimer_text = """
     Ce rapport est fourni à titre informatif uniquement et ne constitue pas un conseil en investissement. 
     Les performances passées ne garantissent pas les résultats futurs. La valeur des investissements peut fluctuer 
@@ -339,6 +475,16 @@ def generate_disclaimer():
     return disclaimer_text.strip()
 
 def generate_stock_performance_comparison(portfolio_data, weights):
+    """
+    Génère la comparaison de performance des actions.
+
+    Parameters:
+    portfolio_data (dict): Données de clôture des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section de la comparaison de performance des actions.
+    """
     elements = []
     
     stock_returns = pd.DataFrame(portfolio_data).pct_change().mean() * 252
@@ -371,6 +517,18 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     return elements
 
 def generate_contribution_to_return(portfolio, portfolio_data, returns, weights):
+    """
+    Génère la contribution de chaque action au rendement total du portefeuille.
+
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    portfolio_data (dict): Données de clôture des actions.
+    returns (DataFrame): Rendements quotidiens des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section de la contribution de chaque action au rendement total du portefeuille.
+    """
     elements = []
     
     total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
@@ -411,16 +569,50 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
 
 
 def get_sp500_returns(start_date, end_date):
+    """
+    Récupère les rendements quotidiens de l'indice S&P 500 sur une période donnée.
+
+    Parameters:
+    start_date (str): Date de début au format 'YYYY-MM-DD'.
+    end_date (str): Date de fin au format 'YYYY-MM-DD'.
+
+    Returns:
+    Series: Rendements quotidiens de l'indice S&P 500.
+    """
     sp500 = yf.Ticker("^GSPC")
     sp500_data = sp500.history(start=start_date, end=end_date)['Close']
     return sp500_data.pct_change().dropna()
 
 def get_sp500_data(start_date, end_date):
+    """
+    Récupère les données de clôture de l'indice S&P 500 sur une période donnée.
+
+    Parameters:
+    start_date (str): Date de début au format 'YYYY-MM-DD'.
+    end_date (str): Date de fin au format 'YYYY-MM-DD'.
+
+    Returns:
+    Series: Données de clôture de l'indice S&P 500.
+    """
     sp500 = yf.Ticker("^GSPC")
     sp500_data = sp500.history(start=start_date, end=end_date)['Close']
     return sp500_data
 
 def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights, start_date, end_date):
+    """
+    Génère un tableau de ratios supplémentaires du portefeuille.
+
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    portfolio_data (dict): Données de clôture des actions.
+    returns (DataFrame): Rendements quotidiens des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+    start_date (str): Date de début au format 'YYYY-MM-DD'.
+    end_date (str): Date de fin au format 'YYYY-MM-DD'.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section des ratios supplémentaires du portefeuille.
+    """
     elements = []
     
     # Recalculer les rendements du portefeuille
@@ -487,6 +679,17 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     return elements
 
 def analyze_portfolio_correlation(returns):
+    """
+    Analyse la corrélation des actions du portefeuille.
+
+    Parameters:
+    returns (DataFrame): Rendements quotidiens des actions.
+
+    Returns:
+    tuple: (correlation_matrix, explained_variance_ratio)
+        - correlation_matrix (DataFrame): Matrice de corrélation des actions.
+        - explained_variance_ratio (ndarray): Proportion de la variance expliquée par chaque composante principale.
+    """
     correlation_matrix = returns.corr()
     pca = PCA()
     pca.fit(returns)
@@ -494,6 +697,15 @@ def analyze_portfolio_correlation(returns):
     return correlation_matrix, explained_variance_ratio
 
 def generate_correlation_heatmap(portfolio_data):
+    """
+    Génère un heatmap de corrélation des actions du portefeuille.
+
+    Parameters:
+    portfolio_data (dict): Données de clôture des actions.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section du heatmap de corrélation des actions du portefeuille.
+    """
     elements = []
     
     returns = pd.DataFrame(portfolio_data).pct_change().dropna()
@@ -532,7 +744,7 @@ def generate_correlation_heatmap(portfolio_data):
     
     1. Corrélation moyenne du portefeuille : {avg_correlation:.2f}
     2. Paire d'actions la plus corrélée : {correlation_matrix.index[max_corr_pair[0]]} et {correlation_matrix.index[max_corr_pair[1]]} (corrélation de {max_corr:.2f})
-    3. Paire d'actions la moins corrélée : {correlation_matrix.index[min_corr_pair[0]]} et {correlation_matrix.index[min_corr_pair[1]]} (corrélation de {min_corr:.2f})
+    3. Paire d'actions la moins corrélée : {correlation_matrix.index[min_corr_pair[0]]} et {correlation_matrix.index[min_corr_pair[1]]} (corr��lation de {min_corr:.2f})
     4. Nombre de composantes principales nécessaires pour expliquer 80% de la variance : {num_components}
     5. Proportion de la variance expliquée par la première composante principale : {explained_variance_ratio[0]:.2%}
     
@@ -550,6 +762,23 @@ def generate_correlation_heatmap(portfolio_data):
     return elements
 
 def generate_performance_analysis(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date):
+    """
+    Génère l'analyse de performance du portefeuille.
+
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    portfolio_data (dict): Données de clôture des actions.
+    returns (DataFrame): Rendements quotidiens des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+    weighted_returns (Series): Rendements pondérés quotidiens du portefeuille.
+    total_return (float): Rendement total du portefeuille.
+    annualized_return (float): Rendement annualisé du portefeuille.
+    start_date (str): Date de début au format 'YYYY-MM-DD'.
+    end_date (str): Date de fin au format 'YYYY-MM-DD'.
+
+    Returns:
+    list: Une liste d'éléments à ajouter à la section de l'analyse de performance du portefeuille.
+    """
     elements = []
     
     volatility = weighted_returns.std() * np.sqrt(252)
@@ -806,66 +1035,100 @@ def generate_dividend_table(portfolio):
     
     return elements
 
-def generate_esg_analysis(portfolio):
+def generate_esg_analysis(portfolio, _, __, ___, ____, _____, ______):
+    """
+    Génère l'analyse ESG du portefeuille.
+    
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    
+    Returns:
+    list: Éléments à ajouter au rapport.
+    """
     elements = []
     
-    def normalize_esg_score(score):
-    if score is None or score == 'N/A':
-        return 0
-    return (score - min_score) / (max_score - min_score)  # Adapté selon l'échelle réelle
-
-    esg_data = [['Titre', 'Score ESG', 'Environnement', 'Social', 'Gouvernance']]
-    total_weight = 0
-    weighted_score = 0
-    
-    for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
-        info = ticker.info
-        esg_score = info.get('esgScore', 'N/A')
-        environment_score = info.get('environmentScore', 'N/A')
-        social_score = info.get('socialScore', 'N/A')
-        governance_score = info.get('governanceScore', 'N/A')
+    try:
+        # Calcul du score ESG du portefeuille
+        portfolio_esg_score = calculate_portfolio_esg_score(portfolio)
         
-        if esg_score != 'N/A':
-            weight = float(stock['weight']) / 100
-            total_weight += weight
-            weighted_score += normalize_esg_score(esg_score) * weight
+        if portfolio_esg_score is not None:
+            elements.append(create_formatted_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
+        else:
+            elements.append(create_formatted_paragraph("Score ESG du portefeuille : Non disponible", 'BodyText'))
         
-        esg_data.append([
-            stock['symbol'],
-            f"{esg_score:.2f}" if esg_score != 'N/A' else 'N/A',
-            f"{environment_score:.2f}" if environment_score != 'N/A' else 'N/A',
-            f"{social_score:.2f}" if social_score != 'N/A' else 'N/A',
-            f"{governance_score:.2f}" if governance_score != 'N/A' else 'N/A'
-        ])
-    
-    portfolio_esg_score = weighted_score / total_weight if total_weight > 0 else None
-
-    table = Table(esg_data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
-    elements.append(table)
-    
-    elements.append(create_formatted_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
-    
-    explanation = generate_ai_content(f"""
-    Analysez les scores ESG du portefeuille en vous basant sur les données du tableau.
-    Le score ESG moyen pondéré du portefeuille est de {portfolio_esg_score:.2f}.
-    Identifiez les entreprises les plus performantes et les moins performantes en termes d'ESG.
-    Discutez de l'importance des critères ESG dans la gestion de portefeuille moderne.
-    Suggérez des moyens d'améliorer le profil ESG global du portefeuille.
-    """)
-    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
+        # Analyse des scores ESG individuels
+        esg_scores = []
+        for stock in portfolio['stocks']:
+            if 'esg_score' in stock and stock['esg_score'] is not None:
+                esg_scores.append((stock['symbol'], stock['esg_score']))
+        
+        if esg_scores:
+            esg_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            data = [['Action', 'Score ESG']]
+            for symbol, score in esg_scores:
+                data.append([symbol, f"{score:.2f}"])
+            
+            table = Table(data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(table)
+        else:
+            elements.append(create_formatted_paragraph("Aucun score ESG individuel disponible pour les actions du portefeuille.", 'BodyText'))
+        
+        # Ajout d'une analyse textuelle
+        esg_analysis = generate_ai_content(f"""
+        En vous basant sur les données ESG suivantes :
+        - Score ESG du portefeuille : {portfolio_esg_score if portfolio_esg_score is not None else 'Non disponible'}
+        - Scores ESG individuels : {', '.join([f"{symbol}: {score}" for symbol, score in esg_scores]) if esg_scores else 'Non disponibles'}
+        
+        Fournissez une brève analyse de la performance ESG du portefeuille. Incluez :
+        1. Une évaluation générale de la performance ESG du portefeuille.
+        2. Les points forts et les points faibles en termes d'ESG.
+        3. Des recommandations pour améliorer le profil ESG du portefeuille.
+        """)
+        elements.append(create_formatted_paragraph(esg_analysis, 'BodyText'))
+        
+    except Exception as e:
+        print(f"Erreur lors de la génération de l'analyse ESG : {e}")
+        elements.append(create_formatted_paragraph("Une erreur s'est produite lors de la génération de l'analyse ESG.", 'BodyText'))
     
     return elements
+
+def calculate_portfolio_esg_score(portfolio):
+    """
+    Calcule le score ESG moyen pondéré du portefeuille.
+    
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    
+    Returns:
+    float or None: Score ESG moyen pondéré du portefeuille, ou None si non calculable.
+    """
+    try:
+        total_weight = 0
+        weighted_score = 0
+        for stock in portfolio['stocks']:
+            if 'weight' in stock and 'esg_score' in stock and stock['esg_score'] is not None:
+                weight = float(stock['weight'])
+                total_weight += weight
+                weighted_score += weight * stock['esg_score']
+        
+        if total_weight > 0:
+            return weighted_score / total_weight
+        else:
+            return None
+    except Exception as e:
+        print(f"Erreur lors du calcul du score ESG du portefeuille : {e}")
+        return None
 
 def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights, weighted_returns):
     elements = []
@@ -935,65 +1198,64 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights,
     return elements
 
 def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_returns):
+    """
+    Génère des tests de stress pour le portefeuille.
+    
+    Parameters:
+    portfolio (dict): Informations sur le portefeuille.
+    portfolio_data (dict): Données de clôture des actions.
+    returns (DataFrame): Rendements quotidiens des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+    weighted_returns (Series): Rendements pondérés du portefeuille.
+
+    Returns:
+    list: Éléments à ajouter au rapport.
+    """
     elements = []
     
-    def historical_stress_test(portfolio_data, weights, start_date, end_date):
-        df = pd.DataFrame(portfolio_data)
-        if start_date not in df.index or end_date not in df.index:
-            return None  # Ou une valeur par défaut appropriée
-        period_returns = df.loc[start_date:end_date].pct_change().dropna()
-        portfolio_returns = (period_returns * weights).sum(axis=1)
-        return (1 + portfolio_returns).prod() - 1
-
+    # Définition des scénarios de stress
     scenarios = {
-        "Crise financière 2008": ("2008-09-01", "2009-03-31"),
-        "Éclatement bulle tech 2000": ("2000-03-01", "2002-10-31"),
-        "Crise du Covid-19": ("2020-02-20", "2020-03-23"),
+        "Crise financière": -0.30,
+        "Récession économique": -0.20,
+        "Pandémie": -0.15,
+        "Guerre commerciale": -0.10,
+        "Catastrophe naturelle": -0.05
     }
+    
+    # Calcul de l'impact des scénarios sur le portefeuille
+    portfolio_impacts = {scenario: impact * sum(weights) for scenario, impact in scenarios.items()}
+    
+    # Création du texte d'analyse
+    analysis = f"""
+    Tests de Stress du Portefeuille
 
-    stress_data = [['Scénario', 'Impact sur le Portefeuille']]
-    for scenario, (start_date, end_date) in scenarios.items():
-        impact = historical_stress_test(portfolio_data, weights, start_date, end_date)
-        if impact is not None:
-            stress_data.append([scenario, f"{impact:.2%}"])
-        else:
-            stress_data.append([scenario, "N/A"])
+    Les scénarios suivants ont été simulés pour évaluer la résilience du portefeuille :
+    {', '.join([f"{scenario}: {impact:.2%}" for scenario, impact in portfolio_impacts.items()])}
+
+    Ces tests de stress montrent comment le portefeuille pourrait réagir dans différentes conditions de marché extrêmes.
+    Il est important de noter que ces scénarios sont hypothétiques et ne prédisent pas nécessairement des événements futurs.
+    """
     
-    table = Table(stress_data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
-    elements.append(table)
+    elements.append(create_formatted_paragraph(analysis, 'BodyText'))
     
-    # Graphique des impacts des scénarios
-    # Utiliser les impacts calculés précédemment
+    # Création d'un graphique pour visualiser les impacts
     fig = go.Figure(data=[go.Bar(
-        x=[scenario for scenario in scenarios.keys()],
-        y=[impact[1] * 100 for impact in stress_data[1:]]  # impact[1] est l'impact en pourcentage
+        x=list(scenarios.keys()),
+        y=[impact * 100 for impact in portfolio_impacts.values()],
+        text=[f"{impact:.2%}" for impact in portfolio_impacts.values()],
+        textposition='auto',
     )])
-    fig.update_layout(title="Impact des Scénarios de Stress sur le Portefeuille",
-                      xaxis_title="Scénario", yaxis_title="Impact (%)")
+    fig.update_layout(
+        title="Impact des Scénarios de Stress sur le Portefeuille",
+        xaxis_title="Scénarios",
+        yaxis_title="Impact sur la Valeur du Portefeuille (%)",
+        yaxis_tickformat='.2%'
+    )
     
     img_buffer = BytesIO()
     fig.write_image(img_buffer, format='png')
     img_buffer.seek(0)
     elements.append(Image(img_buffer, width=500, height=300))
-    
-    explanation = generate_ai_content(f"""
-    Analysez les résultats des tests de stress sur le portefeuille.
-    Pour chaque scénario, discutez de l'impact potentiel sur le portefeuille :
-    {', '.join([f"{scenario}: {sum(impact * weight for weight in weights):.2%}" for scenario, impact in scenarios.items()])}
-    Identifiez les scénarios qui posent le plus grand risque pour le portefeuille.
-    Suggérez des stratégies pour atténuer ces risques, comme la diversification ou l'utilisation d'instruments de couverture.
-    """)
-    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 

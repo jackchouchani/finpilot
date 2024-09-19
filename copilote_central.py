@@ -623,7 +623,7 @@ def structure_data(data):
     return json.loads(response.choices[0].message.content)
 
 def generate_verbose_response(result, function_name):
-    client = openai_client.OpenAI()
+    client = openai_client
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[

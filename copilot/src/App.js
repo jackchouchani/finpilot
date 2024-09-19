@@ -283,21 +283,27 @@ function App() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!input.trim()) return;
-
+    
         setLoading(true);
         const newMessage = { role: 'user', content: input };
         setMessages(prevMessages => [newMessage, ...prevMessages]);
         setInput('');
-
+    
         try {
             const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
                 message: input,
                 conversation_id: conversationId
             });
-            setConversationId(response.data.conversation_id);
-            setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
+            
+            if (response.data && response.data.reply) {
+                setConversationId(response.data.conversation_id);
+                setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
+            } else {
+                throw new Error('Réponse invalide du serveur');
+            }
         } catch (error) {
             console.error('Error sending message:', error);
+            setMessages(prevMessages => [{ role: 'assistant', content: 'Désolé, une erreur est survenue. Veuillez réessayer.' }, ...prevMessages]);
         } finally {
             setLoading(false);
         }
@@ -618,14 +624,14 @@ function App() {
                             <>
                                 <Login onLogin={handleLogin} />
                                 <Button onClick={() => setShowLogin(false)}>
-                                    Don't have an account? Register
+                                    Pas de compte ? S'inscrire
                                 </Button>
                             </>
                         ) : (
                             <>
                                 <Register onRegisterSuccess={() => setShowLogin(true)} />
                                 <Button onClick={() => setShowLogin(true)}>
-                                    Already have an account? Login
+                                    Déjà un compte ? Se connecter
                                 </Button>
                             </>
                         )}
@@ -773,7 +779,7 @@ function AppContent({
                     </Box>
                     <FormControlLabel
                         control={<Switch checked={darkMode} onChange={() => setDarkMode(!darkMode)} />}
-                        label="Dark Mode"
+                        label="Mode Sombre"
                         sx={{ ml: 2 }}
                     />
                 </Toolbar>
@@ -798,7 +804,7 @@ function AppContent({
                 <Toolbar />
                 <Box sx={{ overflow: 'auto' }}>
                     <List>
-                        {['Copilot', 'Agents', 'PDF Analysis', 'Settings', 'Portfolio', 'Market Sentiment', 'Investment Recommendation', 'Historical Data Analysis', 'User Profile Analysis'].map((text, index) => (
+                        {['Copilote', 'Agents', 'Analyse PDF', 'Paramètres', 'Portefeuille', 'Sentiment du Marché', 'Recommandation d\'Investissement', 'Analyse de Données Historiques', 'Analyse du Profil Utilisateur'].map((text, index) => (
                             <ListItem button key={text} onClick={() => setActiveTab(index)}>
                                 <ListItemIcon>
                                     {index === 0 && <ChatIcon />}
@@ -831,11 +837,11 @@ function AppContent({
                                             variant="outlined"
                                             value={input}
                                             onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Type your message..."
+                                            placeholder="Tapez votre message..."
                                             margin="normal"
                                         />
                                         <Button type="submit" variant="contained" color="primary" disabled={loading}>
-                                            {loading ? <CircularProgress size={24} /> : 'Send'}
+                                            {loading ? <CircularProgress size={24} /> : 'Envoyer'}
                                         </Button>
                                     </form>
                                     <input
@@ -847,17 +853,17 @@ function AppContent({
                                     />
                                     <label htmlFor="pdf-upload">
                                         <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
-                                            Upload PDF
+                                            Télécharger PDF
                                         </Button>
                                     </label>
                                     <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
-                                        You can also drag and drop a PDF file here
+                                        Vous pouvez aussi glisser-déposer un fichier PDF ici
                                     </Typography>
                                     <List sx={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
                                         {messages.map((message, index) => (
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
-                                                    primary={message.role === 'user' ? 'You' : 'AI'}
+                                                    primary={message.role === 'user' ? 'Vous' : 'IA'}
                                                     secondary={<MessageContent content={message.content} graphs={message.graphs} />}
                                                 />
                                             </ListItem>
@@ -872,7 +878,7 @@ function AppContent({
                                             variant="outlined"
                                             value={input}
                                             onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Enter data for agent..."
+                                            placeholder="Entrez des données pour l'agent..."
                                             margin="normal"
                                         />
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
@@ -892,7 +898,7 @@ function AppContent({
                                             {messages.map((message, index) => (
                                                 <ListItem key={index} alignItems="flex-start">
                                                     <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        primary={message.role === 'user' ? 'Vous' : 'IA'}
                                                         secondary={
                                                             <>
                                                                 <MessageContent content={message.content} />
@@ -930,7 +936,7 @@ function AppContent({
                                         />
                                         <label htmlFor="pdf-upload">
                                             <Button variant="contained" component="span" color="primary" disabled={loading}>
-                                                Upload PDF
+                                                Télécharger PDF
                                             </Button>
                                         </label>
                                         {file && <Typography variant="body1" sx={{ mt: 2 }}>{file.name}</Typography>}
@@ -939,7 +945,7 @@ function AppContent({
                                             {messages.map((message, index) => (
                                                 <ListItem key={index} alignItems="flex-start">
                                                     <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
+                                                        primary={message.role === 'user' ? 'Vous' : 'IA'}
                                                         secondary={<MessageContent content={message.content} />}
                                                     />
                                                 </ListItem>
@@ -966,8 +972,8 @@ function AppContent({
                                 {activeTab === 9 && <UserProfileAnalysis />}
 
                                 <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                                    <Button onClick={() => setOpenBacktest(true)} variant="outlined">Run Backtest</Button>
-                                    <Button onClick={() => setOpenComparison(true)} variant="outlined">Compare with Benchmark</Button>
+                                    <Button onClick={() => setOpenBacktest(true)} variant="outlined">Lancer Backtest</Button>
+                                    <Button onClick={() => setOpenComparison(true)} variant="outlined">Comparer avec Benchmark</Button>
                                 </Box>
 
                                 <Dialog
@@ -976,10 +982,10 @@ function AppContent({
                                     fullWidth
                                     maxWidth="lg"
                                 >
-                                    <DialogTitle>Backtest Results</DialogTitle>
+                                    <DialogTitle>Résultats du Backtest</DialogTitle>
                                     <DialogContent>
                                         <TextField
-                                            label="Start Date"
+                                            label="Date de début"
                                             type="date"
                                             value={startDate}
                                             onChange={(e) => setStartDate(e.target.value)}
@@ -988,7 +994,7 @@ function AppContent({
                                             margin="normal"
                                         />
                                         <TextField
-                                            label="End Date"
+                                            label="Date de fin"
                                             type="date"
                                             value={endDate}
                                             onChange={(e) => setEndDate(e.target.value)}
@@ -996,13 +1002,13 @@ function AppContent({
                                             fullWidth
                                             margin="normal"
                                         />
-                                        <Button onClick={runBacktest} variant="contained" sx={{ mt: 2 }}>Run Backtest</Button>
+                                        <Button onClick={runBacktest} variant="contained" sx={{ mt: 2 }}>Lancer Backtest</Button>
                                         {backtestResults && (
                                             <Box sx={{ mt: 2 }}>
-                                                <Typography>Total Return: {(backtestResults.total_return * 100).toFixed(2)}%</Typography>
-                                                <Typography>Annualized Return: {(backtestResults.annualized_return * 100).toFixed(2)}%</Typography>
-                                                <Typography>Volatility: {(backtestResults.volatility * 100).toFixed(2)}%</Typography>
-                                                <Typography>Sharpe Ratio: {backtestResults.sharpe_ratio.toFixed(2)}</Typography>
+                                                <Typography>Rendement Total : {(backtestResults.total_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Rendement Annualisé : {(backtestResults.annualized_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Volatilité : {(backtestResults.volatility * 100).toFixed(2)}%</Typography>
+                                                <Typography>Ratio de Sharpe : {backtestResults.sharpe_ratio.toFixed(2)}</Typography>
                                                 <Box sx={{ width: '100%', height: 400, mt: 2 }}>
                                                     <ResponsiveContainer width="100%" height="100%">
                                                         <LineChart data={backtestResults.portfolio_values.map((value, index) => ({ date: index, value }))}>
@@ -1037,7 +1043,7 @@ function AppContent({
                                         )}
                                     </DialogContent>
                                     <DialogActions>
-                                        <Button onClick={() => setOpenBacktest(false)}>Close</Button>
+                                        <Button onClick={() => setOpenBacktest(false)}>Fermer</Button>
                                     </DialogActions>
                                 </Dialog>
 
@@ -1047,7 +1053,7 @@ function AppContent({
                                     fullWidth
                                     maxWidth="lg"
                                 >
-                                    <DialogTitle>Portfolio Comparison</DialogTitle>
+                                    <DialogTitle>Comparaison de Portefeuille</DialogTitle>
                                     <DialogContent>
                                         <Select
                                             value={benchmark}
@@ -1060,7 +1066,7 @@ function AppContent({
                                             <MenuItem value="IWM">Russell 2000 (IWM)</MenuItem>
                                         </Select>
                                         <TextField
-                                            label="Start Date"
+                                            label="Date de début"
                                             type="date"
                                             value={comparisonStartDate}
                                             onChange={(e) => setComparisonStartDate(e.target.value)}
@@ -1069,7 +1075,7 @@ function AppContent({
                                             margin="normal"
                                         />
                                         <TextField
-                                            label="End Date"
+                                            label="Date de fin"
                                             type="date"
                                             value={comparisonEndDate}
                                             onChange={(e) => setComparisonEndDate(e.target.value)}
@@ -1079,12 +1085,12 @@ function AppContent({
                                         />
                                         {comparisonResults && (
                                             <Box sx={{ mt: 2 }}>
-                                                <Typography>Portfolio Return: {(comparisonResults.portfolio_return * 100).toFixed(2)}%</Typography>
-                                                <Typography>Benchmark Return: {(comparisonResults.benchmark_return * 100).toFixed(2)}%</Typography>
-                                                <Typography>Portfolio Volatility: {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</Typography>
-                                                <Typography>Benchmark Volatility: {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</Typography>
-                                                <Typography>Portfolio Sharpe Ratio: {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</Typography>
-                                                <Typography>Benchmark Sharpe Ratio: {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</Typography>
+                                                <Typography>Rendement du Portefeuille : {(comparisonResults.portfolio_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Rendement du Benchmark : {(comparisonResults.benchmark_return * 100).toFixed(2)}%</Typography>
+                                                <Typography>Volatilité du Portefeuille : {(comparisonResults.portfolio_volatility * 100).toFixed(2)}%</Typography>
+                                                <Typography>Volatilité du Benchmark : {(comparisonResults.benchmark_volatility * 100).toFixed(2)}%</Typography>
+                                                <Typography>Ratio de Sharpe du Portefeuille : {comparisonResults.portfolio_sharpe?.toFixed(2) || 'N/A'}</Typography>
+                                                <Typography>Ratio de Sharpe du Benchmark : {comparisonResults.benchmark_sharpe?.toFixed(2) || 'N/A'}</Typography>
                                                 {comparisonResults.portfolio_cumulative && comparisonResults.benchmark_cumulative && (
                                                     <Box sx={{ width: '100%', height: 400, mt: 2 }}>
                                                         <ResponsiveContainer width="100%" height="100%">
@@ -1115,7 +1121,7 @@ function AppContent({
                                                                     }}
                                                                 />
                                                                 <Legend />
-                                                                <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portfolio" />
+                                                                <Line type="monotone" dataKey="portfolio" stroke="#8884d8" dot={false} name="Portefeuille" />
                                                                 <Line type="monotone" dataKey="benchmark" stroke="#82ca9d" dot={false} name="Benchmark" />
                                                             </LineChart>
                                                         </ResponsiveContainer>
@@ -1125,8 +1131,8 @@ function AppContent({
                                         )}
                                     </DialogContent>
                                     <DialogActions>
-                                        <Button onClick={compareWithBenchmark} variant="contained" color="primary">Compare</Button>
-                                        <Button onClick={() => setOpenComparison(false)}>Close</Button>
+                                        <Button onClick={compareWithBenchmark} variant="contained" color="primary">Comparer</Button>
+                                        <Button onClick={() => setOpenComparison(false)}>Fermer</Button>
                                     </DialogActions>
                                 </Dialog>
                             </Paper>
@@ -1149,12 +1155,13 @@ function AppContent({
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
             >
-                <MenuItem onClick={handleClose}>Profile</MenuItem>
-                <MenuItem onClick={handleClose}>My account</MenuItem>
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                <MenuItem onClick={handleClose}>Profil</MenuItem>
+                <MenuItem onClick={handleClose}>Mon compte</MenuItem>
+                <MenuItem onClick={handleLogout}>Déconnexion</MenuItem>
             </Menu>
         </Box>
     );
 }
+
 
 export default App;

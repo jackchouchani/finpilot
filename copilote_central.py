@@ -348,6 +348,7 @@ def login():
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):
+    content = content or ""  # Si content est None, utilisez une chaîne vide
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         # Convertir le contenu en JSON s'il s'agit d'un dictionnaire
@@ -750,23 +751,22 @@ def test_agents():
 @jwt_required()
 def chat():
     global financial_data
-    
-    user_id = get_jwt_identity()
-    user_message = request.json['message']
-    conversation_id = request.json.get('conversation_id')
-    use_claude = request.json.get('use_claude', False)
-    
-    # Sauvegardez le message de l'utilisateur
-    save_chat_message(user_id, 'user', user_message)
+    try:
+        user_id = get_jwt_identity()
+        user_message = request.json['message']
+        conversation_id = request.json.get('conversation_id')
+        use_claude = request.json.get('use_claude', False)
+        
+        save_chat_message(user_id, 'user', user_message)
 
-    if not conversation_id:
-        conversation_id = conversation_manager.start_conversation()
-        financial_data = {}  # Réinitialiser pour chaque nouvelle conversation
-    
-    messages = conversation_manager.get_messages(conversation_id)
-    messages.append({"role": "user", "content": user_message})
+        if not conversation_id:
+            conversation_id = conversation_manager.start_conversation()
+            financial_data = {}
 
-    claude_tools = [
+        messages = conversation_manager.get_messages(conversation_id)
+        messages.append({"role": "user", "content": user_message})
+
+        claude_tools = [
             {
                 "name": func["function"]["name"],
                 "description": func["function"]["description"],
@@ -778,11 +778,10 @@ def chat():
             } for func in functions
         ]
 
-    client = anthropic_client if use_claude else openai_client
-    model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-mini"
-    tools = claude_tools if use_claude else functions
+        client = anthropic_client if use_claude else openai_client
+        model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-mini"
+        tools = claude_tools if use_claude else functions
 
-    while True:
         response = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -791,16 +790,13 @@ def chat():
         )
 
         if use_claude:
-            if response.content[0].type == 'text':
-                conversation_manager.add_message(conversation_id, {"role": "assistant", "content": response.content[0].text})
-                return jsonify({"reply": response.content[0].text, "conversation_id": conversation_id})
             assistant_message = response.content[0]
-            # Sauvegardez la réponse de l'assistant
-            save_chat_message(user_id, 'assistant', assistant_message.content)
-
+            if assistant_message.type == 'text':
+                conversation_manager.add_message(conversation_id, {"role": "assistant", "content": assistant_message.text})
+                save_chat_message(user_id, 'assistant', assistant_message.text)
+                return jsonify({"reply": assistant_message.text, "conversation_id": conversation_id})
         else:
             assistant_message = response.choices[0].message
-            # Sauvegardez la réponse de l'assistant
             save_chat_message(user_id, 'assistant', assistant_message.content)
 
         messages.append(assistant_message)
@@ -813,23 +809,15 @@ def chat():
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
             
-            # Obtenir des informations sur la fonction
             function_info = get_function_info(function_name)
-            
-            # Structurer les données si nécessaire
             structured_args = structure_data(function_args)
-            
-            # Exécuter la fonction
             function_response = execute_function(function_name, structured_args, user_message)
             
             if isinstance(function_response, dict) and function_response.get("error") == "missing_data":
                 conversation_manager.add_message(conversation_id, {"role": "assistant", "content": function_response["message"]})
                 return jsonify({"reply": function_response["message"], "conversation_id": conversation_id})
             
-            # Générer une réponse verbeuse
             verbose_response = generate_verbose_response(function_response, function_name)
-            
-            # Ajouter les informations importantes
             verbose_response += f"\n\nInformation importante : {function_info['description']}"
 
             tool_message = {
@@ -843,15 +831,17 @@ def chat():
             if use_claude:
                 messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_call.id, "content": json.dumps(function_response)}]})
 
-    # Si nous sommes arrivés ici, c'est que nous avons terminé le traitement.
-    final_response = client.chat.completions.create(
-        model=model,
-        messages=messages
-    )
-    final_message = final_response.choices[0].message
-    conversation_manager.add_message(conversation_id, final_message)
-    
-    return jsonify({"reply": final_message.content, "conversation_id": conversation_id})
+        final_response = client.chat.completions.create(
+            model=model,
+            messages=messages
+        )
+        final_message = final_response.choices[0].message
+        conversation_manager.add_message(conversation_id, final_message)
+        
+        return jsonify({"reply": final_message.content, "conversation_id": conversation_id})
+    except Exception as e:
+        print(f"Erreur dans la route /chat: {str(e)}")
+        return jsonify({'error': 'Une erreur est survenue lors du traitement de votre demande'}), 500
 
 @app.route('/agent/<agent_name>', methods=['POST'])
 @jwt_required()

@@ -247,8 +247,8 @@ function Portfolio() {
             setScenarioResults(response.data);
             setOpenScenario(true);
         } catch (error) {
-            console.error("Error simulating scenario:", error);
-            alert('Error simulating scenario. Please try again.');
+            console.error("Erreur lors de la simulation du scénario:", error);
+            alert('Erreur lors de la simulation du scénario. Veuillez réessayer.');
         }
     };
 
@@ -277,8 +277,8 @@ function Portfolio() {
                 throw new Error('Invalid report data received');
             }
         } catch (error) {
-            console.error("Error generating report:", error);
-            alert(`Error generating report: ${error.message}`);
+            console.error("Erreur lors de la génération du rapport:", error);
+            alert(`Erreur lors de la génération du rapport: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -318,7 +318,7 @@ function Portfolio() {
 
     return (
         <Paper sx={{ padding: 2 }}>
-            <Typography variant="h6">Latest News</Typography>
+            <Typography variant="h6">Dernières Nouvelles</Typography>
             {news && news.length > 0 ? (
                 <List>
                     {news.map((item, index) => (
@@ -328,7 +328,7 @@ function Portfolio() {
                     ))}
                 </List>
             ) : (
-                <Typography>No news available for the current stocks</Typography>
+                <Typography>Aucune nouvelle disponible pour les actions actuelles</Typography>
             )}
 
             <form onSubmit={handleSubmit}>
@@ -373,12 +373,12 @@ function Portfolio() {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>Symbol</TableCell>
-                                <TableCell>{displayMode === 'weight' ? 'Weight (%)' : 'Shares'}</TableCell>
-                                <TableCell>Entry Price</TableCell>
-                                <TableCell>Current Price</TableCell>
-                                <TableCell>Value</TableCell>
-                                <TableCell>Diff</TableCell>
+                                <TableCell>Symbole</TableCell>
+                                <TableCell>{displayMode === 'weight' ? 'Poids (%)' : 'Actions'}</TableCell>
+                                <TableCell>Prix d'entrée</TableCell>
+                                <TableCell>Prix actuel</TableCell>
+                                <TableCell>Valeur</TableCell>
+                                <TableCell>Différence</TableCell>
                                 <TableCell>Actions</TableCell>
                             </TableRow>
                         </TableHead>
@@ -435,7 +435,7 @@ function Portfolio() {
                             })}
                         </TableBody>
                     </Table>
-                    <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Portfolio Allocation</Typography>
+                    <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Allocation du Portefeuille</Typography>
                     <PortfolioPieChart portfolio={portfolio} />
                 </>
             ) : (
@@ -444,7 +444,7 @@ function Portfolio() {
 
             <Box sx={{ mt: 3 }}>
                 <TextField
-                    label="Portfolio Value"
+                    label="Valeur du Portefeuille"
                     value={formatNumber(portfolioValue)}
                     onChange={(e) => {
                         const newValue = parseFloat(e.target.value.replace(/[^0-9,-]/g, '').replace(',', '.'));
@@ -456,20 +456,20 @@ function Portfolio() {
                     fullWidth
                     margin="normal"
                 />
-                <Typography variant="h6" sx={{ mt: 2 }}>Current Portfolio Value: {portfolioValue.toFixed(2)}</Typography>
+                <Typography variant="h6" sx={{ mt: 2 }}>Valeur Actuelle du Portefeuille: {portfolioValue.toFixed(2)}</Typography>
                 <FormControlLabel
                     control={<Switch checked={displayMode === 'shares'} onChange={() => setDisplayMode(displayMode === 'weight' ? 'shares' : 'weight')} />}
-                    label={`Switch to ${displayMode === 'weight' ? 'Shares' : 'Weight'} Mode`}
+                    label={`Passer en mode ${displayMode === 'weight' ? 'Actions' : 'Poids'}`}
                     sx={{ mt: 2 }}
                 />
             </Box>
 
             <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
                 <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary">
-                    Save Portfolio
+                    Sauvegarder le Portefeuille
                 </Button>
-                <Button onClick={() => setOpenScenario(true)} variant="contained">Simulate Scenario</Button>
-                <Button onClick={generateReport} variant="contained">Generate Report</Button>
+                <Button onClick={() => setOpenScenario(true)} variant="contained">Simuler un Scénario</Button>
+                <Button onClick={generateReport} variant="contained">Générer un Rapport</Button>
             </Box>
 
             <Dialog
@@ -478,7 +478,7 @@ function Portfolio() {
                 fullWidth
                 maxWidth="md"
             >
-                <DialogTitle>Scenario Simulation</DialogTitle>
+                <DialogTitle>Simulation de Scénario</DialogTitle>
                 <DialogContent>
                     <Select
                         value={selectedScenario}
@@ -486,49 +486,49 @@ function Portfolio() {
                         fullWidth
                         sx={{ mb: 2 }}
                     >
-                        <MenuItem value="market_crash">Market Crash</MenuItem>
-                        <MenuItem value="bull_market">Bull Market</MenuItem>
-                        <MenuItem value="high_inflation">High Inflation</MenuItem>
+                        <MenuItem value="market_crash">Krach Boursier</MenuItem>
+                        <MenuItem value="bull_market">Marché Haussier</MenuItem>
+                        <MenuItem value="high_inflation">Forte Inflation</MenuItem>
                     </Select>
-                    <Button onClick={simulateScenario} variant="contained" sx={{ mb: 2 }}>Run Simulation</Button>
+                    <Button onClick={simulateScenario} variant="contained" sx={{ mb: 2 }}>Lancer la Simulation</Button>
                     {scenarioResults && scenarioResults.daily_returns && scenarioResults.daily_returns.length > 0 ? (
                         <Box>
-                            <Typography>Scenario: {scenarioResults.scenario}</Typography>
-                            <Typography>Initial Value: ${scenarioResults.initial_value.toFixed(2)}</Typography>
-                            <Typography>Final Value: ${scenarioResults.final_value.toFixed(2)}</Typography>
-                            <Typography>Total Return: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
+                            <Typography>Scénario: {scenarioResults.scenario}</Typography>
+                            <Typography>Valeur Initiale: {scenarioResults.initial_value.toFixed(2)} €</Typography>
+                            <Typography>Valeur Finale: {scenarioResults.final_value.toFixed(2)} €</Typography>
+                            <Typography>Rendement Total: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
                             <Box sx={{ width: '100%', height: 400 }}>
                             <ResponsiveContainer width="100%" height={400}>
                                 <LineChart data={scenarioResults.portfolio_values.map((value, index) => ({ day: index, value: value }))}>
                                     <XAxis 
                                         dataKey="day"
-                                        tickFormatter={(tick) => `Day ${tick + 1}`}
+                                        tickFormatter={(tick) => `Jour ${tick + 1}`}
                                     />
                                     <YAxis 
                                         tickFormatter={(value) => `$${value.toFixed(0)}`}
                                     />
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <Tooltip 
-                                        formatter={(value) => [`$${value.toFixed(2)}`, "Portfolio Value"]}
-                                        labelFormatter={(label) => `Day ${label + 1}`}
+                                    <RechartsTooltip 
+                                        formatter={(value) => [`$${value.toFixed(2)}`, "Valeur du Portefeuille"]}
+                                        labelFormatter={(label) => `Jour ${label + 1}`}
                                     />
                                     <Legend />
-                                    <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Portfolio Value" />
+                                    <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Valeur du Portefeuille" />
                                 </LineChart>
                             </ResponsiveContainer>
                             </Box>
                         </Box>
                     ) : (
-                        <Typography>No scenario data available</Typography>
+                        <Typography>Aucune donnée de scénario disponible</Typography>
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenScenario(false)}>Close</Button>
+                    <Button onClick={() => setOpenScenario(false)}>Fermer</Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
-                <DialogTitle>Portfolio Report</DialogTitle>
+                <DialogTitle>Rapport du Portefeuille</DialogTitle>
                 <DialogContent>
                     {reportData ? (
                         <iframe
@@ -538,20 +538,20 @@ function Portfolio() {
                             style={{ border: 'none' }}
                         />
                     ) : (
-                        <Typography>No report data available</Typography>
+                        <Typography>Aucune donnée de rapport disponible</Typography>
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenReport(false)}>Close</Button>
+                    <Button onClick={() => setOpenReport(false)}>Fermer</Button>
                     {reportData && (
                         <Button onClick={() => {
                             const linkSource = `data:application/pdf;base64,${reportData}`;
                             const downloadLink = document.createElement("a");
                             downloadLink.href = linkSource;
-                            downloadLink.download = "portfolio_report.pdf";
+                            downloadLink.download = "rapport_portefeuille.pdf";
                             downloadLink.click();
                         }}>
-                            Download PDF
+                            Télécharger le PDF
                         </Button>
                     )}
                 </DialogActions>

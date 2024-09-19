@@ -785,9 +785,16 @@ function AppContent({
                 sx={{
                     width: drawerWidth,
                     flexShrink: 0,
-                    [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box' },
+                    [`& .MuiDrawer-paper`]: { 
+                    width: drawerWidth, 
+                    boxSizing: 'border-box',
+                    ...(isMobile && {
+                        top: 56, // Ajustez selon la hauteur de votre AppBar sur mobile
+                        height: 'calc(100% - 56px)',
+                    }),
+                    },
                 }}
-            >
+                >
                 <Toolbar />
                 <Box sx={{ overflow: 'auto' }}>
                     <List>
@@ -816,48 +823,48 @@ function AppContent({
                     <Slide direction="up" in={true} mountOnEnter unmountOnExit>
                         <Container maxWidth="lg">
                             <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
-                                {activeTab === 0 && (
-                                    <>
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'You' : 'AI'}
-                                                        secondary={<MessageContent content={message.content} graphs={message.graphs} />}
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
-                                        <form onSubmit={handleSubmit}>
-                                            <TextField
-                                                fullWidth
-                                                variant="outlined"
-                                                value={input}
-                                                onChange={(e) => setInput(e.target.value)}
-                                                placeholder="Type your message..."
-                                                margin="normal"
-                                            />
-                                            <Button type="submit" variant="contained" color="primary" disabled={loading}>
-                                                {loading ? <CircularProgress size={24} /> : 'Send'}
-                                            </Button>
-                                        </form>
-                                        <input
-                                            type="file"
-                                            accept=".pdf"
-                                            onChange={handlePDFUpload}
-                                            style={{ display: 'none' }}
-                                            id="pdf-upload"
+                            {activeTab === 0 && (
+                                <>
+                                    <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
+                                        <TextField
+                                            fullWidth
+                                            variant="outlined"
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            placeholder="Type your message..."
+                                            margin="normal"
                                         />
-                                        <label htmlFor="pdf-upload">
-                                            <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
-                                                Upload PDF
-                                            </Button>
-                                        </label>
-                                        <Typography variant="body2" sx={{ mt: 1 }}>
-                                            You can also drag and drop a PDF file here
-                                        </Typography>
-                                    </>
-                                )}
+                                        <Button type="submit" variant="contained" color="primary" disabled={loading}>
+                                            {loading ? <CircularProgress size={24} /> : 'Send'}
+                                        </Button>
+                                    </form>
+                                    <input
+                                        type="file"
+                                        accept=".pdf"
+                                        onChange={handlePDFUpload}
+                                        style={{ display: 'none' }}
+                                        id="pdf-upload"
+                                    />
+                                    <label htmlFor="pdf-upload">
+                                        <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
+                                            Upload PDF
+                                        </Button>
+                                    </label>
+                                    <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
+                                        You can also drag and drop a PDF file here
+                                    </Typography>
+                                    <List sx={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
+                                        {messages.map((message, index) => (
+                                            <ListItem key={index} alignItems="flex-start">
+                                                <ListItemText
+                                                    primary={message.role === 'user' ? 'You' : 'AI'}
+                                                    secondary={<MessageContent content={message.content} graphs={message.graphs} />}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </>
+                            )}
                                 {activeTab === 1 && (
                                     <>
                                         <TextField

@@ -313,71 +313,70 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
     Returns:
     list: Éléments à ajouter au rapport.
     """
+    # Calcul du score ESG
+    sp500_data = get_sp500_data(
+        portfolio_data[list(portfolio_data.keys())[0]].index[0],
+        portfolio_data[list(portfolio_data.keys())[0]].index[-1]
+    )
+    
+    if sp500_data.empty:
+        sp500_return = 0
+        sp500_volatility = 0
+        sp500_sharpe = 0
+    else:
+        sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
+        sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
+        sp500_sharpe = (sp500_return - 0.02) / sp500_volatility if sp500_volatility != 0 else 0
+    
+    portfolio_volatility = weighted_returns.std() * np.sqrt(252)
+    sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
+    
+    summary = (
+        f"Résumé Exécutif\n"
+        f"Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du "
+        f"{portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au "
+        f"{portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.\n\n"
+        f"Points clés :\n"
+        f"• Rendement total du portefeuille : {total_return:.2%}\n"
+        f"• Rendement annualisé : {annualized_return:.2%}\n"
+        f"• Volatilité annualisée : {portfolio_volatility:.2%}\n"
+        f"• Ratio de Sharpe : {sharpe_ratio:.2f}\n\n"
+        f"Comparaison avec le S&P 500 :\n"
+        f"• Rendement total S&P 500 : {sp500_return:.2%}\n"
+        f"• Volatilité S&P 500 : {sp500_volatility:.2%}\n"
+        f"• Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}\n\n"
+        f"Le portefeuille a {'sous-performé' if total_return < sp500_return else 'sur-performé'} l'indice S&P 500 sur la période, avec un "
+        f"{'risque plus élevé' if portfolio_volatility > sp500_volatility else 'risque plus faible'}."
+    )
+    
+    elements = []
+    elements.append(create_formatted_paragraph(summary, 'BodyText'))
+    
+    # Ajout de l'analyse générée par l'IA
     try:
-        # Calcul du score ESG
-        sp500_data = get_sp500_data(
-            portfolio_data[list(portfolio_data.keys())[0]].index[0],
-            portfolio_data[list(portfolio_data.keys())[0]].index[-1]
-        )
+        additional_analysis = generate_ai_content(f"""
+        En vous basant sur les données suivantes :
+        - Rendement total du portefeuille : {total_return:.2%}
+        - Rendement annualisé : {annualized_return:.2%}
+        - Volatilité du portefeuille : {portfolio_volatility:.2%}
+        - Ratio de Sharpe du portefeuille : {sharpe_ratio:.2f}
+        - Rendement total S&P 500 : {sp500_return:.2%}
+        - Volatilité S&P 500 : {sp500_volatility:.2%}
+        - Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}
         
-        if sp500_data.empty:
-            sp500_return = 0
-            sp500_volatility = 0
-            sp500_sharpe = 0
-        else:
-            sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
-            sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
-            sp500_sharpe = (sp500_return - 0.02) / sp500_volatility if sp500_volatility != 0 else 0
-        
-        portfolio_volatility = weighted_returns.std() * np.sqrt(252)
-        sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
-        
-        summary = (
-            f"Résumé Exécutif\n"
-            f"Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du "
-            f"{portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au "
-            f"{portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.\n\n"
-            f"Points clés :\n"
-            f"• Rendement total du portefeuille : {total_return:.2%}\n"
-            f"• Rendement annualisé : {annualized_return:.2%}\n"
-            f"• Volatilité annualisée : {portfolio_volatility:.2%}\n"
-            f"• Ratio de Sharpe : {sharpe_ratio:.2f}\n\n"
-            f"Comparaison avec le S&P 500 :\n"
-            f"• Rendement total S&P 500 : {sp500_return:.2%}\n"
-            f"• Volatilité S&P 500 : {sp500_volatility:.2%}\n"
-            f"• Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}\n\n"
-            f"Le portefeuille a {'sous-performé' if total_return < sp500_return else 'sur-performé'} l'indice S&P 500 sur la période, avec un "
-            f"{'risque plus élevé' if portfolio_volatility > sp500_volatility else 'risque plus faible'}."
-        )
-        
-        elements = []
-        elements.append(create_formatted_paragraph(summary, 'BodyText'))
-        
-        # Ajout de l'analyse générée par l'IA
-        try:
-            additional_analysis = generate_ai_content(f"""
-            En vous basant sur les données suivantes :
-            - Rendement total du portefeuille : {total_return:.2%}
-            - Rendement annualisé : {annualized_return:.2%}
-            - Volatilité du portefeuille : {portfolio_volatility:.2%}
-            - Ratio de Sharpe du portefeuille : {sharpe_ratio:.2f}
-            - Rendement total S&P 500 : {sp500_return:.2%}
-            - Volatilité S&P 500 : {sp500_volatility:.2%}
-            - Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}
-            
-            Fournissez une analyse succincte de la performance du portefeuille. Incluez :
-            1. Une évaluation générale de la performance du portefeuille par rapport au marché.
-            2. Les principaux facteurs qui ont contribué à cette performance.
-            3. Les points forts et les points faibles du portefeuille.
-            4. Des recommandations préliminaires pour l'amélioration du portefeuille.
-            """)
-        except Exception as e:
-            print(f"Erreur lors de la génération de l'analyse AI: {e}")
-            additional_analysis = "Analyse supplémentaire indisponible."
-        
-        elements.append(create_formatted_paragraph(additional_analysis, 'BodyText'))
-        
-        return elements
+        Fournissez une analyse succincte de la performance du portefeuille. Incluez :
+        1. Une évaluation générale de la performance du portefeuille par rapport au marché.
+        2. Les principaux facteurs qui ont contribué à cette performance.
+        3. Les points forts et les points faibles du portefeuille.
+        4. Des recommandations préliminaires pour l'amélioration du portefeuille.
+        """)
+    except Exception as e:
+        print(f"Erreur lors de la génération de l'analyse AI: {e}")
+        additional_analysis = "Analyse supplémentaire indisponible."
+    
+    elements.append(create_formatted_paragraph(additional_analysis, 'BodyText'))
+    
+    return elements
 
 
 def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):

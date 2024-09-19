@@ -44,9 +44,25 @@ const MessageContent = ({ content, graphs }) => {
     if (!isValidContent(content)) {
         console.error("Contenu invalide reçu:", content);
         return (
-            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography color="error">Contenu invalide ou non disponible</Typography>
-            </Paper>
+            <Box
+                sx={{
+                    display: 'flex',
+                    justifyContent: isUser ? 'flex-end' : 'flex-start',
+                    mb: 2,
+                }}
+            >
+                <Paper
+                    elevation={1}
+                    sx={{
+                        p: 2,
+                        maxWidth: '70%',
+                        borderRadius: 2,
+                        bgcolor: isUser ? 'primary.light' : 'background.paper',
+                    }}
+                >
+                    <Typography color="error">Contenu invalide ou non disponible</Typography>
+                </Paper>
+            </Box>
         );
     }
 
@@ -55,16 +71,48 @@ const MessageContent = ({ content, graphs }) => {
         try {
             const jsonData = JSON.parse(content);
             return (
-                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                    <pre>{JSON.stringify(jsonData, null, 2)}</pre>
-                </Paper>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        justifyContent: isUser ? 'flex-end' : 'flex-start',
+                        mb: 2,
+                    }}
+                >
+                    <Paper
+                        elevation={1}
+                        sx={{
+                            p: 2,
+                            maxWidth: '70%',
+                            borderRadius: 2,
+                            bgcolor: isUser ? 'primary.light' : 'background.paper',
+                        }}
+                    >
+                        <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+                    </Paper>
+                </Box>
             );
         } catch (error) {
             console.error("Erreur lors du parsing JSON:", error);
             return (
-                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                    <Typography color="error">Erreur lors de l'affichage du contenu JSON</Typography>
-                </Paper>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        justifyContent: isUser ? 'flex-end' : 'flex-start',
+                        mb: 2,
+                    }}
+                >
+                    <Paper
+                        elevation={1}
+                        sx={{
+                            p: 2,
+                            maxWidth: '70%',
+                            borderRadius: 2,
+                            bgcolor: isUser ? 'primary.light' : 'background.paper',
+                        }}
+                    >
+                        <Typography color="error">Erreur lors de l'affichage du contenu JSON</Typography>
+                    </Paper>
+                </Box>
             );
         }
     }
@@ -99,40 +147,59 @@ const MessageContent = ({ content, graphs }) => {
         );
     }
 
+    const isUser = message.role === 'user';
+
     // Traitement pour les autres types de contenu
     return (
-        <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-            <ReactMarkdown
-                components={{
-                    h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,
-                    h2: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
-                    h3: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
-                    p: ({ node, ...props }) => <Typography paragraph {...props} />,
-                    li: ({ node, ...props }) => <Typography component="li" sx={{ ml: 2 }} {...props} />,
-                    ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
-                    code: ({ node, inline, ...props }) =>
-                        inline ? (
-                            <Box component="code" sx={{ bgcolor: 'grey.100', p: 0.5, borderRadius: 1 }} {...props} />
-                        ) : (
-                            <Box component="pre" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, overflow: 'auto' }}>
-                                <code {...props} />
-                            </Box>
-                        ),
-                    img: ({ node, ...props }) => {
-                        if (props.src.startsWith('data:image')) {
-                            return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
-                        }
-                        // Gérer les autres types d'images si nécessaire
-                        return null;
-                    },
+        <Box
+            sx={{
+                display: 'flex',
+                justifyContent: isUser ? 'flex-end' : 'flex-start',
+                mb: 2,
+            }}
+        >
+            <Paper
+                elevation={1}
+                sx={{
+                    p: 2,
+                    maxWidth: '70%',
+                    borderRadius: 2,
+                    bgcolor: isUser ? 'primary.light' : 'background.paper',
+                    overflowX: 'auto',
                 }}
             >
-                {formatContent(content)}
-            </ReactMarkdown>
-            {graphs && graphs.map((graph, index) => (
-                <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
-            ))}
-        </Paper>
+                <ReactMarkdown
+                    components={{
+                        h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,
+                        h2: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
+                        h3: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
+                        p: ({ node, ...props }) => <Typography paragraph {...props} />,
+                        li: ({ node, ...props }) => <Typography component="li" sx={{ ml: 2 }} {...props} />,
+                        ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
+                        code: ({ node, inline, ...props }) =>
+                            inline ? (
+                                <Box component="code" sx={{ bgcolor: 'grey.100', p: 0.5, borderRadius: 1 }} {...props} />
+                            ) : (
+                                <Box component="pre" sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, overflow: 'auto' }}>
+                                    <code {...props} />
+                                </Box>
+                            ),
+                        img: ({ node, ...props }) => {
+                            if (props.src.startsWith('data:image')) {
+                                return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
+                            }
+                            // Gérer les autres types d'images si nécessaire
+                            return null;
+                        },
+                    }}
+                >
+                    {formatContent(content)}
+                </ReactMarkdown>
+                {graphs && graphs.map((graph, index) => (
+                    <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+                ))}
+            </Paper>
+        </Box>
     );
 };
 

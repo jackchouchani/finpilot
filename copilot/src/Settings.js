@@ -7,7 +7,6 @@ function Settings({ onClearChat }) {
         default_portfolio_value: 100000,
         risk_profile: 'moderate',
         preferred_sectors: [],
-        notification_frequency: 'daily',
         theme: 'light',
         language: 'fr'
     });
@@ -102,17 +101,6 @@ function Settings({ onClearChat }) {
                     <MenuItem value="Healthcare">Santé</MenuItem>
                     <MenuItem value="Finance">Finance</MenuItem>
                     <MenuItem value="Energy">Énergie</MenuItem>
-                </Select>
-            </FormControl>
-            <FormControl fullWidth margin="normal">
-                <InputLabel>Fréquence des notifications</InputLabel>
-                <Select
-                    value={settings.notification_frequency}
-                    onChange={(e) => handleSettingsChange('notification_frequency', e.target.value)}
-                >
-                    <MenuItem value="daily">Quotidienne</MenuItem>
-                    <MenuItem value="weekly">Hebdomadaire</MenuItem>
-                    <MenuItem value="monthly">Mensuelle</MenuItem>
                 </Select>
             </FormControl>
             <FormControl fullWidth margin="normal">

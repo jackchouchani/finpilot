@@ -7,8 +7,7 @@ function Settings({ onClearChat }) {
         default_portfolio_value: 100000,
         risk_profile: 'moderate',
         preferred_sectors: [],
-        theme: 'light',
-        language: 'fr'
+        theme: 'light'
     });
 
     useEffect(() => {
@@ -111,16 +110,6 @@ function Settings({ onClearChat }) {
                 >
                     <MenuItem value="light">Clair</MenuItem>
                     <MenuItem value="dark">Sombre</MenuItem>
-                </Select>
-            </FormControl>
-            <FormControl fullWidth margin="normal">
-                <InputLabel>Langue</InputLabel>
-                <Select
-                    value={settings.language}
-                    onChange={(e) => handleSettingsChange('language', e.target.value)}
-                >
-                    <MenuItem value="fr">Français</MenuItem>
-                    <MenuItem value="en">Anglais</MenuItem>
                 </Select>
             </FormControl>
             <Button

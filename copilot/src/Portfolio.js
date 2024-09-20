@@ -111,7 +111,7 @@ function Portfolio() {
     }, [portfolio]);
 
     useEffect(() => {
-        const fetchNews = async () => {
+        const fetchNewsAndTranslate = async () => {
             if (!portfolio || !portfolio.stocks) {
                 console.error("Portfolio or portfolio.stocks is undefined");
                 return;
@@ -119,12 +119,17 @@ function Portfolio() {
             const tickers = portfolio.stocks.map(stock => stock.symbol).join(',');
             try {
                 const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
-                setNews(response.data);
+                const translatedResponse = await axios.post(`${process.env.REACT_APP_API_URL}/translate_news`, {
+                    news: response.data
+                });
+                setNews(translatedResponse.data);
             } catch (error) {
-                console.error("Erreur lors de la récupération des nouvelles:", error);
+                console.error("Erreur lors de la récupération ou de la traduction des nouvelles:", error);
+            } finally {
+                setLoading(false);
             }
         };
-        fetchNews();
+        fetchNewsAndTranslate();
     }, [portfolio]);
 
     useEffect(() => {
@@ -319,7 +324,9 @@ function Portfolio() {
     return (
         <Paper sx={{ padding: 2 }}>
             <Typography variant="h6">Dernières Nouvelles</Typography>
-            {news && news.length > 0 ? (
+            {loading ? (
+                <CircularProgress />
+            ) : news && news.length > 0 ? (
                 <List>
                     {news.map((item, index) => (
                         <ListItem key={index}>

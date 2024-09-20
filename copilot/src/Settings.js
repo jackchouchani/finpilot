@@ -16,9 +16,11 @@ function Settings({ onClearChat }) {
 
     const fetchSettings = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(process.env.REACT_APP_API_URL + '/settings', {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/settings`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
             });
             setSettings(response.data);
         } catch (error) {
@@ -48,7 +50,7 @@ function Settings({ onClearChat }) {
         try {
             const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/settings`,
-                settings,
+                JSON.stringify(settings),  // Assurez-vous que les données sont bien stringifiées
                 {
                     headers: {
                         'Content-Type': 'application/json',

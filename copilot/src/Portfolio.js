@@ -113,15 +113,17 @@ function Portfolio() {
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {
             if (!portfolio || !portfolio.stocks) {
-                console.error("Portfolio or portfolio.stocks is undefined");
+                console.error("Portfolio ou portfolio.stocks est indéfini");
                 return;
             }
             const tickers = portfolio.stocks.map(stock => stock.symbol).join(',');
             try {
                 const response = await axios.get(`${process.env.REACT_APP_API_URL}/news?tickers=${tickers}`);
+                console.log("Nouvelles reçues:", response.data);
                 const translatedResponse = await axios.post(`${process.env.REACT_APP_API_URL}/translate_news`, {
                     news: response.data
                 });
+                console.log("Nouvelles traduites:", translatedResponse.data);
                 setNews(translatedResponse.data);
             } catch (error) {
                 console.error("Erreur lors de la récupération ou de la traduction des nouvelles:", error);

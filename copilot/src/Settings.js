@@ -57,14 +57,19 @@ function Settings({ onClearChat }) {
                 }
             );
 
-            if (response.status === 200 && response.data.message) {
+            console.log("Réponse du serveur:", response);
+
+            if (response.status === 200) {
                 alert('Paramètres sauvegardés avec succès');
             } else {
-                throw new Error('Réponse inattendue');
+                throw new Error(`Erreur ${response.status}: ${response.statusText}`);
             }
         } catch (error) {
-            console.error('Erreur lors de la sauvegarde des paramètres:', error);
-            alert('Erreur lors de la sauvegarde des paramètres. Veuillez réessayer.');
+            console.error("Erreur détaillée:", error);
+            if (error.response) {
+                console.error("Données de réponse:", error.response.data);
+            }
+            alert(`Erreur lors de la sauvegarde des paramètres: ${error.message}`);
         }
     };
 

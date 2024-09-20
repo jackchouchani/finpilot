@@ -690,8 +690,7 @@ def task_manager():
 Thread(target=task_manager, daemon=True).start()
 
 
-@app.route('/translate_news', methods=['POST'])
-@cross_origin()
+@app.route('/translate_news', methods=['POST', 'OPTIONS'])
 def translate_news():
     data = request.json
     news = data.get('news', [])

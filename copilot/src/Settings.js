@@ -46,11 +46,18 @@ function Settings({ onClearChat }) {
 
     const saveSettings = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/settings', settings, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.data.message === "Paramètres mis à jour avec succès") {
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_URL}/settings`,
+                settings,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }
+            );
+
+            if (response.status === 200 && response.data.message) {
                 alert('Paramètres sauvegardés avec succès');
             } else {
                 throw new Error('Réponse inattendue');

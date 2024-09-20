@@ -18,13 +18,16 @@ function Settings({ onClearChat }) {
         try {
             const response = await axios.get(`${process.env.REACT_APP_API_URL}/settings`, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
             setSettings(response.data);
         } catch (error) {
-            console.error("Error fetching settings:", error);
+            console.error("Erreur lors de la récupération des paramètres:", error);
+            if (error.response) {
+                console.error("Données de réponse:", error.response.data);
+            }
+            alert(`Erreur lors de la récupération des paramètres: ${error.message}`);
         }
     };
 

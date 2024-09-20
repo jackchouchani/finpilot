@@ -1,7 +1,7 @@
 #!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import sqlite3
 from threading import Thread
 import time
@@ -510,11 +510,12 @@ def init_db():
                         entry_price REAL,
                         FOREIGN KEY (user_id) REFERENCES users(id))''')
         conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
-                        user_id INTEGER PRIMARY KEY,
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
                         setting_name TEXT,
                         setting_value TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id)
-                    )''')
+                        FOREIGN KEY (user_id) REFERENCES users(id),
+                        UNIQUE(user_id, setting_name))''')
         conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         task_type TEXT NOT NULL,
@@ -540,17 +541,17 @@ def clear_chat():
         app.logger.error(f"Error clearing chat history: {str(e)}")
         return jsonify({"error": "Failed to clear chat history"}), 500
 
-def get_user_setting(setting_name, default_value):
+def get_user_setting(user_id, setting_name, default_value=None):
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT setting_value FROM user_settings WHERE setting_name = ?", (setting_name,))
+        cursor.execute("SELECT setting_value FROM user_settings WHERE user_id = ? AND setting_name = ?", (user_id, setting_name))
         result = cursor.fetchone()
         return result[0] if result else default_value
 
-def set_user_setting(setting_name, setting_value):
+def set_user_setting(user_id, setting_name, setting_value):
     with sqlite3.connect(DATABASE) as conn:
-        conn.execute("INSERT OR REPLACE INTO user_settings (setting_name, setting_value) VALUES (?, ?)",
-                     (setting_name, setting_value))
+        conn.execute("INSERT OR REPLACE INTO user_settings (user_id, setting_name, setting_value) VALUES (?, ?, ?)",
+                     (user_id, setting_name, str(setting_value)))
 
 def save_portfolio(user_id, name, stocks):
     with sqlite3.connect(DATABASE) as conn:
@@ -688,6 +689,57 @@ def task_manager():
 # Démarrage du gestionnaire de tâches en arrière-plan
 Thread(target=task_manager, daemon=True).start()
 
+
+@app.route('/translate_news', methods=['POST'])
+@cross_origin()
+def translate_news():
+    data = request.json
+    news = data.get('news', [])
+    translated_news = []
+
+    app.logger.info(f"Données reçues pour la traduction : {news}")
+
+    try:
+        for item in news:
+            if isinstance(item, dict) and 'title' in item and 'description' in item:
+                title = item['title']
+                description = item['description']
+            elif isinstance(item, str):
+                # Si l'item est une chaîne, on suppose que c'est le titre
+                title = item
+                description = ""
+            else:
+                app.logger.warning(f"Format d'élément de nouvelles non reconnu : {item}")
+                continue
+
+            prompt = f"Traduisez le titre et la description suivants en français :\nTitre : {title}\nDescription : {description}"
+            app.logger.info(f"Envoi de la requête à OpenAI : {prompt}")
+            
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",  # Utilisation d'un modèle disponible
+                messages=[
+                    {"role": "system", "content": "Vous êtes un traducteur professionnel de l'anglais vers le français."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500
+            )
+            
+            app.logger.info(f"Réponse reçue de OpenAI : {response}")
+            
+            translated_text = response.choices[0].message.content
+            translated_title, translated_description = translated_text.split('\nDescription : ', 1)
+            translated_title = translated_title.replace('Titre : ', '')
+            translated_news.append({
+                'title': translated_title.strip(),
+                'description': translated_description.strip()
+            })
+
+        app.logger.info(f"Nouvelles traduites : {translated_news}")
+        return jsonify(translated_news)
+    except Exception as e:
+        app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur lors de la traduction des nouvelles"}), 500
+
 @app.route('/submit_task', methods=['POST'])
 def submit_task():
     data = request.json
@@ -724,26 +776,6 @@ def portfolio_analysis():
     results = {}
     for task in task_sequence:
         results[task] = getattr(Agents, task)(data)
-
-    return jsonify(results)
-
-@app.route('/test_agents', methods=['POST'])
-def test_agents():
-    data = request.json
-    results = {}
-
-    if 'document' in data:
-        results['document_analysis'] = Agents.analyze_documents({'text': data['document']})
-
-    if 'company' in data:
-        results['sentiment_analysis'] = Agents.analyze_sentiment({'company': data['company']})
-
-    if 'ticker' in data:
-        results['financial_modeling'] = Agents.model_financials({'ticker': data['ticker']})
-
-    if 'tickers' in data:
-        results['portfolio_optimization'] = Agents.optimize_portfolio({'tickers': data['tickers']})
-        results['risk_management'] = Agents.manage_risks({'tickers': data['tickers'], 'portfolio_value': data.get('portfolio_value', 100000)})
 
     return jsonify(results)
 
@@ -905,60 +937,88 @@ def call_agent(agent_name):
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
+        return jsonify({"error": "Aucun fichier n'a été fourni"}), 400
     file = request.files['file']
     if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+        return jsonify({"error": "Aucun fichier sélectionné"}), 400
     if file and file.filename.endswith('.pdf'):
-        pdf_reader = PdfReader(io.BytesIO(file.read()))
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        
-        # Analyse du texte extrait avec l'agent d'analyse de documents
-        result = analyze_financial_report(text)
-        return jsonify(result)
+        try:
+            pdf_reader = PdfReader(io.BytesIO(file.read()))
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+            
+            # Analyse du texte extrait avec l'agent d'analyse de documents
+            result = analyze_financial_report(text)
+            return jsonify(result)
+        except Exception as e:
+            app.logger.error(f"Erreur lors de l'analyse du PDF : {str(e)}")
+            return jsonify({"error": "Erreur lors de l'analyse du PDF"}), 500
     else:
-        return jsonify({"error": "Invalid file type"}), 400
+        return jsonify({"error": "Type de fichier invalide"}), 400
 
 def analyze_financial_report(text):
-    client, model = ai_selector.select_model("complex")
-    
-    if isinstance(client, OpenAI):
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a financial analyst. Extract key financial information from the given text."},
-                {"role": "user", "content": text}
-            ],
-            functions=[{
-                "name": "extract_financial_data",
-                "description": "Extract key financial data from the text",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "revenue": {"type": "number"},
-                        "net_income": {"type": "number"},
-                        "ebitda": {"type": "number"},
-                        "risks": {"type": "array", "items": {"type": "string"}}
-                    },
-                    "required": ["revenue", "net_income", "ebitda", "risks"]
-                }
-            }],
-            function_call={"name": "extract_financial_data"}
-        )
-        return json.loads(response.choices[0].message.function_call.arguments)
-    elif isinstance(client, anthropic.Anthropic):
+    try:
+        client, model = anthropic_client, "claude-3-5-sonnet-20240620"
+        
         response = client.messages.create(
             model=model,
             max_tokens=1000,
+            system="Vous êtes un analyste financier expert. Extrayez les informations financières clés du texte donné et présentez-les de manière structurée.",
             messages=[
-                {"role": "system", "content": "You are a financial analyst. Extract key financial information from the given text."},
-                {"role": "user", "content": f"Extract the following information from this financial report: revenue, net income, EBITDA, and key risks. Present the results in JSON format.\n\nReport:\n{text}"}
+                {"role": "user", "content": f"Analysez ce rapport financier et extrayez les informations suivantes : chiffre d'affaires, bénéfice net, EBITDA et risques clés. Présentez les résultats au format JSON structuré comme suit : {{'chiffre_affaires': nombre, 'benefice_net': nombre, 'ebitda': nombre, 'risques': [liste de chaînes]}}. Si une information n'est pas disponible, utilisez null.\n\nRapport:\n{text}"}
             ]
         )
-        # Parse the JSON from the response
-        return json.loads(response.content[0].text)
+        
+        response_text = response.content[0].text
+        app.logger.info(f"Réponse brute de l'API : {response_text}")
+        
+        # Essayez d'abord de parser le JSON directement
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Si le parsing JSON échoue, essayez d'extraire les informations manuellement
+            result = extract_financial_info(response_text)
+        
+        app.logger.info(f"Résultat de l'analyse : {result}")
+        return result
+
+    except json.JSONDecodeError as e:
+        app.logger.error(f"Erreur lors de l'analyse JSON : {str(e)}")
+        return {"error": "Erreur lors de l'analyse des données financières"}
+    except Exception as e:
+        app.logger.error(f"Erreur inattendue dans analyze_financial_report : {str(e)}")
+        return {"error": "Une erreur inattendue s'est produite lors de l'analyse du rapport financier"}
+
+def extract_financial_info(text):
+    result = {
+        "chiffre_affaires": None,
+        "benefice_net": None,
+        "ebitda": None,
+        "risques": []
+    }
+    
+    # Extraction du chiffre d'affaires
+    ca_match = re.search(r"chiffre d'affaires.*?(\d+(?:,\d+)?(?:\.\d+)?)", text, re.IGNORECASE)
+    if ca_match:
+        result["chiffre_affaires"] = float(ca_match.group(1).replace(',', ''))
+    
+    # Extraction du bénéfice net
+    bn_match = re.search(r"bénéfice net.*?(\d+(?:,\d+)?(?:\.\d+)?)", text, re.IGNORECASE)
+    if bn_match:
+        result["benefice_net"] = float(bn_match.group(1).replace(',', ''))
+    
+    # Extraction de l'EBITDA
+    ebitda_match = re.search(r"ebitda.*?(\d+(?:,\d+)?(?:\.\d+)?)", text, re.IGNORECASE)
+    if ebitda_match:
+        result["ebitda"] = float(ebitda_match.group(1).replace(',', ''))
+    
+    # Extraction des risques
+    risques_match = re.search(r"risques.*?:(.*?)(?:\n|$)", text, re.IGNORECASE | re.DOTALL)
+    if risques_match:
+        result["risques"] = [risk.strip() for risk in risques_match.group(1).split(',') if risk.strip()]
+    
+    return result
 
 @app.route('/market_analysis', methods=['POST'])
 def market_analysis():
@@ -1022,47 +1082,36 @@ def analyze_pdf():
         return jsonify(adjusted_result)
     else:
         return jsonify({"error": "Type de fichier invalide"}), 400
-    
-@app.route('/clean_conversations', methods=['POST'])
-def clean_conversations():
-    conversation_manager.clean_old_conversations()
-    return jsonify({"message": "Old conversations cleaned"})
 
 @app.route('/settings', methods=['GET', 'POST'])
 @jwt_required()
-def settings():
+def handle_settings():
     user_id = get_jwt_identity()
-    if request.method == 'POST':
-        data = request.json
-        try:
-            for key, value in data.items():
-                set_user_setting(user_id, key, json.dumps(value))
-            return jsonify({"message": "Settings updated successfully"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    else:
-        try:
-            settings = {
-                "default_portfolio_value": float(get_user_setting(user_id, "default_portfolio_value", 100000)),
-                "risk_tolerance": get_user_setting(user_id, "risk_tolerance", "moderate"),
-                "preferred_sectors": json.loads(get_user_setting(user_id, "preferred_sectors", "[]"))
-            }
+    data = request.json
+    app.logger.info(f"Tentative de mise à jour des paramètres pour l'utilisateur {user_id}: {data}")
+    
+    if request.method == 'GET':
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT setting_name, setting_value FROM user_settings WHERE user_id = ?", (user_id,))
+            settings = dict(cursor.fetchall())
+            
+            # Convertir les valeurs JSON en listes Python
+            for key, value in settings.items():
+                try:
+                    settings[key] = json.loads(value)
+                except json.JSONDecodeError:
+                    pass  # Garder la valeur telle quelle si ce n'est pas du JSON
+            
             return jsonify(settings)
+    elif request.method == 'POST':
+        new_settings = request.json
+        try:
+            set_user_setting(user_id, new_settings)
+            return jsonify({"message": "Paramètres mis à jour avec succès"}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-def get_user_setting(user_id, setting_name, default_value):
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT setting_value FROM user_settings WHERE user_id = ? AND setting_name = ?", (user_id, setting_name))
-        result = cursor.fetchone()
-        return result[0] if result else default_value
-
-def set_user_setting(user_id, setting_name, setting_value):
-    with sqlite3.connect(DATABASE) as conn:
-        conn.execute("INSERT OR REPLACE INTO user_settings (user_id, setting_name, setting_value) VALUES (?, ?, ?)",
-                     (user_id, setting_name, setting_value))
-        
 def generate_ai_content(prompt):
     message = anthropic_client.messages.create(
         model="claude-3-5-sonnet-20240620",
@@ -1123,16 +1172,6 @@ def historical_prices():
         return jsonify(data.to_dict(orient='index'))
     except Exception as e:
         app.logger.error(f"Error fetching historical prices for {symbol}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-    
-@app.route('/ticker_metadata', methods=['GET'])
-def ticker_metadata():
-    symbol = request.args.get('symbol')
-    try:
-        response = client.get_ticker_metadata(symbol)
-        return jsonify(response)
-    except Exception as e:
-        app.logger.error(f"Error fetching metadata for {symbol}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/news', methods=['GET'])

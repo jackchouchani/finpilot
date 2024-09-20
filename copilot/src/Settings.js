@@ -53,7 +53,7 @@ function Settings({ onClearChat }) {
         try {
             const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/settings`,
-                JSON.stringify(settings),  // Assurez-vous que les données sont bien stringifiées
+                settings,  // Envoyer les données directement
                 {
                     headers: {
                         'Content-Type': 'application/json',

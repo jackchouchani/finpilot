@@ -41,14 +41,14 @@ const MessageContent = ({ content, graphs }) => {
     };
 
     // Gestion du contenu invalide
-    if (!isValidContent(content)) {
-        console.error("Contenu invalide reçu:", content);
-        return (
-            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
-                <Typography color="error">Contenu invalide ou non disponible</Typography>
-            </Paper>
-        );
-    }
+    // if (!isValidContent(content)) {
+    //     console.error("Contenu invalide reçu:", content);
+    //     return (
+    //         <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+    //             <Typography color="error">Contenu invalide ou non disponible</Typography>
+    //         </Paper>
+    //     );
+    // }
 
     // Traitement du contenu JSON
     if (isJSON(content)) {

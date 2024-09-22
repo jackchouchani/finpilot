@@ -65,11 +65,16 @@ function Settings({ onClearChat }) {
 
     const saveSettings = async () => {
         try {
-            const response = await api.post('/settings', settings, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_URL}/settings`,
+                settings,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
                 }
-            });
+            );
             console.log('Réponse du serveur:', response.data);
             alert('Paramètres sauvegardés avec succès');
         } catch (error) {

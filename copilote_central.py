@@ -8,6 +8,7 @@ import time
 import json
 from openai import OpenAI
 import anthropic
+from groq import Groq
 from PyPDF2 import PdfReader
 import uuid
 import random
@@ -773,7 +774,6 @@ def translate_news():
                 title = item['title']
                 description = item['description']
             elif isinstance(item, str):
-                # Si l'item est une chaîne, on suppose que c'est le titre
                 title = item
                 description = ""
             else:
@@ -781,10 +781,10 @@ def translate_news():
                 continue
 
             prompt = f"Traduisez le titre et la description suivants en français :\nTitre : {title}\nDescription : {description}"
-            print(f"Envoi de la requête à OpenAI : {prompt}")
+            print(f"Envoi de la requête à Groq : {prompt}")
             
-            response = openai_client.chat.completions.create(
-                model="gpt-4o-mini",  # Utilisation d'un modèle disponible
+            response = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": "Vous êtes un traducteur professionnel de l'anglais vers le français."},
                     {"role": "user", "content": prompt}
@@ -792,7 +792,7 @@ def translate_news():
                 max_tokens=500
             )
             
-            print(f"Réponse reçue de OpenAI : {response}")
+            print(f"Réponse reçue de Groq : {response}")
             
             translated_text = response.choices[0].message.content
             translated_title, translated_description = translated_text.split('\nDescription : ', 1)
@@ -804,6 +804,10 @@ def translate_news():
 
         print(f"Nouvelles traduites : {translated_news}")
         return jsonify(translated_news)
+    except Exception as e:
+        app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur lors de la traduction des nouvelles"}), 500
+
     except Exception as e:
         app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur lors de la traduction des nouvelles"}), 500

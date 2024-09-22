@@ -1,3 +1,53 @@
+./compile.py :
+<<<
+import os
+import argparse
+import os
+import base64
+
+# Génère une clé secrète aléatoire de 32 bytes (256 bits)
+secret_key = base64.b64encode(os.urandom(32)).decode('utf-8')
+print(secret_key)
+
+def lire_fichier(chemin):
+    try:
+        with open(chemin, 'r', encoding='utf-8') as fichier:
+            return fichier.read()
+    except Exception as e:
+        return f"Erreur lors de la lecture du fichier : {str(e)}"
+
+def compiler_fichiers(dossier_racine, extensions, dossiers_exclus, fichier_sortie):
+    with open(fichier_sortie, 'w', encoding='utf-8') as sortie:
+        for dossier_actuel, sous_dossiers, fichiers in os.walk(dossier_racine):
+            # Exclure les dossiers spécifiés
+            sous_dossiers[:] = [d for d in sous_dossiers if d not in dossiers_exclus]
+            
+            for fichier in fichiers:
+                if any(fichier.endswith(ext) for ext in extensions):
+                    chemin_complet = os.path.join(dossier_actuel, fichier)
+                    contenu = lire_fichier(chemin_complet)
+                    
+                    sortie.write(f"{chemin_complet} :\n")
+                    sortie.write("<<<\n")
+                    sortie.write(contenu)
+                    sortie.write("\n>>>\n\n")
+
+def main():
+    parser = argparse.ArgumentParser(description="Compiler des fichiers de code dans un fichier texte.")
+    parser.add_argument("dossier", help="Le dossier racine à parcourir")
+    parser.add_argument("--extensions", nargs='+', default=['.py'], help="Les extensions de fichier à inclure")
+    parser.add_argument("--exclure", nargs='+', default=['node_modules'], help="Les dossiers à exclure")
+    parser.add_argument("--sortie", default="compilation_code.txt", help="Le nom du fichier de sortie")
+    
+    args = parser.parse_args()
+    
+    compiler_fichiers(args.dossier, args.extensions, args.exclure, args.sortie)
+    print(f"Compilation terminée. Résultat dans {args.sortie}")
+
+if __name__ == "__main__":
+    main()
+>>>
+
 ./src/HistoricalDataAnalysis.js :
 <<<
 import React, { useState } from 'react';
@@ -62,6 +112,142 @@ export default reportWebVitals;
 
 >>>
 
+./src/MessageContent.js :
+<<<
+import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Typography, Paper, Box } from '@mui/material';
+
+const MessageContent = ({ content, graphs }) => {
+    // Fonction pour vérifier si le contenu est valide
+    const isValidContent = (content) => {
+        return content !== null && content !== undefined;
+    };
+
+    const isMarkdown = (str) => {
+        return str.startsWith('# ') || str.includes('\n# ') || str.includes('\n## ');
+    };
+
+    // Fonction pour formater le contenu
+    const formatContent = (text) => {
+        if (!isValidContent(text)) return '';
+        return text.replace(/\\n/g, '\n').replace(/\n(?!\n)/g, '\n\n');
+    };
+
+    // Fonction pour vérifier si c'est du JSON valide
+    const isJSON = (str) => {
+        if (!isValidContent(str)) return false;
+        try {
+            const parsed = JSON.parse(str);
+            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && Object.keys(parsed).length > 0;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // Fonction pour vérifier si c'est un objet string
+    const isStringObject = (str) => {
+        if (!isValidContent(str)) return false;
+        try {
+            const parsed = JSON.parse(str);
+            return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).every(key => !isNaN(parseInt(key)));
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // Gestion du contenu invalide
+    if (!isValidContent(content)) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <Typography color="error">Contenu invalide ou non disponible { content }</Typography>
+            </Paper>
+        );
+    }
+
+    // Traitement du contenu JSON
+    if (isJSON(content)) {
+        try {
+            const jsonData = JSON.parse(content);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+                </Paper>
+            );
+        } catch (error) {
+            console.error("Erreur lors du parsing JSON:", error);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography color="error">Erreur lors de l'affichage du contenu JSON</Typography>
+                </Paper>
+            );
+        }
+    }
+
+    // Traitement du contenu string object
+    if (isStringObject(content)) {
+        try {
+            const stringContent = Object.values(JSON.parse(content)).join('');
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography>{formatContent(stringContent)}</Typography>
+                </Paper>
+            );
+        } catch (error) {
+            console.error("Erreur lors du parsing de l'objet string:", error);
+            return (
+                <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                    <Typography color="error">Erreur lors de l'affichage du contenu</Typography>
+                </Paper>
+            );
+        }
+    }
+    // Traitement du contenu pour l'agent de reporting
+    if (typeof content === 'object' && content.content) {
+        return (
+            <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+                <ReactMarkdown
+                    components={{
+                        h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,
+                        h2: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
+                        h3: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
+                        p: ({ node, ...props }) => <Typography paragraph {...props} />,
+                        li: ({ node, ...props }) => <Typography component="li" sx={{ ml: 2 }} {...props} />,
+                        ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
+                    }}
+                >
+                    {content.content}
+                </ReactMarkdown>
+                {graphs && graphs.map((graph, index) => (
+                    <img key={index} src={`data:image/png;base64,${graph}`} alt={`Graph ${index + 1}`} style={{ maxWidth: '100%', marginTop: '10px' }} />
+                ))}
+            </Paper>
+        );
+    }
+
+
+    // Traitementpour les autres types de contenu
+    return (
+        <Paper sx={{ p: 2, mt: 1, maxWidth: '100%', overflowX: 'auto' }}>
+            <ReactMarkdown
+                components={{
+                    h1: ({ node, ...props }) => <Typography variant="h4" gutterBottom {...props} />,
+                    h2: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
+                    h3: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
+                    p: ({ node, ...props }) => <Typography paragraph {...props} />,
+                    li: ({ node, ...props }) => <Typography component="li" sx={{ ml: 2 }} {...props} />,
+                    ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
+                }}
+            >
+                {formatContent(content)}
+            </ReactMarkdown>
+        </Paper>
+    );
+};
+
+export default MessageContent;
+>>>
+
 ./src/Auth.js :
 <<<
 import axios from 'axios';
@@ -120,12 +306,22 @@ function Register({ onRegisterSuccess }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(process.env.REACT_APP_API_URL + '/register', { username, password });
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/register`, {
+                username,
+                password
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log(response.data); // Pour le débogage
+
             alert('Registration successful! Please log in.');
             onRegisterSuccess();
         } catch (error) {
+            console.error("Registration error:", error.response ? error.response.data : error.message);
             alert('Registration failed. Please try again.');
-            console.error("Registration error:", error);
         }
     };
 
@@ -996,7 +1192,6 @@ import '@testing-library/jest-dom';
 import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Container, TextField, Button, Paper, Typography, List, ListItem, ListItemText, Tab, Tabs, CircularProgress, Box, Fade, Slide, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, AppBar } from '@mui/material';
-import ReactMarkdown from 'react-markdown';
 import Settings from './Settings';
 import Portfolio from './Portfolio';
 import Login from './Login';
@@ -1006,6 +1201,7 @@ import MarketSentiment from './MarketSentiment';
 import InvestmentRecommendation from './InvestmentRecommendation';
 import HistoricalDataAnalysis from './HistoricalDataAnalysis';
 import UserProfileAnalysis from './UserProfileAnalysis';
+import MessageContent from './MessageContent'
 import axios from 'axios';
 import { logout } from './Auth';
 import ErrorBoundary from './ErrorBoundary';
@@ -1228,24 +1424,18 @@ function App() {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/agent/${agentName}`, data);
             let newMessage;
             if (agentName === 'reporting') {
-                // Traitement spécial pour l'agent de reporting
                 newMessage = {
                     role: 'assistant',
                     content: response.data.content,
-                    graphs: response.data.graph
+                    graphs: response.data.graphs
                 };
             } else {
-                // Traitement standard pour les autres agents
                 newMessage = {
                     role: 'assistant',
-                    content: JSON.stringify(response.data, null, 2),
-                    graph: response.data.graph
+                    content: JSON.stringify(response.data, null, 2)
                 };
             }
             setMessages(prevMessages => [...prevMessages, newMessage]);
-
-            // Sauvegarder le message dans l'historique du chat
-            await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
         } catch (error) {
             console.error(`Error calling ${agentName} agent:`, error);
             const errorMessage = {
@@ -1406,27 +1596,6 @@ function App() {
         }
     }, []);
 
-    const MessageContent = ({ content }) => {
-        // Remplacer les \n par des retours à la ligne HTML
-        const formattedContent = content.replace(/\\n/g, '\n');
-
-        return (
-            <Paper style={{ padding: '10px', marginTop: '10px', maxWidth: '100%', overflowX: 'auto' }}>
-                <ReactMarkdown
-                    components={{
-                        h3: ({ node, ...props }) => <Typography variant="h5" gutterBottom {...props} />,
-                        h4: ({ node, ...props }) => <Typography variant="h6" gutterBottom {...props} />,
-                        p: ({ node, ...props }) => <Typography paragraph {...props} />,
-                        li: ({ node, ...props }) => <Typography component="li" style={{ marginLeft: 20 }} {...props} />,
-                        ul: ({ node, ...props }) => <ul style={{ paddingLeft: 20 }} {...props} />,
-                        strong: ({ node, ...props }) => <strong style={{ fontWeight: 'bold' }} {...props} />,
-                    }}
-                >
-                    {formattedContent}
-                </ReactMarkdown>
-            </Paper>
-        );
-    };
     if (!isLoggedIn) {
         return (
             <Container maxWidth="sm">
@@ -1489,7 +1658,7 @@ function App() {
                                             <ListItem key={index} alignItems="flex-start">
                                                 <ListItemText
                                                     primary={message.role === 'user' ? 'You' : 'AI'}
-                                                    secondary={<MessageContent content={message.content} />}
+                                                    secondary={<MessageContent content={message.content} graphs={message.graphs} />}
                                                 />
                                             </ListItem>
                                         ))}

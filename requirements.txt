@@ -33,3 +33,4 @@ typing
 kaleido
 tqdm
 scikit-learn
+groq

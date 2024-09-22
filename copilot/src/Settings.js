@@ -4,9 +4,9 @@ import axios from 'axios';
 
 function Settings({ onClearChat }) {
     const [settings, setSettings] = useState({
-        default_portfolio_value: 100000,
-        risk_profile: 'moderate',
-        preferred_sectors: [],
+        defaultPortfolioValue: 100000,
+        riskProfile: 'moderate',
+        preferredSectors: [],
         theme: 'light'
     });
 
@@ -24,9 +24,6 @@ function Settings({ onClearChat }) {
             setSettings(response.data);
         } catch (error) {
             console.error("Erreur lors de la récupération des paramètres:", error);
-            if (error.response) {
-                console.error("Données de réponse:", error.response.data);
-            }
             alert(`Erreur lors de la récupération des paramètres: ${error.message}`);
         }
     };
@@ -51,8 +48,7 @@ function Settings({ onClearChat }) {
 
     const saveSettings = async () => {
         try {
-            console.log("Sending settings:", settings);  // Log pour déboguer
-            const response = await axios.post(
+            await axios.post(
                 `${process.env.REACT_APP_API_URL}/settings`,
                 settings,
                 {
@@ -62,13 +58,10 @@ function Settings({ onClearChat }) {
                     }
                 }
             );
-            console.log('Réponse du serveur:', response.data);  // Log pour déboguer
-            console.log('Paramètres sauvegardés avec succès');
+            alert('Paramètres sauvegardés avec succès');
         } catch (error) {
             console.error('Erreur lors de la sauvegarde des paramètres:', error);
-            if (error.response) {
-                console.error('Données de réponse:', error.response.data);
-            }
+            alert(`Erreur lors de la sauvegarde des paramètres: ${error.message}`);
         }
     };
 
@@ -76,8 +69,8 @@ function Settings({ onClearChat }) {
         <Box>
             <TextField
                 label="Valeur par défaut du portefeuille"
-                value={settings.default_portfolio_value}
-                onChange={(e) => handleSettingsChange('default_portfolio_value', e.target.value)}
+                value={settings.defaultPortfolioValue}
+                onChange={(e) => handleSettingsChange('defaultPortfolioValue', Number(e.target.value))}
                 type="number"
                 fullWidth
                 margin="normal"
@@ -85,8 +78,8 @@ function Settings({ onClearChat }) {
             <FormControl fullWidth margin="normal">
                 <InputLabel>Profil de risque</InputLabel>
                 <Select
-                    value={settings.risk_profile}
-                    onChange={(e) => handleSettingsChange('risk_profile', e.target.value)}
+                    value={settings.riskProfile}
+                    onChange={(e) => handleSettingsChange('riskProfile', e.target.value)}
                 >
                     <MenuItem value="low">Faible</MenuItem>
                     <MenuItem value="moderate">Modéré</MenuItem>
@@ -97,8 +90,8 @@ function Settings({ onClearChat }) {
                 <InputLabel>Secteurs préférés</InputLabel>
                 <Select
                     multiple
-                    value={settings.preferred_sectors}
-                    onChange={(e) => handleSettingsChange('preferred_sectors', e.target.value)}
+                    value={settings.preferredSectors}
+                    onChange={(e) => handleSettingsChange('preferredSectors', e.target.value)}
                     renderValue={(selected) => (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                             {selected.map((value) => (
@@ -131,9 +124,9 @@ function Settings({ onClearChat }) {
             >
                 Effacer l'historique du chat
             </Button>
-            <Button 
-                onClick={saveSettings} 
-                variant="contained" 
+            <Button
+                onClick={saveSettings}
+                variant="contained"
                 color="primary"
                 style={{ marginTop: '20px' }}
             >

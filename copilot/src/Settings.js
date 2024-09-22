@@ -51,6 +51,7 @@ function Settings({ onClearChat }) {
 
     const saveSettings = async () => {
         try {
+            console.log("Sending settings:", settings);  // Log pour déboguer
             const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/settings`,
                 settings,
@@ -61,6 +62,7 @@ function Settings({ onClearChat }) {
                     }
                 }
             );
+            console.log('Réponse du serveur:', response.data);  // Log pour déboguer
             console.log('Paramètres sauvegardés avec succès');
         } catch (error) {
             console.error('Erreur lors de la sauvegarde des paramètres:', error);

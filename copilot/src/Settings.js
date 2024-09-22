@@ -25,17 +25,21 @@ function Settings({ onClearChat }) {
 
     const fetchSettings = async () => {
         try {
-            const response = await api.get('/settings', {
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/settings`, {
+                method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Accept': 'application/json'
+                },
+                credentials: 'include'
             });
-            setSettings(response.data);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            setSettings(data);
         } catch (error) {
             console.error("Erreur lors de la récupération des paramètres:", error);
-            if (error.response) {
-                console.error("Données de réponse:", error.response.data);
-            }
             alert(`Erreur lors de la récupération des paramètres: ${error.message}`);
         }
     };

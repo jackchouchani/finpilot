@@ -294,18 +294,22 @@ function App() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!input.trim()) return;
-    
+
         setLoading(true);
         const newMessage = { role: 'user', content: input };
         setMessages(prevMessages => [newMessage, ...prevMessages]);
         setInput('');
-    
+
         try {
             const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
                 message: input,
                 conversation_id: conversationId
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
-            
+
             if (response.data && response.data.reply) {
                 setConversationId(response.data.conversation_id);
                 setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);

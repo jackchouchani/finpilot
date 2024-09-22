@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { TextField, Button, Select, MenuItem, Chip, Box, FormControl, InputLabel } from '@mui/material';
 import axios from 'axios';
 
+const api = axios.create({
+    baseURL: process.env.REACT_APP_API_URL,
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    },
+    withCredentials: true
+});
+
 function Settings({ onClearChat }) {
     const [settings, setSettings] = useState({
         defaultPortfolioValue: 100000,
@@ -16,9 +25,8 @@ function Settings({ onClearChat }) {
 
     const fetchSettings = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/settings`, {
+            const response = await api.get('/settings', {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
@@ -31,6 +39,7 @@ function Settings({ onClearChat }) {
             alert(`Erreur lors de la récupération des paramètres: ${error.message}`);
         }
     };
+
 
     const handleSettingsChange = (setting, value) => {
         setSettings(prevSettings => ({ ...prevSettings, [setting]: value }));
@@ -52,16 +61,11 @@ function Settings({ onClearChat }) {
 
     const saveSettings = async () => {
         try {
-            const response = await axios.post(
-                `${process.env.REACT_APP_API_URL}/settings`,
-                settings,
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+            const response = await api.post('/settings', settings, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
-            );
+            });
             console.log('Réponse du serveur:', response.data);
             alert('Paramètres sauvegardés avec succès');
         } catch (error) {

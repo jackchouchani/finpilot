@@ -33,10 +33,13 @@ function Settings({ onClearChat }) {
                 },
                 credentials: 'include'
             });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+
             const data = await response.json();
+            console.log("Paramètres récupérés:", data);
             setSettings(data);
         } catch (error) {
             console.error("Erreur lors de la récupération des paramètres:", error);

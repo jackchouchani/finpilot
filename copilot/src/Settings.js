@@ -53,7 +53,7 @@ function Settings({ onClearChat }) {
         try {
             const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/settings`,
-                settings,  // Envoyer les données directement
+                settings,
                 {
                     headers: {
                         'Content-Type': 'application/json',
@@ -61,20 +61,12 @@ function Settings({ onClearChat }) {
                     }
                 }
             );
-
-            console.log("Réponse du serveur:", response);
-
-            if (response.status === 200) {
-                alert('Paramètres sauvegardés avec succès');
-            } else {
-                throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-            }
+            console.log('Paramètres sauvegardés avec succès');
         } catch (error) {
-            console.error("Erreur détaillée:", error);
+            console.error('Erreur lors de la sauvegarde des paramètres:', error);
             if (error.response) {
-                console.error("Données de réponse:", error.response.data);
+                console.error('Données de réponse:', error.response.data);
             }
-            alert(`Erreur lors de la sauvegarde des paramètres: ${error.message}`);
         }
     };
 

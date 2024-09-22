@@ -18,12 +18,16 @@ function Settings({ onClearChat }) {
         try {
             const response = await axios.get(`${process.env.REACT_APP_API_URL}/settings`, {
                 headers: {
+                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
             setSettings(response.data);
         } catch (error) {
             console.error("Erreur lors de la récupération des paramètres:", error);
+            if (error.response) {
+                console.error("Données de réponse:", error.response.data);
+            }
             alert(`Erreur lors de la récupération des paramètres: ${error.message}`);
         }
     };
@@ -48,7 +52,7 @@ function Settings({ onClearChat }) {
 
     const saveSettings = async () => {
         try {
-            await axios.post(
+            const response = await axios.post(
                 `${process.env.REACT_APP_API_URL}/settings`,
                 settings,
                 {
@@ -58,9 +62,13 @@ function Settings({ onClearChat }) {
                     }
                 }
             );
+            console.log('Réponse du serveur:', response.data);
             alert('Paramètres sauvegardés avec succès');
         } catch (error) {
             console.error('Erreur lors de la sauvegarde des paramètres:', error);
+            if (error.response) {
+                console.error('Données de réponse:', error.response.data);
+            }
             alert(`Erreur lors de la sauvegarde des paramètres: ${error.message}`);
         }
     };

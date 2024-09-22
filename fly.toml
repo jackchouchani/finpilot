@@ -27,6 +27,7 @@ primary_region = 'cdg'
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
     Access-Control-Allow-Credentials = "true"
+    Access-Control-Max-Age = "86400"  # 24 heures en secondes
 
 [http_service.tcp_options]
   keep_alive_idle_time = "300s"
@@ -47,3 +48,5 @@ primary_region = 'cdg'
 
 [env]
   NGINX_WORKER_TIMEOUT = "300s"
+  FLASK_ENV = "production"
+  FLASK_DEBUG = "0"

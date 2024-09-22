@@ -51,9 +51,23 @@ CORS(app, resources={r"/*": {
 
 @app.after_request
 def add_security_headers(response):
-    response.headers['X-Frame-Options'] = 'ALLOWALL'  # Permettre tous les domaines
-    response.headers['Content-Security-Policy'] = "frame-ancestors *"  # Permettre tous les domaines
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'  # Restriction plus sûre
+    response.headers['Content-Security-Policy'] = "default-src 'self';"  # Politique de sécurité plus restrictive
     return response
+
+
+# @app.route('/<path:path>', methods=['OPTIONS'])
+# def handle_options(path):
+#     response = jsonify({'status': 'OK'})
+#     response.headers.add('Access-Control-Allow-Origin', 'https://www.finpilot.one')
+#     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+#     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+#     return response
+
+# @app.before_request
+# def log_request_info():
+#     print(f"Headers: {request.headers}")
+#     print(f"Body: {request.get_data()}")
 
 # Initialize OpenAI and Anthropic clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -313,7 +327,7 @@ def get_user_by_username(username):
 
 @app.route('/register', methods=['POST'])
 def register():
-    app.logger.info(f"Received registration request: {request.json}")
+    print(f"Received registration request: {request.json}")
     data = request.json
     username = data.get('username')
     password = data.get('password')
@@ -348,17 +362,35 @@ def login():
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):
-    content = content or ""  # Si content est None, utilisez une chaîne vide
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        # Convertir le contenu en JSON s'il s'agit d'un dictionnaire
-        if isinstance(content, dict):
+    try:
+        print(f"Tentative de sauvegarde du message pour l'utilisateur {user_id}")
+        print(f"Role : {role}")
+        print(f"Contenu : {content}")
+        
+        if content is None:
+            content = ""
+        elif hasattr(content, 'content'):
+            content = content.content
+        elif isinstance(content, (dict, list)):
             content = json.dumps(content)
-        cursor.execute("""
-            INSERT INTO chat_history (user_id, role, content, timestamp)
-            VALUES (?, ?, ?, datetime('now'))
-        """, (user_id, role, content))
-        conn.commit()
+        else:
+            content = str(content)
+        
+        if not content.strip():
+            print("Le contenu du message est vide, abandon de la sauvegarde")
+            return
+        
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO chat_history (user_id, role, content, timestamp)
+                VALUES (?, ?, ?, datetime('now'))
+            """, (user_id, role, content))
+            conn.commit()
+        print("Message sauvegardé avec succès")
+    except Exception as e:
+        app.logger.error(f"Erreur lors de la sauvegarde du message: {str(e)}", exc_info=True)
+        raise
 
 # Fonction pour récupérer l'historique des chats
 def get_chat_history(user_id):
@@ -489,6 +521,29 @@ def execute_function(function_name, arguments, user_message):
             "error": "execution_error",
             "message": f"Une erreur s'est produite lors de l'exécution de {function_name}: {str(e)}"
         }
+        
+def check_database_persistence():
+    print(f"Chemin actuel de la base de données : {DATABASE}")
+    print(f"La base de données existe : {os.path.exists(DATABASE)}")
+    if os.path.exists(DATABASE):
+        print(f"Taille de la base de données : {os.path.getsize(DATABASE)} bytes")
+        print(f"Permissions de la base de données : {oct(os.stat(DATABASE).st_mode)[-3:]}")
+    
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        print(f"Tables dans la base de données : {tables}")
+
+        if ('user_settings',) in tables:
+            cursor.execute("SELECT COUNT(*) FROM user_settings")
+            count = cursor.fetchone()[0]
+            print(f"Nombre d'entrées dans user_settings : {count}")
+
+            cursor.execute("SELECT * FROM user_settings LIMIT 5")
+            sample = cursor.fetchall()
+            print(f"Échantillon de user_settings : {sample}")
+
 
 def init_db():
     with sqlite3.connect(DATABASE) as conn:
@@ -511,10 +566,9 @@ def init_db():
                         FOREIGN KEY (user_id) REFERENCES users(id))''')
         conn.execute('''CREATE TABLE IF NOT EXISTS user_settings (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        setting_name TEXT,
+                        user_id INTEGER NOT NULL,
+                        setting_name TEXT NOT NULL,
                         setting_value TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id),
                         UNIQUE(user_id, setting_name))''')
         conn.execute('''CREATE TABLE IF NOT EXISTS tasks (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -528,6 +582,7 @@ def init_db():
                          role TEXT NOT NULL,
                          content TEXT NOT NULL,
                          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+        check_database_persistence()
 
 @app.route('/clear_chat', methods=['POST'])
 @jwt_required()
@@ -546,12 +601,25 @@ def get_user_setting(user_id, setting_name, default_value=None):
         cursor = conn.cursor()
         cursor.execute("SELECT setting_value FROM user_settings WHERE user_id = ? AND setting_name = ?", (user_id, setting_name))
         result = cursor.fetchone()
-        return result[0] if result else default_value
+        if result:
+            try:
+                return json.loads(result[0])
+            except json.JSONDecodeError:
+                return result[0]
+    return default_value
 
 def set_user_setting(user_id, setting_name, setting_value):
     with sqlite3.connect(DATABASE) as conn:
-        conn.execute("INSERT OR REPLACE INTO user_settings (user_id, setting_name, setting_value) VALUES (?, ?, ?)",
-                     (user_id, setting_name, str(setting_value)))
+        cursor = conn.cursor()
+        if isinstance(setting_value, (list, dict)):
+            setting_value = json.dumps(setting_value)
+        cursor.execute("""
+            INSERT OR REPLACE INTO user_settings (user_id, setting_name, setting_value)
+            VALUES (?, ?, ?)
+        """, (user_id, setting_name, setting_value))
+        conn.commit()
+    print(f"Paramètre '{setting_name}' sauvegardé pour l'utilisateur {user_id}: {setting_value}")
+
 
 def save_portfolio(user_id, name, stocks):
     with sqlite3.connect(DATABASE) as conn:
@@ -690,13 +758,14 @@ def task_manager():
 Thread(target=task_manager, daemon=True).start()
 
 
-@app.route('/translate_news', methods=['POST', 'OPTIONS'])
+@app.route('/translate_news', methods=['POST'])
+@jwt_required()
 def translate_news():
     data = request.json
     news = data.get('news', [])
     translated_news = []
 
-    app.logger.info(f"Données reçues pour la traduction : {news}")
+    print(f"Données reçues pour la traduction : {news}")
 
     try:
         for item in news:
@@ -712,7 +781,7 @@ def translate_news():
                 continue
 
             prompt = f"Traduisez le titre et la description suivants en français :\nTitre : {title}\nDescription : {description}"
-            app.logger.info(f"Envoi de la requête à OpenAI : {prompt}")
+            print(f"Envoi de la requête à OpenAI : {prompt}")
             
             response = openai_client.chat.completions.create(
                 model="gpt-4o-mini",  # Utilisation d'un modèle disponible
@@ -723,7 +792,7 @@ def translate_news():
                 max_tokens=500
             )
             
-            app.logger.info(f"Réponse reçue de OpenAI : {response}")
+            print(f"Réponse reçue de OpenAI : {response}")
             
             translated_text = response.choices[0].message.content
             translated_title, translated_description = translated_text.split('\nDescription : ', 1)
@@ -733,7 +802,7 @@ def translate_news():
                 'description': translated_description.strip()
             })
 
-        app.logger.info(f"Nouvelles traduites : {translated_news}")
+        print(f"Nouvelles traduites : {translated_news}")
         return jsonify(translated_news)
     except Exception as e:
         app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
@@ -784,18 +853,27 @@ def chat():
     global financial_data
     try:
         user_id = get_jwt_identity()
-        user_message = request.json['message']
+        data = request.json
+        user_message = data.get('message')
         conversation_id = request.json.get('conversation_id')
         use_claude = request.json.get('use_claude', False)
         
+        print(f"Début de la fonction chat pour l'utilisateur {user_id}")
+        print(f"Message de l'utilisateur : {user_message}")
+        print(f"Conversation ID : {conversation_id}")
+        print(f"Utilisation de Claude : {use_claude}")
+        
         save_chat_message(user_id, 'user', user_message)
+        print("Message de l'utilisateur sauvegardé")
 
         if not conversation_id:
             conversation_id = conversation_manager.start_conversation()
             financial_data = {}
+            print(f"Nouvelle conversation créée avec ID : {conversation_id}")
 
         messages = conversation_manager.get_messages(conversation_id)
         messages.append({"role": "user", "content": user_message})
+        print(f"Messages de la conversation : {messages}")
 
         claude_tools = [
             {
@@ -813,65 +891,91 @@ def chat():
         model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-mini"
         tools = claude_tools if use_claude else functions
 
+        print(f"Modèle utilisé : {model}")
+        print(f"Outils disponibles : {tools}")
+
         response = client.chat.completions.create(
             model=model,
             messages=messages,
             tools=tools,
             max_tokens=1024 if use_claude else None
         )
+        print(f"Réponse brute du modèle : {response}")
 
         if use_claude:
             assistant_message = response.content[0]
             if assistant_message.type == 'text':
-                conversation_manager.add_message(conversation_id, {"role": "assistant", "content": assistant_message.text})
-                save_chat_message(user_id, 'assistant', assistant_message.text)
-                return jsonify({"reply": assistant_message.text, "conversation_id": conversation_id})
+                message_content = assistant_message.text
+                save_chat_message(user_id, 'assistant', message_content)
+                return jsonify({"reply": message_content, "conversation_id": conversation_id})
         else:
             assistant_message = response.choices[0].message
-            save_chat_message(user_id, 'assistant', assistant_message.content)
-
-        messages.append(assistant_message)
+            message_content = assistant_message.content
 
         if not getattr(assistant_message, 'tool_calls', None):
-            conversation_manager.add_message(conversation_id, assistant_message)
-            return jsonify({"reply": assistant_message.content, "conversation_id": conversation_id})
+            conversation_manager.add_message(conversation_id, {"role": "assistant", "content": message_content})
+            save_chat_message(user_id, 'assistant', message_content)
+            print("Pas d'appel d'outil, retour de la réponse")
+            return jsonify({"reply": message_content, "conversation_id": conversation_id})
 
+        print("Traitement des appels d'outils")
+        tool_messages = []
         for tool_call in assistant_message.tool_calls:
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
+            
+            print(f"Appel de la fonction : {function_name}")
+            print(f"Arguments de la fonction : {function_args}")
             
             function_info = get_function_info(function_name)
             structured_args = structure_data(function_args)
             function_response = execute_function(function_name, structured_args, user_message)
             
+            print(f"Réponse de la fonction : {function_response}")
+            
             if isinstance(function_response, dict) and function_response.get("error") == "missing_data":
                 conversation_manager.add_message(conversation_id, {"role": "assistant", "content": function_response["message"]})
+                print("Données manquantes, retour de la réponse d'erreur")
                 return jsonify({"reply": function_response["message"], "conversation_id": conversation_id})
             
             verbose_response = generate_verbose_response(function_response, function_name)
             verbose_response += f"\n\nInformation importante : {function_info['description']}"
 
-            tool_message = {
+            tool_messages.append({
                 "role": "tool",
-                "name": function_name,
                 "content": verbose_response,
                 "tool_call_id": tool_call.id
-            }
-            messages.append(tool_message)
+            })
+            print(f"Message de l'outil ajouté : {tool_messages[-1]}")
 
-            if use_claude:
-                messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_call.id, "content": json.dumps(function_response)}]})
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+                } for tc in assistant_message.tool_calls
+            ]
+        })
+        messages.extend(tool_messages)
 
+        print("Génération de la réponse finale")
         final_response = client.chat.completions.create(
             model=model,
             messages=messages
         )
         final_message = final_response.choices[0].message
-        conversation_manager.add_message(conversation_id, final_message)
+        conversation_manager.add_message(conversation_id, {"role": "assistant", "content": final_message.content})
+        print(f"Message final : {final_message}")
+        
+        save_chat_message(user_id, 'assistant', final_message.content)
+        print("Message final sauvegardé dans la base de données")
         
         return jsonify({"reply": final_message.content, "conversation_id": conversation_id})
     except Exception as e:
-        print(f"Erreur dans la route /chat: {str(e)}")
+        app.logger.error(f"Erreur dans la route /chat: {str(e)}", exc_info=True)
         return jsonify({'error': 'Une erreur est survenue lors du traitement de votre demande'}), 500
 
 @app.route('/agent/<agent_name>', methods=['POST'])
@@ -970,7 +1074,7 @@ def analyze_financial_report(text):
         )
         
         response_text = response.content[0].text
-        app.logger.info(f"Réponse brute de l'API : {response_text}")
+        print(f"Réponse brute de l'API : {response_text}")
         
         # Essayez d'abord de parser le JSON directement
         try:
@@ -979,7 +1083,7 @@ def analyze_financial_report(text):
             # Si le parsing JSON échoue, essayez d'extraire les informations manuellement
             result = extract_financial_info(response_text)
         
-        app.logger.info(f"Résultat de l'analyse : {result}")
+        print(f"Résultat de l'analyse : {result}")
         return result
 
     except json.JSONDecodeError as e:
@@ -1084,32 +1188,39 @@ def analyze_pdf():
 
 @app.route('/settings', methods=['GET', 'POST'])
 @jwt_required()
-def handle_settings():
+def settings():
     user_id = get_jwt_identity()
-    data = request.json
-    app.logger.info(f"Tentative de mise à jour des paramètres pour l'utilisateur {user_id}: {data}")
+    app.logger.info(f"Requête reçue pour l'utilisateur {user_id}")
+    app.logger.info(f"Méthode de la requête : {request.method}")
+    app.logger.info(f"En-têtes de la requête : {request.headers}")
     
     if request.method == 'GET':
-        with sqlite3.connect(DATABASE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT setting_name, setting_value FROM user_settings WHERE user_id = ?", (user_id,))
-            settings = dict(cursor.fetchall())
-            
-            # Convertir les valeurs JSON en listes Python
-            for key, value in settings.items():
-                try:
-                    settings[key] = json.loads(value)
-                except json.JSONDecodeError:
-                    pass  # Garder la valeur telle quelle si ce n'est pas du JSON
-            
-            return jsonify(settings)
+        settings = {
+            'defaultPortfolioValue': get_user_setting(user_id, 'default_portfolio_value', 100000),
+            'riskProfile': get_user_setting(user_id, 'risk_profile', 'moderate'),
+            'preferredSectors': get_user_setting(user_id, 'preferred_sectors', []),
+            'theme': get_user_setting(user_id, 'theme', 'light')
+        }
+        app.logger.info(f"Paramètres récupérés : {settings}")
+        return jsonify(settings), 200
+
     elif request.method == 'POST':
-        new_settings = request.json
-        try:
-            set_user_setting(user_id, new_settings)
-            return jsonify({"message": "Paramètres mis à jour avec succès"}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        if not request.is_json:
+            app.logger.error("Requête POST reçue sans Content-Type application/json")
+            return jsonify({"error": "Content-Type must be application/json"}), 415
+        
+        data = request.get_json()
+        app.logger.info(f"Données reçues : {data}")
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        set_user_setting(user_id, 'default_portfolio_value', data.get('defaultPortfolioValue', 100000))
+        set_user_setting(user_id, 'risk_profile', data.get('riskProfile', 'moderate'))
+        set_user_setting(user_id, 'preferred_sectors', data.get('preferredSectors', []))
+        set_user_setting(user_id, 'theme', data.get('theme', 'light'))
+        
+        return jsonify({"message": "Settings saved successfully"}), 200
 
 def generate_ai_content(prompt):
     message = anthropic_client.messages.create(
@@ -1268,6 +1379,7 @@ def chat_history():
             return jsonify({"error": "Invalid data format. Expected 'role' and 'content'"}), 400
         
         try:
+            print(data)
             save_chat_message(user_id, data['role'], data['content'])
             return jsonify({"message": "Chat message saved successfully"}), 200
         except sqlite3.Error as e:
@@ -1453,7 +1565,37 @@ def get_portfolio_value():
                 return jsonify({"portfolio_value": 100000}), 200  # Valeur par défaut
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+def inspect_database():
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        
+        # Vérifier si la table existe
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_settings'")
+        table_exists = cursor.fetchone() is not None
+        
+        if not table_exists:
+            return "La table user_settings n'existe pas."
+        
+        # Obtenir la structure de la table
+        cursor.execute("PRAGMA table_info(user_settings)")
+        structure = cursor.fetchall()
+        
+        # Obtenir tout le contenu de la table
+        cursor.execute("SELECT * FROM user_settings")
+        content = cursor.fetchall()
+        
+        # Obtenir le chemin de la base de données
+        cursor.execute("PRAGMA database_list")
+        db_path = cursor.fetchone()[2]
+        
+        return {
+            "database_path": db_path,
+            "table_structure": structure,
+            "table_content": content
+        }
 
 if __name__ == '__main__':
     init_db()
+    print(f"Inspection de la base de données: {inspect_database()}")
     app.run(debug=True)

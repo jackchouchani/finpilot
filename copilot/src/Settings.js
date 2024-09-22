@@ -25,25 +25,20 @@ function Settings({ onClearChat }) {
 
     const fetchSettings = async () => {
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/settings`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Accept': 'application/json'
-                },
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log("Paramètres récupérés:", data);
-            setSettings(data);
+            const response = await axios.get(
+                `${process.env.REACT_APP_API_URL}/settings`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }
+            );
+            setSettings(response.data);
         } catch (error) {
-            console.error("Erreur lors de la récupération des paramètres:", error);
-            alert(`Erreur lors de la récupération des paramètres: ${error.message}`);
+            console.error('Erreur lors de la récupération des paramètres:', error);
+            if (error.response) {
+                console.error('Données de réponse:', error.response.data);
+            }
         }
     };
 

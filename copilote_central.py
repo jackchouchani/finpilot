@@ -9,6 +9,7 @@ import json
 from openai import OpenAI
 import anthropic
 from groq import Groq
+import deepl
 from PyPDF2 import PdfReader
 import uuid
 import random
@@ -73,6 +74,9 @@ def add_security_headers(response):
 # Initialize OpenAI and Anthropic clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+DEEPL_API_KEY = os.environ.get('DEEPL_API_KEY')
+translator = deepl.Translator(DEEPL_API_KEY)
 
 # Configuration de la base de données SQLite
 DATABASE = '/litefs/copilot-db.db'
@@ -770,9 +774,10 @@ def translate_news():
 
     try:
         for item in news:
-            if isinstance(item, dict) and 'title' in item and 'description' in item:
-                title = item['title']
-                description = item['description']
+            if isinstance(item, dict):
+                title = item.get('title', '')
+                description = item.get('description') or item.get('content', '')
+                content = item.get('content', '')
             elif isinstance(item, str):
                 title = item
                 description = ""
@@ -780,26 +785,42 @@ def translate_news():
                 app.logger.warning(f"Format d'élément de nouvelles non reconnu : {item}")
                 continue
 
-            prompt = f"Traduisez le titre et la description suivants en français :\nTitre : {title}\nDescription : {description}"
-            print(f"Envoi de la requête à Groq : {prompt}")
-            
-            response = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[
-                    {"role": "system", "content": "Vous êtes un traducteur professionnel de l'anglais vers le français."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=500
+            # Traduire le titre
+            translated_title = translator.translate_text(
+                title,
+                target_lang="FR",
+                formality="less"
             )
-            
-            print(f"Réponse reçue de Groq : {response}")
-            
-            translated_text = response.choices[0].message.content
-            translated_title, translated_description = translated_text.split('\nDescription : ', 1)
-            translated_title = translated_title.replace('Titre : ', '')
+
+            # Traduire ou générer la description
+            if description:
+                translated_description = translator.translate_text(
+                    description,
+                    target_lang="FR",
+                    formality="less"
+                )
+            else:
+                # Si pas de description, on utilise Llama pour générer un résumé
+                llama_response = anthropic_client.completions.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens_to_sample=200,
+                    prompt=f"Générez un bref résumé en français de 200 caractères maximum pour cet article dont voici le titre : {content}"
+                )
+                generated_description = llama_response.completion.strip()
+                
+                # Traduire le résumé généré si nécessaire
+                if not is_french(generated_description):
+                    translated_description = translator.translate_text(
+                        generated_description,
+                        target_lang="FR",
+                        formality="less"
+                    )
+                else:
+                    translated_description = generated_description
+
             translated_news.append({
-                'title': translated_title.strip(),
-                'description': translated_description.strip()
+                'title': translated_title.text,
+                'description': translated_description.text if isinstance(translated_description, deepl.TextResult) else translated_description
             })
 
         print(f"Nouvelles traduites : {translated_news}")
@@ -808,9 +829,12 @@ def translate_news():
         app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur lors de la traduction des nouvelles"}), 500
 
-    except Exception as e:
-        app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
-        return jsonify({"error": "Erreur lors de la traduction des nouvelles"}), 500
+def is_french(text):
+    # Une fonction simple pour vérifier si le texte est déjà en français
+    # Cette implémentation est basique et pourrait être améliorée
+    french_words = set(['le', 'la', 'les', 'un', 'une', 'des', 'et', 'ou', 'mais', 'donc'])
+    words = text.lower().split()
+    return any(word in french_words for word in words)
 
 @app.route('/submit_task', methods=['POST'])
 def submit_task():

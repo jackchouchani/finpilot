@@ -1,15 +1,19 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { Box, TextField, Button, List, ListItem, ListItemText, Paper } from '@mui/material';
 import MessageContent from './MessageContent';
 
 function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
     const messagesEndRef = useRef(null);
 
-    const scrollToBottom = () => {
+    const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    }, []);
 
     useEffect(scrollToBottom, [messages]);
+
+    const handleInputChange = useCallback((e) => {
+        setInput(e.target.value);
+    }, [setInput]);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -19,7 +23,26 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
                         <ListItem key={index} alignItems="flex-start">
                             <ListItemText
                                 primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                secondary={<MessageContent content={message.content} />}
+                                secondary={
+                                    <>
+                                        <MessageContent content={message.content} />
+                                        {message.graphs && message.graphs.map((graph, graphIndex) => (
+                                            <img
+                                                key={graphIndex}
+                                                src={`data:image/png;base64,${graph}`}
+                                                alt={`Portfolio Graph ${graphIndex + 1}`}
+                                                style={{ maxWidth: '100%', marginTop: '10px' }}
+                                            />
+                                        ))}
+                                        {message.graph && (
+                                            <img
+                                                src={`data:image/png;base64,${message.graph}`}
+                                                alt="Graph"
+                                                style={{ maxWidth: '100%', marginTop: '10px' }}
+                                            />
+                                        )}
+                                    </>
+                                }
                             />
                         </ListItem>
                     ))}
@@ -30,7 +53,7 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
                 <TextField
                     fullWidth
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={handleInputChange}
                     placeholder="Tapez votre message ici..."
                     variant="outlined"
                     disabled={loading}

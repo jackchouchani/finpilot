@@ -520,6 +520,10 @@ function App() {
         }
     }, []);
 
+    const setInputCallback = useCallback((value) => {
+        setInput(value);
+    }, []);
+
     if (!isLoggedIn) {
         return (
             <ThemeProvider theme={theme}>
@@ -561,7 +565,7 @@ function App() {
                 setActiveTab={setActiveTab}
                 messages={messages}
                 input={input}
-                setInput={setInput}
+                setInput={setInputCallback}
                 handleSubmit={handleSubmit}
                 loading={loading}
                 handlePDFUpload={handlePDFUpload}
@@ -763,13 +767,12 @@ function AppContent({
                             )}
                                 {activeTab === 1 && (
                                     <>
-                                        <TextField
-                                            fullWidth
-                                            variant="outlined"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Entrez des données pour l'agent..."
-                                            margin="normal"
+                                        <ChatBox
+                                            messages={messages}
+                                            input={input}
+                                            setInput={setInput}
+                                            handleSubmit={handleSubmit}
+                                            loading={loading}
                                         />
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
                                             {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
@@ -784,35 +787,6 @@ function AppContent({
                                                 </Button>
                                             ))}
                                         </Box>
-                                        <List>
-                                            {messages.map((message, index) => (
-                                                <ListItem key={index} alignItems="flex-start">
-                                                    <ListItemText
-                                                        primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                                        secondary={
-                                                            <>
-                                                                <MessageContent content={message.content} />
-                                                                {message.graphs && message.graphs.map((graph, graphIndex) => (
-                                                                    <img
-                                                                        key={graphIndex}
-                                                                        src={`data:image/png;base64,${graph}`}
-                                                                        alt={`Portfolio Graph ${graphIndex + 1}`}
-                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
-                                                                    />
-                                                                ))}
-                                                                {message.graph && (
-                                                                    <img
-                                                                        src={`data:image/png;base64,${message.graph}`}
-                                                                        alt="Graph"
-                                                                        style={{ maxWidth: '100%', marginTop: '10px' }}
-                                                                    />
-                                                                )}
-                                                            </>
-                                                        }
-                                                    />
-                                                </ListItem>
-                                            ))}
-                                        </List>
                                     </>
                                 )}
                                 {activeTab === 2 && (

@@ -26,3 +26,13 @@ yarn-error.log*
 /__pycache__
 copilot/compilation-code.txt
 compilation_text.txt
+.DS_Store
+.env
+compilation-code.txt
+copilot/compilation-code.txt
+compilation_texte.txt
+compilation-code.txt
+formatted_articles.json
+import json.py
+compilation_texte.txt
+articles.json

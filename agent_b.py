@@ -27,7 +27,7 @@ class SentimentAnalysisAgent:
 
     def analyze(self, company):
         news = self.get_news(company)
-        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article['description']) for article in news[:10]
+        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article['description']) for article in news[:10]]
         average_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
         
         if average_sentiment > 0.1:

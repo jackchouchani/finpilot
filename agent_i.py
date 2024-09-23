@@ -23,13 +23,14 @@ class InvestmentRecommendationAgent:
         print(portfolio_data)
         print(portfolio)
         response = self.client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-2024-08-06",
             messages=[
-                {"role": "system", "content": "Vous êtes un conseiller en investissement financier. Fournissez des recommandations d'investissement basées sur le portefeuille et le profil de risque donnés."},
-                {"role": "user", "content": f"Sur la base de ce portefeuille:\n{portfolio_str}\n\nEt d'un profil de risque {risk_profile}, fournissez des recommandations d'investissement."}
+                {"role": "system", "content": "Vous êtes un conseiller en investissement financier expert. Votre tâche est de fournir des recommandations d'investissement personnalisées basées sur le portefeuille actuel et le profil de risque de l'investisseur."},
+                {"role": "system", "content": "Dans votre analyse, veuillez inclure :\n1) Une évaluation de la diversification actuelle du portefeuille.\n2) Des recommandations spécifiques pour optimiser le portefeuille en fonction du profil de risque.\n3) Des suggestions d'actions à acheter, vendre ou conserver, avec des justifications.\n4) Une analyse des secteurs sous-représentés ou surreprésentés.\n5) Des considérations sur l'équilibre entre croissance et valeur.\n6) Des recommandations sur la répartition géographique si pertinent.\n\nAssurez-vous que vos recommandations sont cohérentes avec le profil de risque fourni et basées sur les données financières actuelles."},
+                {"role": "user", "content": f"Voici le portefeuille actuel :\n{portfolio_str}\n\nLe profil de risque de l'investisseur est : {risk_profile}\n\nVeuillez fournir des recommandations d'investissement détaillées."}
             ],
             temperature=0.7,
-            max_tokens=1200
+            max_tokens=1500
         )
 
         return response.choices[0].message.content.strip()

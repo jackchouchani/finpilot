@@ -37,6 +37,7 @@ import MessageContent from './MessageContent'
 import axios from 'axios';
 import { logout } from './Auth';
 import ErrorBoundary from './ErrorBoundary';
+import ChatBox from './ChatBox';
 
 const api = axios.create({
     baseURL: process.env.REACT_APP_API_URL,
@@ -868,19 +869,13 @@ function AppContent({
                             <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
                             {activeTab === 0 && (
                                 <>
-                                    <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
-                                        <TextField
-                                            fullWidth
-                                            variant="outlined"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            placeholder="Tapez votre message..."
-                                            margin="normal"
-                                        />
-                                        <Button type="submit" variant="contained" color="primary" disabled={loading}>
-                                            {loading ? <CircularProgress size={24} /> : 'Envoyer'}
-                                        </Button>
-                                    </form>
+                                    <ChatBox
+                                        messages={messages}
+                                        input={input}
+                                        setInput={setInput}
+                                        handleSubmit={handleSubmit}
+                                        loading={loading}
+                                    />
                                     <input
                                         type="file"
                                         accept=".pdf"
@@ -896,16 +891,6 @@ function AppContent({
                                     <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
                                         Vous pouvez aussi glisser-déposer un fichier PDF ici
                                     </Typography>
-                                    <List sx={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
-                                        {messages.map((message, index) => (
-                                            <ListItem key={index} alignItems="flex-start">
-                                                <ListItemText
-                                                    primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                                    secondary={<MessageContent content={message.content} graphs={message.graphs} />}
-                                                />
-                                            </ListItem>
-                                        ))}
-                                    </List>
                                 </>
                             )}
                                 {activeTab === 1 && (

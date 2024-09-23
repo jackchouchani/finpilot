@@ -15,10 +15,11 @@ class MarketSentimentAgent:
         combined_text = "\n\n".join(news_texts)
 
         response = self.client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-2024-08-06",
             messages=[
-                {"role": "system", "content": "Vous êtes un analyste de sentiment du marché financier. Analysez les nouvelles suivantes concernant une action et fournissez une analyse globale du sentiment."},
-                {"role": "user", "content": f"Analysez le sentiment pour {ticker} basé sur ces nouvelles récentes:\n\n{combined_text}"}
+            {"role": "system", "content": "Vous êtes un analyste financier expert spécialisé dans l'analyse du sentiment du marché. Votre tâche est d'évaluer le sentiment global pour une action spécifique en vous basant sur les dernières nouvelles. Veuillez fournir :"},
+            {"role": "system", "content": "1) Une évaluation du sentiment global (positif, négatif, ou neutre) avec une explication concise.\n2) Les principaux facteurs influençant ce sentiment.\n3) Les implications potentielles à court terme pour le cours de l'action.\n4) Tout risque ou opportunité notable identifié dans les nouvelles.\n\nAssurez-vous que votre analyse est objective, basée sur les faits présentés, et utile pour la prise de décision d'investissement."},
+            {"role": "user", "content": f"Analysez le sentiment pour l'action {ticker} basé sur ces nouvelles récentes :\n\n{combined_text}"}
             ],
             temperature=0.7,
             max_tokens=800

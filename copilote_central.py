@@ -90,19 +90,18 @@ jwt = JWTManager(app)
 
 # Augmentez la durée de validité du token JWT
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
-
 functions = [
     {
         "type": "function",
         "function": {
             "name": "analyze_documents",
-            "description": "Analyze and summarize financial documents",
+            "description": "Analyser et résumer des documents financiers",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "text": {
                         "type": "string",
-                        "description": "The text to analyze"
+                        "description": "Le texte à analyser"
                     }
                 },
                 "required": ["text"]
@@ -113,13 +112,13 @@ functions = [
         "type": "function",
         "function": {
             "name": "analyze_sentiment",
-            "description": "Analyze sentiment of financial news",
+            "description": "Analyser le sentiment des actualités financières",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "company": {
                         "type": "string",
-                        "description": "The company to analyze sentiment for"
+                        "description": "L'entreprise pour laquelle analyser le sentiment"
                     }
                 },
                 "required": ["company"]
@@ -130,13 +129,13 @@ functions = [
         "type": "function",
         "function": {
             "name": "model_financials",
-            "description": "Perform financial modeling for a given stock",
+            "description": "Effectuer une modélisation financière pour une action donnée",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "ticker": {
                         "type": "string",
-                        "description": "The stock ticker symbol"
+                        "description": "Le symbole boursier de l'action"
                     }
                 },
                 "required": ["ticker"]
@@ -147,14 +146,14 @@ functions = [
         "type": "function",
         "function": {
             "name": "optimize_portfolio",
-            "description": "Optimize a portfolio of stocks",
+            "description": "Optimiser un portefeuille d'actions",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "tickers": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of stock ticker symbols"
+                        "description": "Liste des symboles boursiers des actions"
                     }
                 },
                 "required": ["tickers"]
@@ -165,18 +164,18 @@ functions = [
         "type": "function",
         "function": {
             "name": "manage_risks",
-            "description": "Analyze risks for a portfolio",
+            "description": "Analyser les risques d'un portefeuille",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "tickers": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of stock ticker symbols"
+                        "description": "Liste des symboles boursiers des actions"
                     },
                     "portfolio_value": {
                         "type": "number",
-                        "description": "Total value of the portfolio"
+                        "description": "Valeur totale du portefeuille"
                     }
                 },
                 "required": ["tickers", "portfolio_value"]
@@ -187,13 +186,13 @@ functions = [
         "type": "function",
         "function": {
             "name": "generate_report",
-            "description": "Generate a financial report",
+            "description": "Générer un rapport financier",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "object",
-                        "description": "Financial data to include in the report"
+                        "description": "Données financières à inclure dans le rapport"
                     }
                 },
                 "required": ["data"]
@@ -204,13 +203,13 @@ functions = [
         "type": "function",
         "function": {
             "name": "check_compliance",
-            "description": "Check portfolio compliance with regulations",
+            "description": "Vérifier la conformité du portefeuille avec les réglementations",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "portfolio_data": {
                         "type": "object",
-                        "description": "Portfolio data to check for compliance"
+                        "description": "Données du portefeuille à vérifier pour la conformité"
                     }
                 },
                 "required": ["portfolio_data"]
@@ -221,13 +220,13 @@ functions = [
         "type": "function",
         "function": {
             "name": "analyze_market_sentiment",
-            "description": "Analyze the market sentiment for a given stock",
+            "description": "Analyser le sentiment du marché pour une action donnée",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "ticker": {
                         "type": "string",
-                        "description": "The stock ticker symbol"
+                        "description": "Le symbole boursier de l'action"
                     }
                 },
                 "required": ["ticker"]
@@ -238,7 +237,7 @@ functions = [
         "type": "function",
         "function": {
             "name": "get_investment_recommendation",
-            "description": "Get investment recommendations based on a portfolio and risk profile",
+            "description": "Obtenir des recommandations d'investissement basées sur un portefeuille et un profil de risque",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -247,11 +246,11 @@ functions = [
                         "items": {
                             "type": "string"
                         },
-                        "description": "List of stock ticker symbols in the portfolio"
+                        "description": "Liste des symboles boursiers dans le portefeuille"
                     },
                     "risk_profile": {
                         "type": "string",
-                        "description": "The investor's risk profile (e.g., conservative, moderate, aggressive)"
+                        "description": "Le profil de risque de l'investisseur (ex: conservateur, modéré, agressif)"
                     }
                 },
                 "required": ["portfolio", "risk_profile"]
@@ -262,13 +261,13 @@ functions = [
         "type": "function",
         "function": {
             "name": "analyze_previous_day_data",
-            "description": "Analyze the previous day's trading data for a given stock",
+            "description": "Analyser les données de trading du jour précédent pour une action donnée",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "ticker": {
                         "type": "string",
-                        "description": "The stock ticker symbol"
+                        "description": "Le symbole boursier de l'action"
                     }
                 },
                 "required": ["ticker"]
@@ -279,7 +278,7 @@ functions = [
         "type": "function",
         "function": {
             "name": "analyze_user_profile",
-            "description": "Analyze the user's investment profile based on interactions and portfolio history",
+            "description": "Analyser le profil d'investissement de l'utilisateur basé sur ses interactions et l'historique de son portefeuille",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -288,11 +287,11 @@ functions = [
                         "items": {
                             "type": "string"
                         },
-                        "description": "List of recent user interactions"
+                        "description": "Liste des interactions récentes de l'utilisateur"
                     },
                     "portfolio_history": {
                         "type": "object",
-                        "description": "Historical portfolio values"
+                        "description": "Valeurs historiques du portefeuille"
                     }
                 },
                 "required": ["user_interactions", "portfolio_history"]
@@ -303,7 +302,7 @@ functions = [
 
 assistant = openai_client.beta.assistants.create(
     name="Finance Copilot",
-    instructions="You are a financial assistant. Use the provided functions to analyze documents, sentiment, perform financial modeling, optimize portfolios, manage risks, generate reports, and check compliance.",
+    instructions="Vous êtes un assistant financier. Utilisez les fonctions fournies pour analyser des documents, évaluer le sentiment, effectuer des modélisations financières, optimiser des portefeuilles, gérer les risques, générer des rapports et vérifier la conformité.",
     model="gpt-4o",
     tools=functions
 )
@@ -332,13 +331,13 @@ def get_user_by_username(username):
 
 @app.route('/register', methods=['POST'])
 def register():
-    print(f"Received registration request: {request.json}")
+    print(f"Requête d'inscription reçue : {request.json}")
     data = request.json
     username = data.get('username')
     password = data.get('password')
     
     if not username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
+        return jsonify({"erreur": "Le nom d'utilisateur et le mot de passe sont requis"}), 400
     
     hashed_password = hash_password(password)
     
@@ -346,9 +345,9 @@ def register():
         with sqlite3.connect(DATABASE) as conn:
             conn.execute("INSERT INTO users (username, password) VALUES (?, ?)",
                          (username, hashed_password))
-        return jsonify({"message": "User registered successfully"}), 201
+        return jsonify({"message": "Utilisateur enregistré avec succès"}), 201
     except sqlite3.IntegrityError:
-        return jsonify({"error": "Username already exists"}), 400
+        return jsonify({"erreur": "Le nom d'utilisateur existe déjà"}), 400
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -363,7 +362,7 @@ def login():
         set_access_cookies(response, access_token)
         return response, 200
     else:
-        return jsonify({"error": "Invalid username or password"}), 401
+        return jsonify({"erreur": "Nom d'utilisateur ou mot de passe invalide"}), 401
     
     # Fonction pour enregistrer le chat
 def save_chat_message(user_id, role, content):
@@ -453,8 +452,8 @@ def parse_portfolio(message):
         if is_valid_symbol(stock):
             portfolio[stock.upper()] = float(allocation)
         else:
-            return {"error": f"Invalid stock symbol: {stock}"}
-    return portfolio if portfolio else {"error": "No valid portfolio information found"}
+            return {"erreur": f"Symbole d'action invalide: {stock}"}
+    return portfolio if portfolio else {"erreur": "Aucune information de portefeuille valide trouvée"}
 
 def is_valid_symbol(symbol):
     # Implémentez cette fonction pour vérifier si le symbole est valide
@@ -474,7 +473,7 @@ def execute_function(function_name, arguments, user_message):
                 return compliance_agent.check_compliance({"portfolio_data": portfolio})
             else:
                 return {
-                    "error": "missing_data",
+                    "erreur": "missing_data",
                     "message": "Informations sur le portefeuille manquantes. Veuillez fournir les détails du portefeuille."
                 }
         elif function_name == "analyze_documents":
@@ -515,40 +514,17 @@ def execute_function(function_name, arguments, user_message):
                 arguments.get("portfolio_history")
             )
         else:
-            return {"error": f"Function {function_name} not found"}
+            return {"erreur": f"Fonction {function_name} introuvable"}
     except KeyError as e:
         return {
-            "error": "missing_data",
+            "erreur": "missing_data",
             "message": f"Données manquantes : {str(e)}. Pouvez-vous fournir plus d'informations ?"
         }
     except Exception as e:
         return {
-            "error": "execution_error",
+            "erreur": "execution_error",
             "message": f"Une erreur s'est produite lors de l'exécution de {function_name}: {str(e)}"
         }
-        
-def check_database_persistence():
-    print(f"Chemin actuel de la base de données : {DATABASE}")
-    print(f"La base de données existe : {os.path.exists(DATABASE)}")
-    if os.path.exists(DATABASE):
-        print(f"Taille de la base de données : {os.path.getsize(DATABASE)} bytes")
-        print(f"Permissions de la base de données : {oct(os.stat(DATABASE).st_mode)[-3:]}")
-    
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tables = cursor.fetchall()
-        print(f"Tables dans la base de données : {tables}")
-
-        if ('user_settings',) in tables:
-            cursor.execute("SELECT COUNT(*) FROM user_settings")
-            count = cursor.fetchone()[0]
-            print(f"Nombre d'entrées dans user_settings : {count}")
-
-            cursor.execute("SELECT * FROM user_settings LIMIT 5")
-            sample = cursor.fetchall()
-            print(f"Échantillon de user_settings : {sample}")
-
 
 def init_db():
     with sqlite3.connect(DATABASE) as conn:
@@ -587,7 +563,6 @@ def init_db():
                          role TEXT NOT NULL,
                          content TEXT NOT NULL,
                          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-        check_database_persistence()
 
 @app.route('/clear_chat', methods=['POST'])
 @jwt_required()
@@ -596,10 +571,10 @@ def clear_chat():
     try:
         with sqlite3.connect(DATABASE) as conn:
             conn.execute("DELETE FROM chat_history WHERE user_id = ?", (user_id,))
-        return jsonify({"message": "Chat history cleared successfully"}), 200
+        return jsonify({"message": "Historique de chat effacé avec succès"}), 200
     except Exception as e:
-        app.logger.error(f"Error clearing chat history: {str(e)}")
-        return jsonify({"error": "Failed to clear chat history"}), 500
+        app.logger.error(f"Erreur lors de l'effacement de l'historique de chat: {str(e)}")
+        return jsonify({"erreur": "Échec de l'effacement de l'historique de chat"}), 500
 
 def get_user_setting(user_id, setting_name, default_value=None):
     with sqlite3.connect(DATABASE) as conn:
@@ -827,7 +802,7 @@ def translate_news():
         return jsonify(translated_news)
     except Exception as e:
         app.logger.error(f"Erreur lors de la traduction des nouvelles : {str(e)}", exc_info=True)
-        return jsonify({"error": "Erreur lors de la traduction des nouvelles"}), 500
+        return jsonify({"erreur": "Erreur lors de la traduction des nouvelles"}), 500
 
 def is_french(text):
     # Une fonction simple pour vérifier si le texte est déjà en français
@@ -841,7 +816,7 @@ def submit_task():
     data = request.json
     task_type = data.get('task_type')
     if task_type not in dir(Agents):
-        return jsonify({"error": "Invalid task type"}), 400
+        return jsonify({"erreur": "Type de tâche invalide"}), 400
 
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
@@ -861,7 +836,7 @@ def task_status(task_id):
     if task:
         return jsonify({"task_id": task_id, "status": task[0], "result": task[1]})
     else:
-        return jsonify({"error": "Task not found"}), 404
+        return jsonify({"erreur": "Tâche non trouvée"}), 404
 
 @app.route('/portfolio_analysis', methods=['POST'])
 def portfolio_analysis():
@@ -961,7 +936,7 @@ def chat():
             
             print(f"Réponse de la fonction : {function_response}")
             
-            if isinstance(function_response, dict) and function_response.get("error") == "missing_data":
+            if isinstance(function_response, dict) and function_response.get("erreur") == "missing_data":
                 conversation_manager.add_message(conversation_id, {"role": "assistant", "content": function_response["message"]})
                 print("Données manquantes, retour de la réponse d'erreur")
                 return jsonify({"reply": function_response["message"], "conversation_id": conversation_id})
@@ -1004,7 +979,7 @@ def chat():
         return jsonify({"reply": final_message.content, "conversation_id": conversation_id})
     except Exception as e:
         app.logger.error(f"Erreur dans la route /chat: {str(e)}", exc_info=True)
-        return jsonify({'error': 'Une erreur est survenue lors du traitement de votre demande'}), 500
+        return jsonify({'erreur': 'Une erreur est survenue lors du traitement de votre demande'}), 500
 
 @app.route('/agent/<agent_name>', methods=['POST'])
 @jwt_required()
@@ -1045,7 +1020,7 @@ def call_agent(agent_name):
             chat_history = get_chat_history(user_id)
             result = user_profile_agent.analyze_user_profile(portfolio, chat_history)
         else:
-            return jsonify({"error": "Agent not found"}), 404
+            return jsonify({"erreur": "Agent non trouvé"}), 404
         
         # Formatage du résultat en Markdown
         formatted_result = f"""
@@ -1060,18 +1035,18 @@ def call_agent(agent_name):
         return formatted_result, 200, {'Content-Type': 'text/markdown; charset=utf-8'}
     except KeyError as e:
         app.logger.error(f"Missing required data for agent {agent_name}: {str(e)}")
-        return jsonify({"error": f"Missing required data: {str(e)}"}), 400
+        return jsonify({"erreur": f"Missing required data: {str(e)}"}), 400
     except Exception as e:
         app.logger.error(f"Error in {agent_name} agent: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"erreur": str(e)}), 500
 
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     if 'file' not in request.files:
-        return jsonify({"error": "Aucun fichier n'a été fourni"}), 400
+        return jsonify({"erreur": "Aucun fichier n'a été fourni"}), 400
     file = request.files['file']
     if file.filename == '':
-        return jsonify({"error": "Aucun fichier sélectionné"}), 400
+        return jsonify({"erreur": "Aucun fichier sélectionné"}), 400
     if file and file.filename.endswith('.pdf'):
         try:
             pdf_reader = PdfReader(io.BytesIO(file.read()))
@@ -1084,9 +1059,9 @@ def upload_pdf():
             return jsonify(result)
         except Exception as e:
             app.logger.error(f"Erreur lors de l'analyse du PDF : {str(e)}")
-            return jsonify({"error": "Erreur lors de l'analyse du PDF"}), 500
+            return jsonify({"erreur": "Erreur lors de l'analyse du PDF"}), 500
     else:
-        return jsonify({"error": "Type de fichier invalide"}), 400
+        return jsonify({"erreur": "Type de fichier invalide"}), 400
 
 def analyze_financial_report(text):
     try:
@@ -1116,10 +1091,10 @@ def analyze_financial_report(text):
 
     except json.JSONDecodeError as e:
         app.logger.error(f"Erreur lors de l'analyse JSON : {str(e)}")
-        return {"error": "Erreur lors de l'analyse des données financières"}
+        return {"erreur": "Erreur lors de l'analyse des données financières"}
     except Exception as e:
         app.logger.error(f"Erreur inattendue dans analyze_financial_report : {str(e)}")
-        return {"error": "Une erreur inattendue s'est produite lors de l'analyse du rapport financier"}
+        return {"erreur": "Une erreur inattendue s'est produite lors de l'analyse du rapport financier"}
 
 def extract_financial_info(text):
     result = {
@@ -1183,10 +1158,10 @@ def news_impact():
 @app.route('/analyze_pdf', methods=['POST'])
 def analyze_pdf():
     if 'file' not in request.files:
-        return jsonify({"error": "Aucun fichier n'a été fourni"}), 400
+        return jsonify({"erreur": "Aucun fichier n'a été fourni"}), 400
     file = request.files['file']
     if file.filename == '':
-        return jsonify({"error": "Aucun fichier sélectionné"}), 400
+        return jsonify({"erreur": "Aucun fichier sélectionné"}), 400
     if file and file.filename.endswith('.pdf'):
         pdf_reader = PdfReader(io.BytesIO(file.read()))
         text = ""
@@ -1212,7 +1187,7 @@ def analyze_pdf():
         
         return jsonify(adjusted_result)
     else:
-        return jsonify({"error": "Type de fichier invalide"}), 400
+        return jsonify({"erreur": "Type de fichier invalide"}), 400
 
 @app.route('/settings', methods=['GET', 'POST'])
 @jwt_required()
@@ -1235,13 +1210,13 @@ def settings():
     elif request.method == 'POST':
         if not request.is_json:
             app.logger.error("Requête POST reçue sans Content-Type application/json")
-            return jsonify({"error": "Content-Type must be application/json"}), 415
+            return jsonify({"erreur": "Content-Type must be application/json"}), 415
         
         data = request.get_json()
         app.logger.info(f"Données reçues : {data}")
         
         if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
+            return jsonify({"erreur": "No JSON data provided"}), 400
         
         set_user_setting(user_id, 'default_portfolio_value', data.get('defaultPortfolioValue', 100000))
         set_user_setting(user_id, 'risk_profile', data.get('riskProfile', 'moderate'))
@@ -1271,7 +1246,7 @@ def portfolio():
             return jsonify({"message": "Portfolio sauvegardé avec succès"}), 200
         except sqlite3.Error as e:
             print(f"Erreur SQLite lors de la sauvegarde du portfolio: {e}")
-            return jsonify({"error": "Erreur lors de la sauvegarde du portfolio"}), 500
+            return jsonify({"erreur": "Erreur lors de la sauvegarde du portfolio"}), 500
     elif request.method == 'GET':
         try:
             with sqlite3.connect(DATABASE) as conn:
@@ -1279,10 +1254,10 @@ def portfolio():
                 cursor.execute("SELECT * FROM portfolio WHERE user_id = ?", (current_user,))
                 portfolio = cursor.fetchall()
                 if not portfolio:
-                    return jsonify({"name": "default", "stocks": []})
-                return jsonify({"name": "default", "stocks": [{"symbol": row[3], "weight": row[4], "entry_price": row[5]} for row in portfolio]})
+                    return jsonify({"name": "défaut", "stocks": []})
+                return jsonify({"name": "défaut", "stocks": [{"symbol": row[3], "weight": row[4], "entry_price": row[5]} for row in portfolio]})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"erreur": str(e)}), 500
 
 @app.route('/latest_price', methods=['GET'])
 def latest_price():
@@ -1292,12 +1267,12 @@ def latest_price():
         data = ticker.history(period="1d")
         if not data.empty:
             latest_price = data['Close'].iloc[-1]
-            return jsonify({"symbol": symbol, "price": float(latest_price)})
+            return jsonify({"symbol": symbol, "prix": float(latest_price)})
         else:
-            return jsonify({"error": "No data available"}), 404
+            return jsonify({"erreur": "Aucune donnée disponible"}), 404
     except Exception as e:
-        app.logger.error(f"Error fetching latest price for {symbol}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Erreur lors de la récupération du dernier prix pour {symbol}: {str(e)}")
+        return jsonify({"erreur": str(e)}), 500
 
 @app.route('/historical_prices', methods=['GET'])
 def historical_prices():
@@ -1309,8 +1284,8 @@ def historical_prices():
         data = ticker.history(start=start_date, end=end_date)
         return jsonify(data.to_dict(orient='index'))
     except Exception as e:
-        app.logger.error(f"Error fetching historical prices for {symbol}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Erreur lors de la récupération des prix historiques pour {symbol}: {str(e)}")
+        return jsonify({"erreur": str(e)}), 500
 
 @app.route('/news', methods=['GET'])
 def get_news():
@@ -1327,8 +1302,8 @@ def get_news():
             news.extend(ticker_news[:3])  # Limiter à 3 nouvelles par ticker
         return jsonify(news)
     except Exception as e:
-        app.logger.error(f"Error fetching news: {str(e)}")
-        return jsonify({"error": "Service de nouvelles temporairement indisponible"}), 503
+        app.logger.error(f"Erreur lors de la récupération des nouvelles : {str(e)}")
+        return jsonify({"erreur": "Service de nouvelles temporairement indisponible"}), 503
 
 @app.route('/backtest', methods=['POST'])
 @jwt_required()
@@ -1339,7 +1314,7 @@ def backtest():
     end_date = data.get('end_date')
 
     if not portfolio or 'stocks' not in portfolio or not portfolio['stocks']:
-        return jsonify({"error": "Portfolio is empty or invalid"}), 400
+        return jsonify({"erreur": "Le portfolio est vide ou invalide"}), 400
 
     # Télécharger les données historiques
     stocks_data = {}
@@ -1350,7 +1325,7 @@ def backtest():
         ticker = yf.Ticker(symbol)
         hist = ticker.history(start=start_date, end=end_date)
         if hist.empty:
-            return jsonify({"error": f"No historical data available for {symbol}"}), 400
+            return jsonify({"erreur": f"Aucune donnée historique disponible pour {symbol}"}), 400
         stocks_data[symbol] = hist['Close']
         weights[symbol] = weight
 
@@ -1395,45 +1370,45 @@ def chat_history():
             history = get_chat_history(user_id)
             return jsonify(history), 200
         except sqlite3.Error as e:
-            app.logger.error(f"Database error retrieving chat history: {str(e)}")
-            return jsonify({"error": "Failed to retrieve chat history"}), 500
+            app.logger.error(f"Erreur de base de données lors de la récupération de l'historique de chat: {str(e)}")
+            return jsonify({"erreur": "Échec de la récupération de l'historique de chat"}), 500
         except Exception as e:
-            app.logger.error(f"Unexpected error retrieving chat history: {str(e)}")
-            return jsonify({"error": "An unexpected error occurred"}), 500
+            app.logger.error(f"Erreur inattendue lors de la récupération de l'historique de chat: {str(e)}")
+            return jsonify({"erreur": "Une erreur inattendue s'est produite"}), 500
 
     elif request.method == 'POST':
         data = request.json
         if not data or not isinstance(data, dict) or 'role' not in data or 'content' not in data:
-            return jsonify({"error": "Invalid data format. Expected 'role' and 'content'"}), 400
+            return jsonify({"erreur": "Format de données invalide. Attendu 'role' et 'content'"}), 400
         
         try:
             print(data)
             save_chat_message(user_id, data['role'], data['content'])
-            return jsonify({"message": "Chat message saved successfully"}), 200
+            return jsonify({"message": "Message de chat enregistré avec succès"}), 200
         except sqlite3.Error as e:
-            app.logger.error(f"Database error saving chat message: {str(e)}")
-            return jsonify({"error": "Failed to save chat message"}), 500
+            app.logger.error(f"Erreur de base de données lors de l'enregistrement du message de chat: {str(e)}")
+            return jsonify({"erreur": "Échec de l'enregistrement du message de chat"}), 500
         except Exception as e:
-            app.logger.error(f"Unexpected error saving chat message: {str(e)}")
-            return jsonify({"error": "An unexpected error occurred"}), 500
+            app.logger.error(f"Erreur inattendue lors de l'enregistrement du message de chat: {str(e)}")
+            return jsonify({"erreur": "Une erreur inattendue s'est produite"}), 500
 
 @app.route('/compare_portfolios', methods=['POST'])
 @jwt_required()
 def compare_portfolios():
     data = request.json
-    print("Received data in compare_portfolios:", data)
+    print("Données reçues dans compare_portfolios:", data)
     
     portfolio = data['portfolio']
     benchmark = data['benchmark']
     start_date = data.get('start_date')
     end_date = data.get('end_date')
 
-    print("Type of portfolio:", type(portfolio))
-    print("Content of portfolio:", portfolio)
+    print("Type de portfolio:", type(portfolio))
+    print("Contenu du portfolio:", portfolio)
 
     # Vérifier si le portfolio est vide
     if not portfolio:
-        return jsonify({"error": "Portfolio is empty"}), 400
+        return jsonify({"erreur": "Le portfolio est vide"}), 400
 
     # Vérifier et ajuster les dates
     if not start_date:
@@ -1451,7 +1426,7 @@ def compare_portfolios():
     elif isinstance(portfolio, dict) and 'stocks' in portfolio:
         stocks = portfolio['stocks']
     else:
-        return jsonify({"error": "Invalid portfolio structure"}), 400
+        return jsonify({"erreur": "Structure de portfolio invalide"}), 400
 
     for stock in stocks:
         try:
@@ -1462,12 +1437,12 @@ def compare_portfolios():
             portfolio_data[symbol] = hist['Close']
             portfolio_weights[symbol] = weight
         except Exception as e:
-            print(f"Error processing stock {stock}: {str(e)}")
-            return jsonify({"error": f"Error processing stock {stock}: {str(e)}"}), 400
+            print(f"Erreur lors du traitement de l'action {stock}: {str(e)}")
+            return jsonify({"erreur": f"Erreur lors du traitement de l'action {stock}: {str(e)}"}), 400
 
     # Vérifier si des données ont été récupérées
     if not portfolio_data:
-        return jsonify({"error": "No data could be retrieved for the given portfolio"}), 400
+        return jsonify({"erreur": "Aucune donnée n'a pu être récupérée pour le portfolio donné"}), 400
 
     # Calculer les rendements du portefeuille
     portfolio_returns = pd.DataFrame(portfolio_data).pct_change().dropna()
@@ -1529,7 +1504,7 @@ def simulate_scenario():
     }
     
     if scenario not in scenarios:
-        return jsonify({"error": "Invalid scenario"}), 400
+        return jsonify({"erreur": "Scénario invalide"}), 400
     
     scenario_params = scenarios[scenario]
     
@@ -1567,15 +1542,15 @@ def update_portfolio_value():
     new_value = data.get('portfolio_value')
     
     if not new_value:
-        return jsonify({"error": "Portfolio value is required"}), 400
+        return jsonify({"erreur": "La valeur du portfolio est requise"}), 400
     
     try:
         with sqlite3.connect(DATABASE) as conn:
             conn.execute("INSERT OR REPLACE INTO user_settings (user_id, setting_name, setting_value) VALUES (?, 'portfolio_value', ?)",
                          (user_id, str(new_value)))
-        return jsonify({"message": "Portfolio value updated successfully"}), 200
+        return jsonify({"message": "Valeur du portfolio mise à jour avec succès"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"erreur": str(e)}), 500
 
 @app.route('/get_portfolio_value', methods=['GET'])
 @jwt_required()
@@ -1592,38 +1567,8 @@ def get_portfolio_value():
             else:
                 return jsonify({"portfolio_value": 100000}), 200  # Valeur par défaut
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-def inspect_database():
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.cursor()
-        
-        # Vérifier si la table existe
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_settings'")
-        table_exists = cursor.fetchone() is not None
-        
-        if not table_exists:
-            return "La table user_settings n'existe pas."
-        
-        # Obtenir la structure de la table
-        cursor.execute("PRAGMA table_info(user_settings)")
-        structure = cursor.fetchall()
-        
-        # Obtenir tout le contenu de la table
-        cursor.execute("SELECT * FROM user_settings")
-        content = cursor.fetchall()
-        
-        # Obtenir le chemin de la base de données
-        cursor.execute("PRAGMA database_list")
-        db_path = cursor.fetchone()[2]
-        
-        return {
-            "database_path": db_path,
-            "table_structure": structure,
-            "table_content": content
-        }
+        return jsonify({"erreur": str(e)}), 500
 
 if __name__ == '__main__':
     init_db()
-    print(f"Inspection de la base de données: {inspect_database()}")
     app.run(debug=True)

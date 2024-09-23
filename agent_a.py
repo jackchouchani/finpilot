@@ -1,16 +1,8 @@
-# import nltk
-# from nltk.corpus import stopwords
-# from nltk.tokenize import word_tokenize, sent_tokenize
 from pydantic import BaseModel
 from typing import List
 import openai
 import os
 import json
-# from dotenv import load_dotenv
-
-# nltk.download('punkt')
-# nltk.download('stopwords')
-# nltk.download('punkt_tab')
 
 
 openai.api_key = os.getenv('OPENAI_API_KEY') 
@@ -42,7 +34,7 @@ class AgentAnalyseDocument:
             completion = self.client.chat.completions.create(
                 model="gpt-4o-2024-08-06",
                 messages=[
-                    {"role": "system", "content": "Analysez le texte suivant et extrayez les informations clés en français."},
+                    {"role": "system", "content": "Vous êtes un expert en analyse de documents. Votre tâche est d'extraire les informations clés du texte fourni en français. Veuillez fournir : 1) Une liste de mots-clés pertinents, 2) Une liste de phrases clés qui capturent les idées principales, et 3) Un résumé concis mais complet du document."},
                     {"role": "user", "content": texte}
                 ],
                 response_format={"type": "json_object"},
@@ -61,7 +53,7 @@ class AgentAnalyseDocument:
             completion = self.client.chat.completions.create(
                 model="gpt-4o-2024-08-06",
                 messages=[
-                    {"role": "system", "content": "Vous êtes un analyste financier. Extrayez les informations financières clés du rapport donné en français."},
+                    {"role": "system", "content": "En tant qu'analyste financier expert, votre tâche est d'extraire et d'analyser les informations financières clés du rapport fourni en français. Veuillez fournir : 1) Un résumé concis des points financiers principaux, 2) Les métriques clés suivantes : chiffre d'affaires, bénéfice net, EBITDA, et une liste des risques financiers potentiels identifiés. Assurez-vous que votre analyse est précise et pertinente pour une prise de décision financière."},
                     {"role": "user", "content": texte}
                 ],
                 response_format={"type": "json_object"},

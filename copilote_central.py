@@ -932,6 +932,13 @@ def chat():
             
             function_info = get_function_info(function_name)
             structured_args = structure_data(function_args)
+            if function_name in ['optimize_portfolio', 'manage_risks', 'check_compliance', 'get_investment_recommendation']:
+                portfolio = get_portfolio(user_id)
+                if portfolio:
+                    function_args['portfolio'] = portfolio
+                else:
+                    return jsonify({"reply": "Désolé, je n'ai pas pu accéder à votre portefeuille. Veuillez vérifier que vous en avez bien un.", "conversation_id": conversation_id})
+
             function_response = execute_function(function_name, structured_args, user_message)
             
             print(f"Réponse de la fonction : {function_response}")

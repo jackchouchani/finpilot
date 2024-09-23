@@ -286,7 +286,7 @@ function App() {
                     const parsedInput = JSON.parse(input);
                     data = { portfolio_data: parsedInput };
                 } catch (error) {
-                    // Si le parsing ��choue, supposons que c'est une chaîne de caractères représentant un portefeuille
+                    // Si le parsing échoue, supposons que c'est une chaîne de caractères représentant un portefeuille
                     console.warn("Input is not valid JSON, treating it as a string representation of portfolio");
                     // Vous pouvez implémenter ici une logique pour convertir la chaîne en objet de portfolio
                     // Par exemple, si la chaîne est au format "AAPL:30%,GOOGL:40%,MSFT:30%"

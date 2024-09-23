@@ -15,7 +15,7 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
                 <List>
-                    {messages.slice().reverse().map((message, index) => (
+                    {messages.map((message, index) => (
                         <ListItem key={index} alignItems="flex-start">
                             <ListItemText
                                 primary={message.role === 'user' ? 'Vous' : 'IA'}

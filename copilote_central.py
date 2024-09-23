@@ -477,7 +477,7 @@ def execute_function(function_name, arguments, user_message):
                     "message": "Informations sur le portefeuille manquantes. Veuillez fournir les détails du portefeuille."
                 }
         elif function_name == "analyze_documents":
-            return document_agent.analyze(arguments.get("text", ""))
+            return document_agent.analyser(arguments.get("text", ""))
         elif function_name == "analyze_sentiment":
             return sentiment_agent.analyze(arguments.get("company", ""))
         elif function_name == "model_financials":

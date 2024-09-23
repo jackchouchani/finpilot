@@ -510,8 +510,9 @@ def execute_function(function_name, arguments, user_message):
             return historical_data_agent.analyze_previous_day(arguments.get("ticker"))
         elif function_name == "analyze_user_profile":
             return user_profile_agent.analyze_user_profile(
-                arguments.get("user_interactions"),
-                arguments.get("portfolio_history")
+                arguments.get("user_id"),
+                arguments.get("portfolio"),
+                arguments.get("chat_history")
             )
         else:
             return {"erreur": f"Fonction {function_name} introuvable"}
@@ -1025,7 +1026,7 @@ def call_agent(agent_name):
             result = historical_data_agent.analyze_previous_day(data['ticker'])
         elif agent_name == "user_profile_analysis":
             chat_history = get_chat_history(user_id)
-            result = user_profile_agent.analyze_user_profile(portfolio, chat_history)
+            result = user_profile_agent.analyze_user_profile(user_id, portfolio, chat_history)
         else:
             return jsonify({"erreur": "Agent non trouvé"}), 404
         

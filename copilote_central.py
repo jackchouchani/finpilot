@@ -629,7 +629,7 @@ class Agents:
     @staticmethod
     def analyze_documents(data):
         text = data.get('text', '')
-        return document_agent.analyze(text)
+        return document_agent.analyser(text)
 
     @staticmethod
     def analyze_sentiment(data):
@@ -997,7 +997,7 @@ def call_agent(agent_name):
     portfolio = get_portfolio(user_id)
     try:
         if agent_name == "document":
-            result = document_agent.analyze(data['text'])
+            result = document_agent.analyser(data['text'])
         elif agent_name == "sentiment":
             result = sentiment_agent.analyze(data['company'])
         elif agent_name == "financial_modeling":

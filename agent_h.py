@@ -21,7 +21,7 @@ class MarketSentimentAgent:
             {"role": "system", "content": "1) Une évaluation du sentiment global (positif, négatif, ou neutre) avec une explication concise.\n2) Les principaux facteurs influençant ce sentiment.\n3) Les implications potentielles à court terme pour le cours de l'action.\n4) Tout risque ou opportunité notable identifié dans les nouvelles.\n\nAssurez-vous que votre analyse est objective, basée sur les faits présentés, et utile pour la prise de décision d'investissement."},
             {"role": "user", "content": f"Analysez le sentiment pour l'action {ticker} basé sur ces nouvelles récentes :\n\n{combined_text}"}
             ],
-            temperature=0.7,
+            temperature=0.5,
             max_tokens=800
         )
 

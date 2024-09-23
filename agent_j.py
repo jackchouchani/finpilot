@@ -34,12 +34,12 @@ class HistoricalDataAnalysisAgent:
 
             # Utilisation de ChatGPT pour l'analyse
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-2024-08-06",
                 messages=[
                     {"role": "system", "content": "Vous êtes un analyste financier. Analysez les données boursières suivantes et fournissez des insights."},
                     {"role": "user", "content": f"Analysez les données suivantes pour {ticker} du {start_date} au {end_date}:\n{data}"}
                 ],
-                temperature=0.7,
+                temperature=0.5,
                 max_tokens=800
             )
 

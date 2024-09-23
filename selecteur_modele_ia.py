@@ -13,4 +13,4 @@ class SelecteurModeleIA:
         elif complexite_tache == "complexe":
             return self.client_anthropic, "claude-3-5-sonnet"
         else:
-            return self.client_openai, "gpt-4o"
+            return self.client_openai, "gpt-4o-2024-08-06"

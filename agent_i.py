@@ -29,7 +29,7 @@ class InvestmentRecommendationAgent:
                 {"role": "system", "content": "Dans votre analyse, veuillez inclure :\n1) Une évaluation de la diversification actuelle du portefeuille.\n2) Des recommandations spécifiques pour optimiser le portefeuille en fonction du profil de risque.\n3) Des suggestions d'actions à acheter, vendre ou conserver, avec des justifications.\n4) Une analyse des secteurs sous-représentés ou surreprésentés.\n5) Des considérations sur l'équilibre entre croissance et valeur.\n6) Des recommandations sur la répartition géographique si pertinent.\n\nAssurez-vous que vos recommandations sont cohérentes avec le profil de risque fourni et basées sur les données financières actuelles."},
                 {"role": "user", "content": f"Voici le portefeuille actuel :\n{portfolio_str}\n\nLe profil de risque de l'investisseur est : {risk_profile}\n\nVeuillez fournir des recommandations d'investissement détaillées."}
             ],
-            temperature=0.7,
+            temperature=0.5,
             max_tokens=1500
         )
 

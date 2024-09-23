@@ -38,7 +38,7 @@ class AgentAnalyseDocument:
                     {"role": "user", "content": texte}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.7,
+                temperature=0.5,
                 max_tokens=1000
             )
             
@@ -57,7 +57,7 @@ class AgentAnalyseDocument:
                     {"role": "user", "content": texte}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.7,
+                temperature=0.5,
                 max_tokens=1000
             )
             

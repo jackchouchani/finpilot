@@ -303,7 +303,7 @@ functions = [
 assistant = openai_client.beta.assistants.create(
     name="Finance Copilot",
     instructions="Vous êtes un assistant financier. Utilisez les fonctions fournies pour analyser des documents, évaluer le sentiment, effectuer des modélisations financières, optimiser des portefeuilles, gérer les risques, générer des rapports et vérifier la conformité.",
-    model="gpt-4o",
+    model="gpt-4o-2024-08-06",
     tools=functions
 )
 
@@ -662,7 +662,7 @@ class Agents:
 def structure_data(data):
     client = openai_client
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-2024-08-06",
         messages=[
             {"role": "system", "content": "Vous êtes un assistant chargé de structurer des données financières."},
             {"role": "user", "content": f"Veuillez structurer les données suivantes en JSON : {data}"}
@@ -674,7 +674,7 @@ def structure_data(data):
 def generate_verbose_response(result, function_name):
     client = openai_client
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-2024-08-06",
         messages=[
             {"role": "system", "content": "Vous êtes un assistant financier expert. Expliquez les résultats de manière détaillée et compréhensible."},
             {"role": "user", "content": f"Voici les résultats de la fonction {function_name}: {result}. Veuillez les expliquer de manière détaillée."}
@@ -891,7 +891,7 @@ def chat():
         ]
 
         client = anthropic_client if use_claude else openai_client
-        model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-mini"
+        model = "claude-3-5-sonnet-20240620" if use_claude else "gpt-4o-2024-08-06"
         tools = claude_tools if use_claude else functions
 
         print(f"Modèle utilisé : {model}")

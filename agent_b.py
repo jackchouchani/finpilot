@@ -18,7 +18,7 @@ class SentimentAnalysisAgent:
         response = requests.get(url, params=params)
         print(f"Statut de la réponse: {response.status_code}")
         if response.status_code == 200:
-            print(f"Nombre d'articles reçus: {len(articles)}")
+            print(f"Nombre d'articles reçus: {response.json()['articles']}")
             return response.json()['articles']
         else:
             return []

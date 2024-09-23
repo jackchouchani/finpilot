@@ -61,127 +61,11 @@ api.interceptors.request.use(
     }
 );
 
-function a11yProps(index) {
-    return {
-        id: `scrollable-auto-tab-${index}`,
-        'aria-controls': `scrollable-auto-tabpanel-${index}`,
-    };
-}
-
 const drawerWidth = 240;
-
-const Root = styled('div')(({ theme }) => ({
-    display: 'flex',
-}));
-
-const AppBarStyled = styled(AppBar, {
-    shouldForwardProp: (prop) => prop !== 'open',
-})(({ theme, open }) => ({
-    zIndex: theme.zIndex.drawer + 1,
-    transition: theme.transitions.create(['width', 'margin'], {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.leavingScreen,
-    }),
-    ...(open && {
-        marginLeft: drawerWidth,
-        width: `calc(100% - ${drawerWidth}px)`,
-        transition: theme.transitions.create(['width', 'margin'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-        }),
-    }),
-}));
-
-const DrawerStyled = styled(Drawer, { shouldForwardProp: (prop) => prop !== 'open' })(
-    ({ theme, open }) => ({
-        '& .MuiDrawer-paper': {
-            position: 'relative',
-            whiteSpace: 'nowrap',
-            width: drawerWidth,
-            transition: theme.transitions.create('width', {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.enteringScreen,
-            }),
-            boxSizing: 'border-box',
-            ...(!open && {
-                overflowX: 'hidden',
-                transition: theme.transitions.create('width', {
-                    easing: theme.transitions.easing.sharp,
-                    duration: theme.transitions.duration.leavingScreen,
-                }),
-                width: theme.spacing(7),
-                [theme.breakpoints.up('sm')]: {
-                    width: theme.spacing(9),
-                },
-            }),
-        },
-    }),
-);
-
-const SearchIconWrapper = styled('div')(({ theme }) => ({
-    padding: theme.spacing(0, 2),
-    height: '100%',
-    position: 'absolute',
-    pointerEvents: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-}));
-
-const Search = styled('div')(({ theme }) => ({
-    position: 'relative',
-    borderRadius: theme.shape.borderRadius,
-    backgroundColor: alpha(theme.palette.common.white, 0.15),
-    '&:hover': {
-        backgroundColor: alpha(theme.palette.common.white, 0.25),
-    },
-    marginRight: theme.spacing(2),
-    marginLeft: 0,
-    width: '100%',
-    [theme.breakpoints.up('sm')]: {
-        marginLeft: theme.spacing(3),
-        width: 'auto',
-    },
-}));
-
-const StyledInputBase = styled(InputBase)(({ theme }) => ({
-    color: 'inherit',
-    '& .MuiInputBase-input': {
-        padding: theme.spacing(1, 1, 1, 0),
-        paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-        transition: theme.transitions.create('width'),
-        width: '100%',
-        [theme.breakpoints.up('md')]: {
-            width: '20ch',
-        },
-    },
-}));
-
-const MainContent = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
-    ({ theme, open }) => ({
-        flexGrow: 1,
-        padding: theme.spacing(3),
-        transition: theme.transitions.create('margin', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
-        }),
-        marginLeft: `-${drawerWidth}px`,
-        ...(open && {
-            transition: theme.transitions.create('margin', {
-                easing: theme.transitions.easing.easeOut,
-                duration: theme.transitions.duration.enteringScreen,
-            }),
-            marginLeft: 0,
-        }),
-    }),
-);
-
 
 function App() {
     const [darkMode, setDarkMode] = useState(false);
     const [open, setOpen] = useState(true);
-    const [anchorEl, setAnchorEl] = useState(null);
-    const [drawerOpen, setDrawerOpen] = useState(false);
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [activeTab, setActiveTab] = useState(0);
@@ -205,22 +89,6 @@ function App() {
     const [settings, setSettings] = useState({
         risk_tolerance: 'moderate',
     });
-
-    const handleDrawerOpen = () => {
-        setOpen(true);
-    };
-
-    const handleDrawerClose = () => {
-        setOpen(false);
-    };
-
-    const handleMenu = (event) => {
-        setAnchorEl(event.currentTarget);
-    };
-
-    const handleClose = () => {
-        setAnchorEl(null);
-    };
 
     const toggleDarkMode = () => {
         setDarkMode(!darkMode);
@@ -320,7 +188,7 @@ function App() {
 
         setLoading(true);
         const newMessage = { role: 'user', content: input };
-        setMessages(prevMessages => [newMessage, ...prevMessages]);
+        setMessages(prevMessages => [...prevMessages, newMessage]);
         setInput('');
 
         try {
@@ -335,13 +203,13 @@ function App() {
 
             if (response.data && response.data.reply) {
                 setConversationId(response.data.conversation_id);
-                setMessages(prevMessages => [{ role: 'assistant', content: response.data.reply }, ...prevMessages]);
+                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);
             } else {
                 throw new Error('Réponse invalide du serveur');
             }
         } catch (error) {
             console.error('Error sending message:', error);
-            setMessages(prevMessages => [{ role: 'assistant', content: 'Désolé, une erreur est survenue. Veuillez réessayer.' }, ...prevMessages]);
+            setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: 'Désolé, une erreur est survenue. Veuillez réessayer.' }]);
         } finally {
             setLoading(false);
         }
@@ -480,7 +348,7 @@ function App() {
             if (response.data.graphs) {
                 newMessage.graphs = response.data.graphs;
             }
-            setMessages(prevMessages => [newMessage, ...prevMessages]);
+            setMessages(prevMessages => [...prevMessages, newMessage]);
 
             // Sauvegardez le message de l'agent dans la base de données
             try {
@@ -494,7 +362,7 @@ function App() {
                 role: 'assistant',
                 content: `Error: ${error.response?.data?.error || error.message}`
             };
-            setMessages(prevMessages => [errorMessage, ...prevMessages]);
+            setMessages(prevMessages => [...prevMessages, errorMessage]);
 
             // Sauvegarder le message d'erreur dans l'historique du chat
             try {

@@ -6,8 +6,16 @@ class SentimentAnalysisAgent:
         self.news_api_key = "c6cc145ad227419c88756838786b70d1"  # Remplacez par votre clé API
 
     def get_news(self, query):
-        url = f"https://newsapi.org/v2/everything?q={query}&apiKey={self.news_api_key}"
-        response = requests.get(url)
+        url = f"https://newsapi.org/v2/everything"
+        params = {
+            "q": f'"{query}" AND (stock OR market OR finance OR investor)',
+            "language": "fr,en",
+            "sortBy": "relevancy",
+            "pageSize": 20,
+            "domains": "reuters.com,bloomberg.com,ft.com,lesechos.fr,boursorama.com",
+            "apiKey": self.news_api_key
+        }
+        response = requests.get(url, params=params)
         if response.status_code == 200:
             return response.json()['articles']
         else:
@@ -19,7 +27,7 @@ class SentimentAnalysisAgent:
 
     def analyze(self, company):
         news = self.get_news(company)
-        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article['description']) for article in news[:5]]
+        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article['description']) for article in news[:10]
         average_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
         
         if average_sentiment > 0.1:

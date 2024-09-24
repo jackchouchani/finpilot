@@ -18,7 +18,7 @@ from tqdm import tqdm
 from sklearn.decomposition import PCA
 import scipy.stats as stats
 from multiprocessing import Pool
-from functools import lru_cache
+from functools import lru_cache, wraps
 import asyncio
 import aiohttp
 from fredapi import Fred
@@ -39,27 +39,44 @@ anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 fred_api_key = os.environ.get('FRED_API_KEY')  # Stockez votre clé API dans une variable d'environnement
 fred = Fred(api_key=fred_api_key)
 
+def timing_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"{func.__name__} a pris {execution_time:.2f} secondes")
+        return result
+    return wrapper
+
+@timing_decorator
 @lru_cache(maxsize=None)
 def get_stock_info(symbol):
     ticker = yf.Ticker(symbol)
-    return ticker.info
+    return ticker
 
+@timing_decorator
 def get_bulk_stock_data(symbols, start_date, end_date):
     data = yf.download(symbols, start=start_date, end=end_date)
     return {symbol: data['Close'][symbol] for symbol in symbols}
 
+@timing_decorator
 async def fetch_stock_data(session, url):
     async with session.get(url) as response:
         return await response.json()
 
+@timing_decorator
 async def get_multiple_stock_data(urls):
     async with aiohttp.ClientSession() as session:
         tasks = [fetch_stock_data(session, url) for url in urls]
         return await asyncio.gather(*tasks)
 
+@timing_decorator
 def process_section(section_func, *args):
     return section_func(*args)
 
+@timing_decorator
 def get_fred_data(series_id, start_date, end_date):
     """
     Récupère les données de FRED pour une série spécifique.
@@ -76,6 +93,7 @@ def get_fred_data(series_id, start_date, end_date):
     return pd.DataFrame(data, columns=[series_id])
 
 
+@timing_decorator
 def generate_ai_content(prompt):
     try:
         message = anthropic_client.messages.create(
@@ -90,6 +108,7 @@ def generate_ai_content(prompt):
         print(f"Erreur lors de la récupération de la réponse AI: {e}")
         return ""
 
+@timing_decorator
 def create_formatted_paragraph(text, style_name='Normal'):
     """
     Crée un paragraphe formaté avec des retours à la ligne et des puces.
@@ -140,6 +159,7 @@ def create_formatted_paragraph(text, style_name='Normal'):
     formatted_text = '<br/>'.join(formatted_lines)
     return Paragraph(formatted_text, custom_style)
 
+@timing_decorator
 def clean_text(text):
     if not isinstance(text, str):
         text = str(text)
@@ -152,6 +172,7 @@ def clean_text(text):
     # Rejoindre les paragraphes avec des retours à la ligne doubles
     return '\n\n'.join(wrapped_paragraphs)
 
+@timing_decorator
 def calculate_portfolio_performance(portfolio, start_date, end_date):
     """
     Calcule la performance du portefeuille sur une période donnée.
@@ -176,7 +197,29 @@ def calculate_portfolio_performance(portfolio, start_date, end_date):
     
     return portfolio_data, returns, weights
 
+@timing_decorator
+def calculate_portfolio_returns(portfolio_data, weights):
+    """
+    Calcule les rendements pondérés du portefeuille.
 
+    Parameters:
+    portfolio_data (dict): Données de clôture des actions.
+    weights (ndarray): Poids des actions dans le portefeuille.
+
+    Returns:
+    tuple: (weighted_returns, total_return, annualized_return)
+        - weighted_returns (Series): Rendements pondérés quotidiens du portefeuille.
+        - total_return (float): Rendement total du portefeuille.
+        - annualized_return (float): Rendement annualisé du portefeuille.
+    """
+    df = pd.DataFrame(portfolio_data)
+    returns = df.pct_change().dropna()
+    weighted_returns = (returns * weights).sum(axis=1)
+    total_return = (1 + weighted_returns).prod() - 1
+    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
+    return weighted_returns, total_return, annualized_return
+
+@timing_decorator
 def generate_report(data):
     """
     Génère un rapport de performance du portefeuille.
@@ -187,6 +230,8 @@ def generate_report(data):
     Returns:
     dict: Un dictionnaire contenant le rapport encodé en base64.
     """
+    start_time = time.time()
+    
     portfolio = data['portfolio']
     start_date = data.get('start_date', (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d'))
     end_date = data.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -202,15 +247,15 @@ def generate_report(data):
     doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 
                             rightMargin=0.5*inch, leftMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
-    
+
     portfolio_data, returns, weights = calculate_portfolio_performance(portfolio, start_date, end_date)
     weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
 
     sections_to_parallelize = [
-        (generate_performance_analysis, portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
-        (generate_correlation_heatmap, portfolio_data),
-        (generate_monte_carlo_simulation, portfolio, portfolio_data, returns, weights, weighted_returns),
-        (generate_future_outlook, portfolio, portfolio_data, returns, weights),
+        (timing_decorator(generate_performance_analysis), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
+        (timing_decorator(generate_correlation_heatmap), portfolio_data),
+        (timing_decorator(generate_monte_carlo_simulation), portfolio, portfolio_data, returns, weights, weighted_returns),
+        (timing_decorator(generate_future_outlook), portfolio, portfolio_data, returns, weights),
     ]
 
     with Pool() as pool:
@@ -233,23 +278,33 @@ def generate_report(data):
     # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
-    elements.extend(generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return))
-    elements.extend(generate_portfolio_overview(portfolio, portfolio_data, returns, weights))
+    timed_functions = [
+        (timing_decorator(generate_executive_summary), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return),
+        (timing_decorator(generate_portfolio_overview), portfolio, portfolio_data, returns, weights),
+    ]
+
+    for func, *args in timed_functions:
+        elements.extend(func(*args))
 
     # Ajoutez les résultats parallélisés
     for result in parallel_results:
         elements.extend(result)
 
     # Ajoutez les sections restantes non parallélisées
-    elements.extend(generate_stock_performance_comparison(portfolio_data, weights))
-    elements.extend(generate_contribution_to_return(portfolio, portfolio_data, returns, weights))
-    elements.extend(generate_additional_ratios_table(portfolio, portfolio_data, returns, weights, start_date, end_date))
-    elements.extend(generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted_returns))
-    elements.extend(generate_best_worst_performers(portfolio, portfolio_data, returns, weights))
-    elements.extend(generate_dividend_table(portfolio))
-    elements.extend(generate_sector_allocation(portfolio, portfolio_data, returns, weights))
-    elements.extend(generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_returns))
-    elements.extend(generate_recommendations(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return))
+    timed_functions = [
+        (timing_decorator(generate_stock_performance_comparison), portfolio_data, weights),
+        (timing_decorator(generate_contribution_to_return), portfolio, portfolio_data, returns, weights),
+        (timing_decorator(generate_additional_ratios_table), portfolio, portfolio_data, returns, weights, start_date, end_date),
+        (timing_decorator(generate_risk_analysis), portfolio, portfolio_data, returns, weights, weighted_returns),
+        (timing_decorator(generate_best_worst_performers), portfolio, portfolio_data, returns, weights),
+        (timing_decorator(generate_dividend_table), portfolio),
+        (timing_decorator(generate_sector_allocation), portfolio, portfolio_data, returns, weights),
+        (timing_decorator(generate_stress_tests), portfolio, portfolio_data, returns, weights, weighted_returns),
+        (timing_decorator(generate_recommendations), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return),
+    ]
+
+    for func, *args in timed_functions:
+        elements.extend(func(*args))
         
     # Glossaire et avertissements
     elements.append(create_section_header("Glossaire"))
@@ -266,8 +321,13 @@ def generate_report(data):
     # Encodage du PDF en base64
     pdf_base64 = base64.b64encode(pdf).decode('utf-8')
 
+    end_time = time.time()
+    total_execution_time = end_time - start_time
+    print(f"Temps total d'exécution: {total_execution_time:.2f} secondes")
+
     return {"report": pdf_base64}
 
+@timing_decorator
 def create_title_page(title, subtitle, date):
     """
     Crée une page de titre pour le rapport.
@@ -304,27 +364,6 @@ def create_title_page(title, subtitle, date):
     
     elements.append(PageBreak())
     return elements
-
-def calculate_portfolio_returns(portfolio_data, weights):
-    """
-    Calcule les rendements pondérés du portefeuille.
-
-    Parameters:
-    portfolio_data (dict): Données de clôture des actions.
-    weights (ndarray): Poids des actions dans le portefeuille.
-
-    Returns:
-    tuple: (weighted_returns, total_return, annualized_return)
-        - weighted_returns (Series): Rendements pondérés quotidiens du portefeuille.
-        - total_return (float): Rendement total du portefeuille.
-        - annualized_return (float): Rendement annualisé du portefeuille.
-    """
-    df = pd.DataFrame(portfolio_data)
-    returns = df.pct_change().dropna()
-    weighted_returns = (returns * weights).sum(axis=1)
-    total_return = (1 + weighted_returns).prod() - 1
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
-    return weighted_returns, total_return, annualized_return
 
 def generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return):
     """

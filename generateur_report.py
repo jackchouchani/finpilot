@@ -506,7 +506,7 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     fig = go.Figure([go.Bar(
         x=[s[0] for s in stock_performance],
         y=[s[1] for s in stock_performance],
-        text=[f"{s[1]:.2f}%" for s in stock_performance],
+        text=[f"{s[1]:.2%}%" for s in stock_performance],
         textposition='auto',
     )])
     fig.update_layout(title="Comparaison de Performance des Actions",

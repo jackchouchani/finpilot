@@ -36,6 +36,5 @@ scikit-learn
 groq
 deepl
 pandas_datareader
-functools
 aiohttp
 asyncio

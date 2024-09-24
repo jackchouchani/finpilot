@@ -1,4 +1,15 @@
-# Dépendances existantes
+# Forcer l'installation de scikit-learn via un wheel précompilé si disponible
+scikit-learn
+
+# Ou, si vous voulez une version plus récente qui pourrait être compatible avec Python 3.12
+# en supposant qu'elle existe et fonctionne bien:
+# scikit-learn==1.3.0 --only-binary :all:
+
+# Assurez-vous que Cython est à jour, mais cela n'est généralement pas nécessaire dans requirements.txt
+# si vous avez déjà une version compatible installée localement
+Cython
+
+# Les autres dépendances restent inchangées
 Flask
 Flask-Cors
 Flask-JWT-Extended
@@ -11,7 +22,7 @@ scipy
 reportlab
 PyPDF2
 plotly
-nltk
+textblob
 bcrypt
 requests
 matplotlib
@@ -21,20 +32,6 @@ pydantic
 typing
 kaleido
 tqdm
+scikit-learn
 groq
 deepl
-
-# Forcer l'installation de scikit-learn via un wheel précompilé si disponible
-scikit-learn
-
-# Nouvelles dépendances pour l'analyse de sentiment avancée
-transformers
-torch
-spacy
-yake
-
-# Assurez-vous que Cython est à jour
-Cython
-
-# Spécifiez la version du modèle spaCy à utiliser
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0-py3-none-any.whl

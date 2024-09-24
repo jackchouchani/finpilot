@@ -8,20 +8,28 @@ class SentimentAnalysisAgent:
         self.news_api_key = "c6cc145ad227419c88756838786b70d1"
 
     def get_news(self, query):
+        today = datetime.date.today()
+        yesterday = today - datetime.timedelta(days=1)
         url = "https://newsapi.org/v2/everything"
         params = {
             "q": query,
-            "sortBy": "relevancy",
+            "from": yesterday.isoformat(),
+            "to": yesterday.isoformat(),
+            "sortBy": "popularity",
             "language": "en",
-            "pageSize": 50,
+            "pageSize": 100,
             "apiKey": self.news_api_key
         }
         response = requests.get(url, params=params)
+        print(f"Statut de la réponse: {response.status_code}")
         if response.status_code == 200:
-            return response.json().get('articles', [])
+            articles = response.json().get('articles', [])
+            print(f"Nombre d'articles reçus: {len(articles)}")
+            return articles
         else:
             print(f"Erreur lors de la requête: {response.text}")
             return []
+
 
     def analyze_sentiment(self, text):
         return TextBlob(text).sentiment.polarity
@@ -84,8 +92,8 @@ Analyse de sentiment pour {company}
    c) Implications: {'Une perception positive pourrait indiquer des opportunités de croissance ou des développements favorables.' if avg_sentiment > 0 else 'Une perception négative pourrait signaler des défis ou des controverses à surveiller.' if avg_sentiment < 0 else 'Une perception neutre suggère un équilibre entre les aspects positifs et négatifs.'}
 
 6. Recommandations:
-   - {'Capitaliser sur le sentiment positif pour renforcer la position de l\'entreprise.' if avg_sentiment > 0 else 'Adresser les préoccupations soulevées pour améliorer la perception de l\'entreprise.' if avg_sentiment < 0 else 'Surveiller de près les développements futurs pour détecter tout changement de perception.'}
-   - Approfondir l'analyse des thèmes liés à {', '.join([word for word, _ in keywords.most_common(2)])} pour mieux comprendre leur impact sur la perception de {company}.
+   - {"Capitaliser sur le sentiment positif pour renforcer la position de l'entreprise." if avg_sentiment > 0 else "Adresser les préoccupations soulevées pour améliorer la perception de l'entreprise." if avg_sentiment < 0 else "Surveiller de près les développements futurs pour détecter tout changement de perception."}
+   - Approfondir l'analyse des thèmes liés à {", ".join([word for word, _ in keywords.most_common(2)])} pour mieux comprendre leur impact sur la perception de {company}.
    - Continuer à suivre l'évolution du sentiment dans le temps pour identifier les tendances à long terme.
 
 Cette analyse offre un aperçu de la perception actuelle de {company} basée sur les articles récents.

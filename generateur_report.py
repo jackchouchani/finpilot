@@ -571,7 +571,7 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     
     explanation = generate_ai_content(f"""
     Analysez la contribution de chaque action au rendement total du portefeuille en vous basant sur les données suivantes:
-    {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in contributions])}
+    {', '.join([f"{s[0]}: {s[1]:.2%}%" for s in contributions])}
     Identifiez les actions qui ont le plus contribué positivement et négativement, et expliquez l'impact de la pondération sur ces contributions.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))

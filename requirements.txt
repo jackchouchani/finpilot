@@ -38,3 +38,4 @@ deepl
 aiohttp
 asyncio
 fredapi
+dill

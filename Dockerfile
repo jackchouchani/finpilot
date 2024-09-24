@@ -1,7 +1,11 @@
-FROM python:3.12.5-slim
+# Utiliser une version plus ancienne de Python qui pourrait être plus stable avec ces bibliothèques
+FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    # Ajouter ces variables d'environnement pour la compilation
+    CFLAGS="-fno-tree-vectorize" \
+    CXXFLAGS="-fno-tree-vectorize"
 
 WORKDIR /app
 
@@ -13,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     fuse3 \
     sqlite3 \
+    # Ajouter cmake qui est parfois nécessaire pour certaines bibliothèques
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the LiteFS binary
@@ -24,7 +30,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Installer Cython en premier
+RUN pip install --no-cache-dir cython
+# Installer les dépendances en utilisant --prefer-binary
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy application code
 COPY . .

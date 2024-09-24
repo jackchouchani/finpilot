@@ -1,21 +1,17 @@
 import requests
 import datetime
-import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
 from collections import Counter
 import numpy as np
-
-nltk.download('vader_lexicon', quiet=True)
-nltk.download('punkt', quiet=True)
-nltk.download('stopwords', quiet=True)
+from transformers import pipeline
+import spacy
+import yake
 
 class SentimentAnalysisAgent:
     def __init__(self):
         self.news_api_key = "c6cc145ad227419c88756838786b70d1"
-        self.sia = SentimentIntensityAnalyzer()
-        self.stop_words = set(stopwords.words('english'))
+        self.sentiment_analyzer = pipeline("sentiment-analysis")
+        self.nlp = spacy.load("en_core_web_sm")
+        self.keyword_extractor = yake.KeywordExtractor(lan="en", n=2, dedupLim=0.9, top=20, features=None)
 
     def get_news(self, query):
         today = datetime.date.today()
@@ -41,9 +37,11 @@ class SentimentAnalysisAgent:
             return []
 
     def analyze_sentiment(self, text):
-        if not text:
-            return 0
-        return self.sia.polarity_scores(text)['compound']
+        result = self.sentiment_analyzer(text[:512])[0]
+        score = result['score']
+        if result['label'] == 'NEGATIVE':
+            score = -score
+        return score
 
     def get_article_text(self, article):
         title = article.get('title', '')
@@ -52,9 +50,12 @@ class SentimentAnalysisAgent:
         return ' '.join(filter(None, [title, description, content]))
 
     def extract_keywords(self, text):
-        words = word_tokenize(text.lower())
-        words = [word for word in words if word.isalnum() and word not in self.stop_words]
-        return Counter(words).most_common(5)
+        keywords = self.keyword_extractor.extract_keywords(text)
+        return [kw for kw, _ in keywords]
+
+    def extract_named_entities(self, text):
+        doc = self.nlp(text)
+        return [ent.text for ent in doc.ents if ent.label_ in ['ORG', 'PERSON', 'PRODUCT']]
 
     def analyze(self, company):
         news = self.get_news(company)
@@ -63,6 +64,7 @@ class SentimentAnalysisAgent:
 
         sentiments = []
         keywords = Counter()
+        named_entities = Counter()
         unique_articles = set()
 
         for article in news:
@@ -71,7 +73,8 @@ class SentimentAnalysisAgent:
                 unique_articles.add(text)
                 sentiment = self.analyze_sentiment(text)
                 sentiments.append(sentiment)
-                keywords.update(dict(self.extract_keywords(text)))
+                keywords.update(self.extract_keywords(text))
+                named_entities.update(self.extract_named_entities(text))
 
         if not sentiments:
             return "Analyse impossible : aucun texte valide trouvé dans les articles."
@@ -79,25 +82,28 @@ class SentimentAnalysisAgent:
         average_sentiment = np.mean(sentiments)
         sentiment_std = np.std(sentiments)
 
-        if average_sentiment > 0.05:
+        if average_sentiment > 0.1:
             sentiment_category = "Positif"
-        elif average_sentiment < -0.05:
+        elif average_sentiment < -0.1:
             sentiment_category = "Négatif"
         else:
             sentiment_category = "Neutre"
 
         rapport = f"""
-Analyse de sentiment pour {company}
+Analyse de sentiment approfondie pour {company}
 Nombre d'articles uniques analysés: {len(sentiments)}
 Sentiment moyen: {average_sentiment:.2f} (sur une échelle de -1 à 1)
 Écart type du sentiment: {sentiment_std:.2f}
 Catégorie de sentiment: {sentiment_category}
 
 Interprétation:
-{self.get_interpretation(average_sentiment, sentiment_std)}
+{self.get_interpretation(average_sentiment, sentiment_std, company)}
 
-Mots-clés les plus fréquents:
-{', '.join([f"{word} ({count})" for word, count in keywords.most_common(10)])}
+Mots-clés les plus pertinents:
+{', '.join(keywords.keys())[:150]}
+
+Entités nommées fréquemment mentionnées:
+{', '.join([f"{entity} ({count})" for entity, count in named_entities.most_common(5)])}
 
 Articles récents analysés:
 """
@@ -109,34 +115,52 @@ Articles récents analysés:
             rapport += f"{i}. {title}\n Sentiment: {sentiment:.2f}\n Source: {article.get('source', {}).get('name', 'Non spécifiée')}\n\n"
 
         rapport += f"""
-Conclusion:
-Cette analyse offre un aperçu de la perception actuelle de {company} basée sur {len(sentiments)} articles uniques.
-Le sentiment général est {sentiment_category.lower()} avec une moyenne de {average_sentiment:.2f}.
-L'écart type de {sentiment_std:.2f} indique {'une grande variabilité' if sentiment_std > 0.3 else 'une relative cohérence'} dans les opinions.
-Les mots-clés fréquents suggèrent que les discussions autour de {company} se concentrent sur {', '.join([word for word, _ in keywords.most_common(3)])}.
-Les investisseurs devraient compléter cette analyse avec des recherches supplémentaires et une compréhension approfondie du secteur.
+Analyse approfondie:
+1. Tendance générale: Le sentiment global est {sentiment_category.lower()}, avec une moyenne de {average_sentiment:.2f}.
+   L'écart type de {sentiment_std:.2f} indique {'une grande variabilité' if sentiment_std > 0.3 else 'une relative cohérence'} dans les opinions.
+
+2. Contexte: Les mots-clés et entités nommées suggèrent que les discussions autour de {company} se concentrent sur:
+   - {', '.join(keywords.keys()[:3])}
+   - Personnes/Organisations mentionnées: {', '.join([entity for entity, _ in named_entities.most_common(3)])}
+
+3. Implications potentielles:
+   {'- Les opinions positives pourraient indiquer des opportunités de croissance ou des lancements de produits réussis.' if average_sentiment > 0 else '- Les sentiments négatifs pourraient signaler des défis ou des controverses à surveiller.'}
+   - La {'diversité' if sentiment_std > 0.3 else 'cohérence'} des opinions suggère {'un sujet complexe ou controversé' if sentiment_std > 0.3 else 'une perception relativement stable de l\'entreprise'}.
+
+4. Recommandations:
+   - Approfondir l'analyse des {', '.join(keywords.keys()[:2])} pour comprendre leur impact sur {company}.
+   - Surveiller les développements liés à {', '.join([entity for entity, _ in named_entities.most_common(2)])}.
+   - {'Capitaliser sur le sentiment positif pour renforcer la position de l\'entreprise.' if average_sentiment > 0 else 'Adresser les préoccupations soulevées pour améliorer la perception de l\'entreprise.'}
+
+Cette analyse offre un aperçu détaillé de la perception actuelle de {company}. Les investisseurs et parties prenantes
+devraient compléter ces informations avec une analyse financière approfondie et une compréhension globale du secteur
+avant de prendre des décisions stratégiques.
 """
         return rapport
 
-    def get_interpretation(self, avg_sentiment, std_sentiment):
-        if avg_sentiment > 0.2:
+    def get_interpretation(self, avg_sentiment, std_sentiment, company):
+        if avg_sentiment > 0.3:
+            strength = "extrêmement positive"
+        elif avg_sentiment > 0.1:
             strength = "très positive"
-        elif avg_sentiment > 0.05:
-            strength = "plutôt positive"
-        elif avg_sentiment < -0.2:
+        elif avg_sentiment > 0:
+            strength = "légèrement positive"
+        elif avg_sentiment < -0.3:
+            strength = "extrêmement négative"
+        elif avg_sentiment < -0.1:
             strength = "très négative"
-        elif avg_sentiment < -0.05:
-            strength = "plutôt négative"
+        elif avg_sentiment < 0:
+            strength = "légèrement négative"
         else:
             strength = "neutre"
 
         if std_sentiment > 0.4:
             consistency = "Les opinions sont très variées, suggérant une situation complexe ou controversée."
         elif std_sentiment > 0.2:
-            consistency = "Il y a une diversité d'opinions, mais une tendance générale se dégage."
+            consistency = "Il y a une diversité notable d'opinions, indiquant des perspectives différentes sur l'entreprise."
         else:
-            consistency = "Les opinions sont relativement cohérentes."
+            consistency = "Les opinions sont relativement cohérentes, suggérant un consensus général."
 
-        return f"La perception de {company} semble être {strength}. {consistency} Cette perception pourrait être influencée par des événements récents ou des tendances du marché."
+        return f"La perception de {company} apparaît comme étant {strength}. {consistency} Cette perception pourrait être influencée par des événements récents, des annonces de l'entreprise, ou des tendances plus larges du marché et de l'industrie."
 
 sentiment_agent = SentimentAnalysisAgent()

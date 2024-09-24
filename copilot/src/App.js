@@ -802,8 +802,8 @@ function AppContent({
                                                 margin="normal"
                                                 inputRef={agentInputRef}
                                             />
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-                                                {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
+                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
+                                                {['document', 'sentiment', 'financial_modeling', /* ... autres agents ... */].map((agent) => (
                                                     <Button
                                                         key={agent}
                                                         onClick={() => handleAgentCall(agent)}

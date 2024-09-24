@@ -85,8 +85,8 @@ Points clés à retenir:
 4. Le drawdown maximal de {max_drawdown:.2%} indique la perte maximale historique du portefeuille.
 
 Recommandations:
-1. {'Envisager de réduire l'exposition à ' + tickers[np.argmax(percentage_risk_contribution)] if max(percentage_risk_contribution) > 0.3 else 'La diversification semble adéquate'}
-2. {'Le ratio de Sharpe pourrait être amélioré en ajustant l'allocation des actifs' if sharpe_ratio < 1 else 'Maintenir la stratégie actuelle qui offre un bon équilibre rendement/risque'}
+1. {"Envisager de réduire l'exposition à " + tickers[np.argmax(percentage_risk_contribution)] if max(percentage_risk_contribution) > 0.3 else "La diversification semble adéquate"}
+2. {"Le ratio de Sharpe pourrait être amélioré en ajustant l'allocation des actifs" if sharpe_ratio < 1 else "Maintenir la stratégie actuelle qui offre un bon équilibre rendement/risque"}
 3. Surveiller de près les corrélations élevées entre certains actifs pour éviter une concentration excessive du risque
 4. Envisager des stratégies de couverture pour atténuer l'impact potentiel des scénarios de baisse identifiés
 
@@ -94,4 +94,4 @@ Les investisseurs devraient utiliser ces informations pour ajuster leur stratég
 """
         return rapport
 
-risk_management_agent = AdvancedRiskManagementAgent()
+risk_management_agent = RiskManagementAgent()

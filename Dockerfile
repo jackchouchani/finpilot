@@ -9,7 +9,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
-    g++
+    g++ \
     ca-certificates \
     fuse3 \
     sqlite3 \

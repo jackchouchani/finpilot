@@ -263,7 +263,7 @@ def generate_report(data):
         (generate_future_outlook, portfolio, portfolio_data, returns, weights),
     ]
 
-     with Pool() as pool:
+    with Pool() as pool:
         parallel_results = pool.starmap(lambda f, *args: f(*args), sections_to_parallelize)
 
     elements = []

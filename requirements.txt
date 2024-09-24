@@ -22,7 +22,7 @@ scipy
 reportlab
 PyPDF2
 plotly
-ntlk
+nltk
 bcrypt
 requests
 matplotlib

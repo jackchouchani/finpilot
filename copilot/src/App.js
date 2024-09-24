@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeProvider, createTheme, styled, alpha } from '@mui/material/styles';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -182,39 +182,6 @@ function App() {
             fetchChatHistory();
         }
     }, [isLoggedIn]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!input.trim()) return;
-
-        setLoading(true);
-        const newMessage = { role: 'user', content: input };
-        setMessages(prevMessages => [...prevMessages, newMessage]);
-        setInput('');
-
-        try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
-                message: input,
-                conversation_id: conversationId
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.data && response.data.reply) {
-                setConversationId(response.data.conversation_id);
-                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);
-            } else {
-                throw new Error('Réponse invalide du serveur');
-            }
-        } catch (error) {
-            console.error('Error sending message:', error);
-            setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: 'Désolé, une erreur est survenue. Veuillez réessayer.' }]);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const fetchPortfolio = async () => {
         try {
@@ -521,16 +488,41 @@ function App() {
         }
     }, []);
 
-    const debouncedSetInput = useCallback(
-        debounce((value) => {
-            setInput(value);
-        }, 300),
-        []
-    );
+    const inputRef = useRef(null);
 
-    const handleInputChange = useCallback((e) => {
-        debouncedSetInput(e.target.value);
-    }, [debouncedSetInput]);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        const inputValue = inputRef.current.value;
+        if (!inputValue.trim()) return;
+        
+        setLoading(true);
+        const newMessage = { role: 'user', content: inputValue };
+        setMessages(prevMessages => [...prevMessages, newMessage]);
+        inputRef.current.value = ''; // Vider l'input après l'envoi
+
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
+                message: inputValue,
+                conversation_id: conversationId
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data && response.data.reply) {
+                setConversationId(response.data.conversation_id);
+                setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);
+            } else {
+                throw new Error('Réponse invalide du serveur');
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: 'Désolé, une erreur est survenue. Veuillez réessayer.' }]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (!isLoggedIn) {
         return (
@@ -572,8 +564,6 @@ function App() {
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 messages={messages}
-                input={input}
-                setInput={handleInputChange}
                 handleSubmit={handleSubmit}
                 loading={loading}
                 handlePDFUpload={handlePDFUpload}
@@ -622,8 +612,6 @@ function AppContent({
     activeTab,
     setActiveTab,
     messages,
-    input,
-    setInput,
     handleSubmit,
     loading,
     handlePDFUpload,
@@ -662,10 +650,6 @@ function AppContent({
     const handleClose = () => {
         setAnchorEl(null);
     };
-
-    const handleInputChange = useCallback((e) => {
-        setInput(e.target.value);
-    }, [setInput]);
 
     return (
         <Box sx={{ display: 'flex' }}>
@@ -755,8 +739,6 @@ function AppContent({
                                 <>
                                     <ChatBox
                                         messages={messages}
-                                        input={input}
-                                        setInput={setInput}
                                         handleSubmit={handleSubmit}
                                         loading={loading}
                                     />
@@ -781,8 +763,6 @@ function AppContent({
                                     <>
                                         <ChatBox
                                             messages={messages}
-                                            input={input}
-                                            setInput={setInput}
                                             handleSubmit={handleSubmit}
                                             loading={loading}
                                         />

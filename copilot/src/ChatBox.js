@@ -15,6 +15,8 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
         setInput(e.target.value);
     }, [setInput]);
 
+    const inputRef = useRef(null);
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
@@ -52,11 +54,10 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
             <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
                 <TextField
                     fullWidth
-                    value={input}
-                    onChange={handleInputChange}
                     placeholder="Tapez votre message ici..."
                     variant="outlined"
                     disabled={loading}
+                    inputRef={inputRef}
                 />
                 <Button type="submit" variant="contained" disabled={loading || !input.trim()}>
                     Envoyer

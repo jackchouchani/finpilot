@@ -17,7 +17,9 @@ from flask import jsonify
 from tqdm import tqdm
 from sklearn.decomposition import PCA
 import scipy.stats as stats
+import dill
 from multiprocessing import Pool
+from multiprocessing.pool import Pool as PoolType
 from functools import lru_cache, wraps
 import asyncio
 import aiohttp
@@ -38,6 +40,11 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 fred_api_key = os.environ.get('FRED_API_KEY')  # Stockez votre clé API dans une variable d'environnement
 fred = Fred(api_key=fred_api_key)
+
+class DillPool(PoolType):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._serializer = dill
 
 def timing_decorator(func):
     @wraps(func)
@@ -258,7 +265,7 @@ def generate_report(data):
         (timing_decorator(generate_future_outlook), portfolio, portfolio_data, returns, weights),
     ]
 
-    with Pool() as pool:
+    with DillPool() as pool:
         parallel_results = pool.starmap(process_section, sections_to_parallelize)
 
     elements = []

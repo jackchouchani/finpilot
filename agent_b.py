@@ -70,12 +70,13 @@ class SentimentAnalysisAgent:
             text = f"{title} {description}"
             sentiment = self.analyze_sentiment(text)
             sentiments.append(sentiment)
-            keywords.update(self.extract_keywords(text))
+            # Correction ici : utilisez extend() au lieu de update() pour une liste
+            keywords.extend(self.extract_keywords(text))
             sources[article.get('source', {}).get('name', 'Unknown')] += 1
             
             # Analyse de sentiment par thème
-            for theme, keywords in self.themes.items():
-                if any(keyword in text.lower() for keyword in keywords):
+            for theme, theme_keywords in self.themes.items():
+                if any(keyword in text.lower() for keyword in theme_keywords):
                     theme_sentiments[theme].append(sentiment)
 
         avg_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0

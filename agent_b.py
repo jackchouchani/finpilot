@@ -1,3 +1,4 @@
+import datetime
 import requests
 from textblob import TextBlob
 from collections import Counter
@@ -9,13 +10,13 @@ class SentimentAnalysisAgent:
 
     def get_news(self, query):
         today = datetime.date.today()
-        yesterday = today - datetime.timedelta(days=1)
+        from_date = today - datetime.timedelta(days=7)
         url = "https://newsapi.org/v2/everything"
         params = {
-            "q": query,
-            "from": yesterday.isoformat(),
-            "to": yesterday.isoformat(),
-            "sortBy": "popularity",
+            "q": f"{query} AND (stock OR market OR finance OR investor)",
+            "from": from_date.isoformat(),
+            "to": today.isoformat(),
+            "sortBy": "relevancy",
             "language": "en",
             "pageSize": 100,
             "apiKey": self.news_api_key
@@ -29,7 +30,6 @@ class SentimentAnalysisAgent:
         else:
             print(f"Erreur lors de la requête: {response.text}")
             return []
-
 
     def analyze_sentiment(self, text):
         return TextBlob(text).sentiment.polarity

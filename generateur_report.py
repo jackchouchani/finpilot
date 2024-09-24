@@ -255,14 +255,14 @@ def generate_report(data):
     weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
 
     sections_to_parallelize = [
-        (timing_decorator(generate_performance_analysis), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
-        (timing_decorator(generate_correlation_heatmap), portfolio_data),
-        (timing_decorator(generate_monte_carlo_simulation), portfolio, portfolio_data, returns, weights, weighted_returns),
-        (timing_decorator(generate_future_outlook), portfolio, portfolio_data, returns, weights),
+        (generate_performance_analysis, portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
+        (generate_correlation_heatmap, portfolio_data),
+        (generate_monte_carlo_simulation, portfolio, portfolio_data, returns, weights, weighted_returns),
+        (generate_future_outlook, portfolio, portfolio_data, returns, weights),
     ]
 
     with ProcessPoolExecutor() as executor:
-        parallel_results = list(executor.map(partial(process_section), sections_to_parallelize))
+        parallel_results = list(executor.map(lambda x: x[0](*x[1:]), sections_to_parallelize))
 
     elements = []
     

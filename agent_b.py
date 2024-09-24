@@ -6,7 +6,7 @@ class SentimentAnalysisAgent:
         self.news_api_key = "c6cc145ad227419c88756838786b70d1"  # Remplacez par votre clé API
 
     def get_news(self, query):
-        url = f"https://newsapi.org/v2/everything"
+        url = "https://newsapi.org/v2/everything"
         params = {
             "q": f'"{query}" AND (stock OR market OR finance OR investor)',
             "language": "fr,en",
@@ -18,9 +18,11 @@ class SentimentAnalysisAgent:
         response = requests.get(url, params=params)
         print(f"Statut de la réponse: {response.status_code}")
         if response.status_code == 200:
-            print(f"Nombre d'articles reçus: {response.json()['articles']}")
-            return response.json()['articles']
+            articles = response.json().get('articles', [])
+            print(f"Nombre d'articles reçus: {len(articles)}")
+            return articles
         else:
+            print(f"Erreur lors de la requête: {response.text}")
             return []
 
     def analyze_sentiment(self, text):
@@ -29,9 +31,13 @@ class SentimentAnalysisAgent:
 
     def analyze(self, company):
         news = self.get_news(company)
-        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article['description']) for article in news[:10]]
+        if not news:
+            print("Aucun article n'a été trouvé. Vérifiez votre requête et votre clé API.")
+            return "Analyse impossible : aucun article trouvé."
+
+        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article.get('description', '')) for article in news[:10]]
         average_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
-        
+
         if average_sentiment > 0.1:
             sentiment_category = "Positif"
         elif average_sentiment < -0.1:
@@ -41,11 +47,9 @@ class SentimentAnalysisAgent:
 
         rapport = f"""
 Analyse de sentiment pour {company}
-
 Nombre d'articles analysés: {len(sentiments)}
 Sentiment moyen: {average_sentiment:.2f} (sur une échelle de -1 à 1)
 Catégorie de sentiment: {sentiment_category}
-
 Interprétation:
 {f'Le sentiment général concernant {company} est {sentiment_category.lower()}. ' if sentiment_category != "Neutre" else f'Le sentiment général concernant {company} est neutre. '}
 {'Cela pourrait indiquer une perception positive de l\'entreprise dans les médias récents.' if sentiment_category == "Positif" else 'Cela pourrait indiquer une perception négative de l\'entreprise dans les médias récents.' if sentiment_category == "Négatif" else 'Cela suggère que les opinions sont mitigées ou que les nouvelles récentes n\'ont pas eu d\'impact significatif sur la perception de l\'entreprise.'}
@@ -53,7 +57,7 @@ Interprétation:
 Articles récents analysés:
 """
         for i, article in enumerate(news[:5], 1):
-            rapport += f"{i}. {article['title']}\n   Sentiment: {self.analyze_sentiment(article['title'] + ' ' + article['description']):.2f}\n\n"
+            rapport += f"{i}. {article['title']}\n Sentiment: {self.analyze_sentiment(article['title'] + ' ' + article.get('description', '')):.2f}\n\n"
 
         rapport += f"""
 Conclusion:

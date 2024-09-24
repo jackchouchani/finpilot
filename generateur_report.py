@@ -16,6 +16,8 @@ import anthropic
 from flask import jsonify
 from tqdm import tqdm
 from sklearn.decomposition import PCA
+import pandas_datareader as pdr
+import scipy.stats as stats
 
 # Bibliothèques de visualisation
 import plotly.express as px
@@ -195,7 +197,6 @@ def generate_report(data):
         ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
         ("Meilleures et Pires Performances", lambda p, pd, r, w, wr, tr, ar: generate_best_worst_performers(p, pd, r, w)),
         ("Analyse des Dividendes", lambda p, pd, r, w, wr, tr, ar: generate_dividend_table(p)),
-        ("Analyse ESG", lambda p, pd, r, w, wr, tr, ar: generate_esg_analysis(p, pd, r, w, wr, tr, ar)),
         ("Allocation Sectorielle", lambda p, pd, r, w, wr, tr, ar: generate_sector_allocation(p, pd, r, w)),
         ("Simulation Monte Carlo", lambda p, pd, r, w, wr, tr, ar: generate_monte_carlo_simulation(p, pd, r, w, wr)),
         ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w, wr)),
@@ -782,7 +783,8 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, w
     
     volatility = weighted_returns.std() * np.sqrt(252)
     cumulative_returns = (1 + weighted_returns).cumprod()
-    sharpe_ratio = annualized_return / volatility
+    risk_free_rate = 0.02  # 2% par exemple
+    sharpe_ratio = (annualized_return - risk_free_rate) / volatility
     
     sp500_data = get_sp500_data(start_date, end_date)
     sp500_returns = sp500_data.pct_change().dropna()
@@ -853,8 +855,8 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, w
 def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted_returns):
     elements = []
     
-    var_95 = np.percentile(weighted_returns, 5) * np.sqrt(252)
-    cvar_95 = weighted_returns[weighted_returns <= var_95].mean() * np.sqrt(252)
+    var_95 = np.percentile(weighted_returns, 5)
+    cvar_95 = weighted_returns[weighted_returns <= var_95].mean()
     cumulative_returns = (1 + weighted_returns).cumprod()
     max_drawdown = (cumulative_returns.cummax() - cumulative_returns).max()
     
@@ -1034,101 +1036,6 @@ def generate_dividend_table(portfolio):
     
     return elements
 
-def generate_esg_analysis(portfolio, _, __, ___, ____, _____, ______):
-    """
-    Génère l'analyse ESG du portefeuille.
-    
-    Parameters:
-    portfolio (dict): Informations sur le portefeuille.
-    
-    Returns:
-    list: Éléments à ajouter au rapport.
-    """
-    elements = []
-    
-    try:
-        # Calcul du score ESG du portefeuille
-        portfolio_esg_score = calculate_portfolio_esg_score(portfolio)
-        
-        if portfolio_esg_score is not None:
-            elements.append(create_formatted_paragraph(f"Score ESG du portefeuille : {portfolio_esg_score:.2f}", 'BodyText'))
-        else:
-            elements.append(create_formatted_paragraph("Score ESG du portefeuille : Non disponible", 'BodyText'))
-        
-        # Analyse des scores ESG individuels
-        esg_scores = []
-        for stock in portfolio['stocks']:
-            if 'esg_score' in stock and stock['esg_score'] is not None:
-                esg_scores.append((stock['symbol'], stock['esg_score']))
-        
-        if esg_scores:
-            esg_scores.sort(key=lambda x: x[1], reverse=True)
-            
-            data = [['Action', 'Score ESG']]
-            for symbol, score in esg_scores:
-                data.append([symbol, f"{score:.2f}"])
-            
-            table = Table(data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            elements.append(table)
-        else:
-            elements.append(create_formatted_paragraph("Aucun score ESG individuel disponible pour les actions du portefeuille.", 'BodyText'))
-        
-        # Ajout d'une analyse textuelle
-        esg_analysis = generate_ai_content(f"""
-        En vous basant sur les données ESG suivantes :
-        - Score ESG du portefeuille : {portfolio_esg_score if portfolio_esg_score is not None else 'Non disponible'}
-        - Scores ESG individuels : {', '.join([f"{symbol}: {score}" for symbol, score in esg_scores]) if esg_scores else 'Non disponibles'}
-        
-        Fournissez une brève analyse de la performance ESG du portefeuille. Incluez :
-        1. Une évaluation générale de la performance ESG du portefeuille.
-        2. Les points forts et les points faibles en termes d'ESG.
-        3. Des recommandations pour améliorer le profil ESG du portefeuille.
-        """)
-        elements.append(create_formatted_paragraph(esg_analysis, 'BodyText'))
-        
-    except Exception as e:
-        print(f"Erreur lors de la génération de l'analyse ESG : {e}")
-        elements.append(create_formatted_paragraph("Une erreur s'est produite lors de la génération de l'analyse ESG.", 'BodyText'))
-    
-    return elements
-
-def calculate_portfolio_esg_score(portfolio):
-    """
-    Calcule le score ESG moyen pondéré du portefeuille.
-    
-    Parameters:
-    portfolio (dict): Informations sur le portefeuille.
-    
-    Returns:
-    float or None: Score ESG moyen pondéré du portefeuille, ou None si non calculable.
-    """
-    try:
-        total_weight = 0
-        weighted_score = 0
-        for stock in portfolio['stocks']:
-            if 'weight' in stock and 'esg_score' in stock and stock['esg_score'] is not None:
-                weight = float(stock['weight'])
-                total_weight += weight
-                weighted_score += weight * stock['esg_score']
-        
-        if total_weight > 0:
-            return weighted_score / total_weight
-        else:
-            return None
-    except Exception as e:
-        print(f"Erreur lors du calcul du score ESG du portefeuille : {e}")
-        return None
-
 def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights, weighted_returns):
     elements = []
     
@@ -1136,15 +1043,15 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights,
     num_simulations = 1000
     num_days = 252  # un an de trading
     
-    # Calcul des paramètres de la distribution des rendements
-    mean_return = weighted_returns.mean()
-    std_return = weighted_returns.std()
+    # Calcul des paramètres de la distribution log-normale
+    mu = np.mean(weighted_returns)
+    sigma = np.std(weighted_returns)
     
     # Simulation
     simulations = np.zeros((num_simulations, num_days))
     for i in range(num_simulations):
-        simulations[i] = np.random.choice(weighted_returns, size=num_days, replace=True)
-    simulations = np.cumprod(1 + simulations, axis=1)
+        simulations[i] = np.random.lognormal(mu, sigma, num_days)
+    simulations = np.cumprod(simulations, axis=1)
     
     # Calcul des percentiles
     final_values = simulations[:, -1]
@@ -1191,38 +1098,65 @@ def generate_monte_carlo_simulation(portfolio, portfolio_data, returns, weights,
     - 5% de chance d'être supérieure à {percentiles[2]:.2f}
     Discutez des implications de ces résultats pour l'investisseur.
     Commentez sur la dispersion des résultats et ce qu'elle signifie en termes de risque pour le portefeuille.
+    Expliquez comment cette simulation Monte Carlo utilisant une distribution log-normale diffère d'un simple rééchantillonnage et pourquoi elle pourrait être plus appropriée pour modéliser les rendements futurs.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
 
 def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_returns):
-    """
-    Génère des tests de stress pour le portefeuille.
-    
-    Parameters:
-    portfolio (dict): Informations sur le portefeuille.
-    portfolio_data (dict): Données de clôture des actions.
-    returns (DataFrame): Rendements quotidiens des actions.
-    weights (ndarray): Poids des actions dans le portefeuille.
-    weighted_returns (Series): Rendements pondérés du portefeuille.
-
-    Returns:
-    list: Éléments à ajouter au rapport.
-    """
     elements = []
     
-    # Définition des scénarios de stress
+    # Définition des scénarios de stress avec impacts différenciés par secteur
     scenarios = {
-        "Crise financière": -0.30,
-        "Récession économique": -0.20,
-        "Pandémie": -0.15,
-        "Guerre commerciale": -0.10,
-        "Catastrophe naturelle": -0.05
+        "Crise financière": {
+            "Financials": -0.40,
+            "Technology": -0.25,
+            "Consumer Discretionary": -0.30,
+            "default": -0.20
+        },
+        "Récession économique": {
+            "Consumer Discretionary": -0.35,
+            "Industrials": -0.30,
+            "Materials": -0.25,
+            "default": -0.15
+        },
+        "Pandémie": {
+            "Health Care": 0.10,
+            "Consumer Staples": 0.05,
+            "Energy": -0.30,
+            "default": -0.10
+        },
+        "Guerre commerciale": {
+            "Industrials": -0.20,
+            "Technology": -0.15,
+            "Materials": -0.25,
+            "default": -0.10
+        },
+        "Catastrophe naturelle": {
+            "Energy": -0.20,
+            "Utilities": -0.15,
+            "Real Estate": -0.10,
+            "default": -0.05
+        }
     }
     
+    # Obtenir les secteurs pour chaque action
+    stock_sectors = {}
+    for stock in portfolio['stocks']:
+        ticker = yf.Ticker(stock['symbol'])
+        info = ticker.info
+        stock_sectors[stock['symbol']] = info.get('sector', 'Unknown')
+    
     # Calcul de l'impact des scénarios sur le portefeuille
-    portfolio_impacts = {scenario: impact * sum(weights) for scenario, impact in scenarios.items()}
+    portfolio_impacts = {}
+    for scenario, sector_impacts in scenarios.items():
+        impact = 0
+        for stock, weight in zip(portfolio['stocks'], weights):
+            sector = stock_sectors[stock['symbol']]
+            sector_impact = sector_impacts.get(sector, sector_impacts['default'])
+            impact += sector_impact * weight
+        portfolio_impacts[scenario] = impact
     
     # Création du texte d'analyse
     analysis = f"""
@@ -1231,8 +1165,9 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_
     Les scénarios suivants ont été simulés pour évaluer la résilience du portefeuille :
     {', '.join([f"{scenario}: {impact:.2%}" for scenario, impact in portfolio_impacts.items()])}
 
-    Ces tests de stress montrent comment le portefeuille pourrait réagir dans différentes conditions de marché extrêmes.
-    Il est important de noter que ces scénarios sont hypothétiques et ne prédisent pas nécessairement des événements futurs.
+    Ces tests de stress montrent comment le portefeuille pourrait réagir dans différentes conditions de marché extrêmes,
+    en tenant compte des impacts différenciés sur les secteurs. Il est important de noter que ces scénarios sont
+    hypothétiques et ne prédisent pas nécessairement des événements futurs.
     """
     
     elements.append(create_formatted_paragraph(analysis, 'BodyText'))
@@ -1274,7 +1209,8 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     
     portfolio_volatility = weighted_returns.std() * np.sqrt(252)
     
-    sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility  # Assuming 2% risk-free rate
+    risk_free_rate = 0.02  # Taux sans risque de 2%
+    sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility
 
     # Comparer avec le S&P 500
     sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
@@ -1284,6 +1220,15 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     # Calculer la corrélation moyenne entre les actions
     correlation_matrix = returns.corr()
     avg_correlation = correlation_matrix.values[np.triu_indices_from(correlation_matrix.values,1)].mean()
+
+    # Calculer les ratios P/E et la croissance des bénéfices pour chaque action
+    pe_ratios = {}
+    earnings_growth = {}
+    for stock in portfolio['stocks']:
+        ticker = yf.Ticker(stock['symbol'])
+        info = ticker.info
+        pe_ratios[stock['symbol']] = info.get('trailingPE', 'N/A')
+        earnings_growth[stock['symbol']] = info.get('earningsQuarterlyGrowth', 'N/A')
 
     # Générer des recommandations basées sur ces métriques
     recommendations_text = generate_ai_content(f"""
@@ -1295,6 +1240,8 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     - Rendement du S&P 500 : {sp500_return:.2%}
     - Volatilité du S&P 500 : {sp500_volatility:.2%}
     - Corrélation moyenne entre les actions : {avg_correlation:.2f}
+    - Ratios P/E des actions : {pe_ratios}
+    - Croissance des bénéfices des actions : {earnings_growth}
 
     Générez une liste de 5 à 7 recommandations spécifiques pour améliorer la performance et réduire le risque du portefeuille. 
     Tenez compte des éléments suivants dans vos recommandations :
@@ -1303,8 +1250,11 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     3. La diversification actuelle du portefeuille
     4. Les tendances récentes du marché
     5. Les opportunités potentielles dans différents secteurs
+    6. Les ratios P/E des actions par rapport à leurs moyennes historiques ou sectorielles
+    7. Les tendances de croissance des bénéfices des actions
 
     Pour chaque recommandation, fournissez une brève explication de son raisonnement et de son impact potentiel.
+    Assurez-vous d'inclure des recommandations spécifiques sur les actions à acheter, vendre ou conserver, en vous basant sur leur valorisation et leur croissance.
     """)
 
     elements.append(create_section_header("Recommandations", level=2))
@@ -1326,6 +1276,24 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     # Calculer le rendement total du portefeuille
     total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
     
+    # Obtenir des données macroéconomiques actuelles
+    current_date = datetime.now()
+    start_date = current_date - timedelta(days=30)  # Données du dernier mois
+    
+    try:
+        inflation = pdr.get_data_fred('CPIAUCSL', start=start_date, end=current_date)
+        unemployment = pdr.get_data_fred('UNRATE', start=start_date, end=current_date)
+        gdp_growth = pdr.get_data_fred('GDP', start=start_date, end=current_date)
+        
+        latest_inflation = inflation.iloc[-1]['CPIAUCSL']
+        latest_unemployment = unemployment.iloc[-1]['UNRATE']
+        latest_gdp_growth = gdp_growth.iloc[-1]['GDP']
+    except Exception as e:
+        print(f"Erreur lors de la récupération des données macroéconomiques : {e}")
+        latest_inflation = "N/A"
+        latest_unemployment = "N/A"
+        latest_gdp_growth = "N/A"
+    
     # Générer le texte des perspectives futures
     outlook_text = generate_ai_content(f"""
     En vous basant sur les données suivantes :
@@ -1333,13 +1301,16 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     - Performance des actions : {stock_performance}
     - Rendement total du portefeuille : {total_return:.2%}
     - Volatilité du portefeuille : {portfolio_volatility:.2%}
+    - Inflation actuelle : {latest_inflation}
+    - Taux de chômage actuel : {latest_unemployment}%
+    - Croissance du PIB actuelle : {latest_gdp_growth}%
 
     Générez des perspectives futures pour le portefeuille. Incluez :
-    1. Une analyse des tendances économiques et de marché qui pourraient affecter le portefeuille.
-    2. Des prévisions pour les secteurs représentés dans le portefeuille.
-    3. Des recommandations pour des ajustements potentiels du portefeuille.
-    4. Une discussion sur les risques potentiels et les opportunités à venir.
-    5. Des suggestions pour diversifier davantage le portefeuille si nécessaire.
+    1. Une analyse des tendances économiques et de marché qui pourraient affecter le portefeuille, en tenant compte des données macroéconomiques actuelles.
+    2. Des prévisions pour les secteurs représentés dans le portefeuille, en considérant leur performance récente et les conditions économiques actuelles.
+    3. Des recommandations pour des ajustements potentiels du portefeuille, basées sur les perspectives sectorielles et macroéconomiques.
+    4. Une discussion sur les risques potentiels et les opportunités à venir, en tenant compte de l'environnement économique actuel.
+    5. Des suggestions pour diversifier davantage le portefeuille si nécessaire, en considérant les secteurs qui pourraient bien performer dans le contexte économique actuel.
     """)
     
     elements.append(create_formatted_paragraph("Perspectives Futures", 'Heading2'))

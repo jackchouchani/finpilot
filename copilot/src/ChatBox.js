@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Box, TextField, Button, List, ListItem, ListItemText, Paper } from '@mui/material';
 import MessageContent from './MessageContent';
 
-function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
+function ChatBox({ messages, handleSubmit, loading }) {
     const messagesEndRef = useRef(null);
 
     const scrollToBottom = useCallback(() => {
@@ -10,10 +10,6 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
     }, []);
 
     useEffect(scrollToBottom, [messages]);
-
-    const handleInputChange = useCallback((e) => {
-        setInput(e.target.value);
-    }, [setInput]);
 
     const inputRef = useRef(null);
 

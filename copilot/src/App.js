@@ -498,7 +498,7 @@ function App() {
         setLoading(true);
         const newMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [...prevMessages, newMessage]);
-        inputRef.current.value = '';
+        inputRef.current.value = ''; // Vider l'input après l'envoi
 
         try {
             const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {

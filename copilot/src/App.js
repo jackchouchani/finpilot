@@ -231,34 +231,33 @@ function App() {
 
     const handleAgentCall = async (agentName) => {
         setLoading(true);
+        // Récupérez la valeur actuelle de l'input
+        const inputValue = agentInputRef.current ? agentInputRef.current.value : '';
         let data = {};
         switch (agentName) {
             case 'document':
-                data = { text: input };
+                data = { text: inputValue };
                 break;
             case 'sentiment':
-                data = { company: input };
+                data = { company: inputValue };
                 break;
             case 'financial_modeling':
-                data = { ticker: input };
+                data = { ticker: inputValue };
                 break;
             case 'portfolio_optimization':
             case 'risk_management':
-                data = { tickers: input.split(','), portfolio_value: 100000 };
+                data = { tickers: inputValue.split(','), portfolio_value: 100000 };
                 break;
             case 'reporting':
                 data = { portfolio_data: portfolio.stocks };
+                break;
             case 'compliance':
                 try {
-                    // Essayez de parser input comme JSON
-                    const parsedInput = JSON.parse(input);
+                    const parsedInput = JSON.parse(inputValue);
                     data = { portfolio_data: parsedInput };
                 } catch (error) {
-                    // Si le parsing échoue, supposons que c'est une chaîne de caractères représentant un portefeuille
                     console.warn("Input is not valid JSON, treating it as a string representation of portfolio");
-                    // Vous pouvez implémenter ici une logique pour convertir la chaîne en objet de portfolio
-                    // Par exemple, si la chaîne est au format "AAPL:30%,GOOGL:40%,MSFT:30%"
-                    const portfolioArray = input.split(',').map(item => {
+                    const portfolioArray = inputValue.split(',').map(item => {
                         const [symbol, weight] = item.split(':');
                         return { symbol, weight: parseFloat(weight) };
                     });
@@ -266,40 +265,29 @@ function App() {
                 }
                 break;
             case 'market_sentiment':
-                data = { ticker: input };
+                data = { ticker: inputValue };
                 break;
             case 'user_profile_analysis':
-                // Nous allons utiliser l'ID de l'utilisateur connecté
                 data = { user_id: localStorage.getItem('userId') };
                 break;
             case 'historical_data_analysis':
-                // Supposons que l'utilisateur entre le ticker dans l'input
                 data = {
-                    ticker: input,
-                    start_date: startDate,  // Assurez-vous que ces variables sont définies dans votre composant
+                    ticker: inputValue,
+                    start_date: startDate,
                     end_date: endDate
                 };
                 break;
             case 'investment_recommendation':
-                try {
-                    const settingsResponse = await axios.get(process.env.REACT_APP_API_URL + '/settings');
-                    data = {
-                        portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
-                        risk_profile: settingsResponse.data.risk_profile || 'moderate'
-                    };
-                } catch (error) {
-                    console.error("Error fetching settings:", error);
-                    data = {
-                        portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
-                        risk_profile: 'moderate'
-                    };
-                }
+                data = {
+                    portfolio: portfolio.stocks ? portfolio.stocks.map(stock => stock.symbol) : [],
+                    risk_profile: settings.risk_profile || 'moderate'
+                };
                 break;
             default:
-                data = { input: input };
+                data = { input: inputValue };
                 break;
         }
-        const userMessage = { role: 'user', content: input };
+        const userMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [userMessage, ...prevMessages]);
         try {
             await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
@@ -318,7 +306,6 @@ function App() {
             }
             setMessages(prevMessages => [...prevMessages, newMessage]);
 
-            // Sauvegardez le message de l'agent dans la base de données
             try {
                 await axios.post(process.env.REACT_APP_API_URL + '/chat_history', newMessage);
             } catch (saveError) {
@@ -332,7 +319,6 @@ function App() {
             };
             setMessages(prevMessages => [...prevMessages, errorMessage]);
 
-            // Sauvegarder le message d'erreur dans l'historique du chat
             try {
                 await axios.post(process.env.REACT_APP_API_URL + '/chat_history', errorMessage);
             } catch (saveError) {
@@ -488,7 +474,7 @@ function App() {
         }
     }, []);
 
-    const inputRef = useRef(null);
+    const agentInputRef = useRef(null);
 
     const handleSubmit = async (e, inputValue) => {
         e.preventDefault();
@@ -762,10 +748,13 @@ function AppContent({
                                 )}
                                 {activeTab === 1 && (
                                     <>
-                                        <ChatBox
-                                            messages={messages}
-                                            handleSubmit={handleSubmit}
-                                            loading={loading}
+                                        <TextField
+                                            id="agent-input"
+                                            label="Entrée pour l'agent"
+                                            variant="outlined"
+                                            fullWidth
+                                            margin="normal"
+                                            inputRef={agentInputRef}
                                         />
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
                                             {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
@@ -780,6 +769,13 @@ function AppContent({
                                                 </Button>
                                             ))}
                                         </Box>
+                                        <ChatBox
+                                            messages={messages}
+                                            handleSubmit={handleSubmit}
+                                            loading={loading}
+                                            customInput={agentInputRef.current ? agentInputRef.current.value : ''}
+                                            disableInput={true}
+                                        />
                                     </>
                                 )}
                                 {activeTab === 2 && (

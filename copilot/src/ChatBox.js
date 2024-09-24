@@ -2,8 +2,9 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Box, TextField, Button, List, ListItem, ListItemText, Paper } from '@mui/material';
 import MessageContent from './MessageContent';
 
-function ChatBox({ messages, handleSubmit, loading }) {
+function ChatBox({ messages, handleSubmit, loading, customInput, disableInput }) {
     const messagesEndRef = useRef(null);
+    const inputRef = useRef(null);
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -11,14 +12,14 @@ function ChatBox({ messages, handleSubmit, loading }) {
 
     useEffect(scrollToBottom, [messages]);
 
-    const inputRef = useRef(null);
-
     const onSubmit = (e) => {
         e.preventDefault();
-        const inputValue = inputRef.current.value.trim();
+        const inputValue = customInput || (inputRef.current ? inputRef.current.value.trim() : '');
         if (inputValue) {
             handleSubmit(e, inputValue);
-            inputRef.current.value = ''; // Vider l'input après l'envoi
+            if (inputRef.current) {
+                inputRef.current.value = ''; // Vider l'input après l'envoi
+            }
         }
     };
 
@@ -56,22 +57,24 @@ function ChatBox({ messages, handleSubmit, loading }) {
                     <div ref={messagesEndRef} />
                 </List>
             </Paper>
-            <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
-                <TextField
-                    fullWidth
-                    placeholder="Tapez votre message ici..."
-                    variant="outlined"
-                    disabled={loading}
-                    inputRef={inputRef}
-                />
-                <Button 
-                    type="submit" 
-                    variant="contained" 
-                    disabled={loading}
-                >
-                    Envoyer
-                </Button>
-            </Box>
+            {!disableInput && (
+                <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                    <TextField
+                        fullWidth
+                        placeholder="Tapez votre message ici..."
+                        variant="outlined"
+                        disabled={loading}
+                        inputRef={inputRef}
+                    />
+                    <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={loading}
+                    >
+                        Envoyer
+                    </Button>
+                </Box>
+            )}
         </Box>
     );
 }

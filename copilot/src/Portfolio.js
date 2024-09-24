@@ -102,39 +102,45 @@ function Portfolio() {
     };
 
     useEffect(() => {
-        fetchPortfolio();
-    }, []);
-
-    const fetchLatestPrice = useCallback(async (symbol) => {
-        try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${symbol}`);
-            return response.data.price;
-        } catch (error) {
-            console.error(`Erreur lors de la récupération du prix pour ${symbol}:`, error);
-            return null;
+        if (portfolio.stocks && portfolio.stocks.length > 0) {
+            fetchLatestPrices();
         }
-    }, []);
+    }, [portfolio]);
 
-    const updateAllPrices = useCallback(async () => {
-        if (!portfolio.stocks || portfolio.stocks.length === 0) return;
+    useEffect(() => {
+        if (newStock.symbol) {
+            const fetchNewStockPrice = async () => {
+                try {
+                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
+                    if (response.data && response.data.price) {
+                        setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
+                    }
+                } catch (error) {
+                    console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
+                }
+            };
+            fetchNewStockPrice();
+        }
+    }, [newStock.symbol]);
 
+    const fetchLatestPrices = async () => {
+        if (!portfolio || !portfolio.stocks) {
+            console.error("Portfolio or portfolio.stocks is undefined");
+            return;
+        }
         const updatedPrices = { ...livePrices };
         for (const stock of portfolio.stocks) {
-            const price = await fetchLatestPrice(stock.symbol);
-            if (price !== null) {
-                updatedPrices[stock.symbol] = price;
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
+                if (response.data && response.data.price) {
+                    updatedPrices[stock.symbol] = response.data.price;
+                }
+            } catch (error) {
+                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
             }
         }
         setLivePrices(updatedPrices);
-    }, [portfolio.stocks, fetchLatestPrice, livePrices]);
-
-
-    useEffect(() => {
-        updateAllPrices();
-        // Vous pouvez également ajouter un intervalle pour mettre à jour les prix régulièrement si nécessaire
-        // const interval = setInterval(fetchLatestPrices, 60000); // Mise à jour toutes les minutes
-        // return () => clearInterval(interval);
-    }, [updateAllPrices]);
+    };
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {
@@ -446,11 +452,7 @@ function Portfolio() {
                                                 formatNumber(parseFloat(stock.entry_price))
                                             )}
                                         </TableCell>
-                                        <TableCell>
-                                            {livePrices[stock.symbol]
-                                                ? formatNumber(livePrices[stock.symbol])
-                                                : 'Chargement...'}
-                                        </TableCell>
+                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Chargement...'}</TableCell>
                                         <TableCell>{formatNumber(value)}</TableCell>
                                         <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
                                         <TableCell>

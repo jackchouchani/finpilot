@@ -1,18 +1,16 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import requests
 from scipy.optimize import minimize
 
 class PortfolioOptimizationAgent:
     def optimize(self, portfolio):
         if not portfolio:
-            return {"erreur": "Aucun portefeuille trouvé pour cet utilisateur"}
-        print(portfolio)
+            return "Désolé, je n'ai pas trouvé de portefeuille à analyser. Pouvez-vous vérifier et me fournir les détails de votre portefeuille ?"
 
         tickers = [stock['symbol'] for stock in portfolio]
-        weights = [float(stock['weight']) / 100 for stock in portfolio]  # Convertir en float et en pourcentage
-
+        weights = [float(stock['weight']) / 100 for stock in portfolio]
+        
         data = yf.download(tickers, period="5y")['Adj Close']
         returns = data.pct_change().dropna()
 
@@ -40,31 +38,66 @@ class PortfolioOptimizationAgent:
         risk_free_rate = 0.01
 
         opt = optimize_portfolio(mean_returns, cov_matrix, risk_free_rate)
-        
         current_std, current_ret = portfolio_performance(weights, mean_returns, cov_matrix)
         current_sharpe = (current_ret - risk_free_rate) / current_std
-
         opt_std, opt_ret = portfolio_performance(opt.x, mean_returns, cov_matrix)
         opt_sharpe = (opt_ret - risk_free_rate) / opt_std
 
-        rapport = f"""
-Analyse de l'optimisation du portefeuille
+        current_weights = {ticker: f"{weight:.2%}" for ticker, weight in zip(tickers, weights)}
+        optimized_weights = {ticker: f"{weight:.2%}" for ticker, weight in zip(tickers, opt.x)}
 
-Portefeuille actuel:
-- Poids: {dict(zip(tickers, weights))}
-- Rendement attendu: {current_ret:.2f}
-- Volatilité: {current_std:.2f}
-- Ratio de Sharpe: {current_sharpe:.2f}
+        rapport = f"""Bonjour ! J'ai analysé votre portefeuille et j'ai quelques recommandations intéressantes à vous partager. Voici un résumé de mon analyse :
 
-Portefeuille optimisé:
-- Poids: {dict(zip(tickers, opt.x))}
-- Rendement attendu: {opt_ret:.2f}
-- Volatilité: {opt_std:.2f}
-- Ratio de Sharpe: {opt_sharpe:.2f}
+📊 Votre portefeuille actuel :
+{self._format_portfolio(current_weights)}
 
-Conclusion:
-Cette analyse fournit un aperçu de l'optimisation du portefeuille. Les investisseurs peuvent utiliser ces informations pour ajuster leur stratégie d'investissement.
-"""
+Avec cette répartition, voici vos indicateurs actuels :
+📈 Rendement attendu : {current_ret:.2%}
+📉 Volatilité : {current_std:.2%}
+💹 Ratio de Sharpe : {current_sharpe:.2f}
+
+Après optimisation, voici ce que je suggère :
+
+🔄 Portefeuille optimisé :
+{self._format_portfolio(optimized_weights)}
+
+Cette nouvelle répartition pourrait vous offrir :
+📈 Rendement attendu : {opt_ret:.2%} ({opt_ret - current_ret:+.2%})
+📉 Volatilité : {opt_std:.2%} ({opt_std - current_std:+.2%})
+💹 Ratio de Sharpe : {opt_sharpe:.2f} ({opt_sharpe - current_sharpe:+.2f})
+
+💡 Ce que cela signifie pour vous :
+1. Le rendement attendu est {'amélioré' if opt_ret > current_ret else 'réduit'}, passant de {current_ret:.2%} à {opt_ret:.2%}.
+2. La volatilité {'augmente' if opt_std > current_std else 'diminue'}, ce qui implique {'plus' if opt_std > current_std else 'moins'} de risque, mais aussi {'plus' if opt_std > current_std else 'moins'} de potentiel de gain.
+3. Le ratio de Sharpe {'s\'améliore' if opt_sharpe > current_sharpe else 'se dégrade'}, indiquant un {'meilleur' if opt_sharpe > current_sharpe else 'moins bon'} équilibre rendement/risque.
+
+🔑 Points clés à considérer :
+{self._generate_key_points(current_weights, optimized_weights)}
+
+N'oubliez pas que cette analyse est basée sur des données historiques et des modèles mathématiques. Elle ne garantit pas les performances futures. Il est toujours recommandé de diversifier et d'ajuster votre stratégie en fonction de votre situation personnelle et de vos objectifs à long terme.
+
+Que pensez-vous de ces suggestions ? Souhaitez-vous que nous discutions plus en détail de certains aspects spécifiques de cette analyse ?"""
+
         return rapport
+
+    def _format_portfolio(self, weights):
+        return "\n".join([f"• {ticker}: {weight}" for ticker, weight in weights.items()])
+
+    def _generate_key_points(self, current, optimized):
+        points = []
+        for ticker in current.keys():
+            current_weight = float(current[ticker].strip('%')) / 100
+            optimized_weight = float(optimized[ticker].strip('%')) / 100
+            diff = optimized_weight - current_weight
+            if abs(diff) > 0.05:  # Seuil arbitraire pour les changements significatifs
+                if diff > 0:
+                    points.append(f"• L'optimisation suggère d'augmenter significativement la part de {ticker} (de {current[ticker]} à {optimized[ticker]}).")
+                else:
+                    points.append(f"• L'optimisation suggère de réduire significativement la part de {ticker} (de {current[ticker]} à {optimized[ticker]}).")
+        
+        if not points:
+            points.append("• Les changements suggérés sont relativement mineurs pour tous les titres.")
+        
+        return "\n".join(points)
 
 portfolio_optimization_agent = PortfolioOptimizationAgent()

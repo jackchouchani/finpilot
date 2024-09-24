@@ -249,7 +249,7 @@ def generate_report(data):
 
     elements = []
     
-    # Ajoutez les sections non parallélisées
+    # Page de titre
     elements.extend(create_title_page(
         "Rapport de Performance du Portefeuille",
         f"Pour : {data.get('client_name', 'Client Estimé')}",
@@ -264,28 +264,44 @@ def generate_report(data):
     # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
-    # Générez chaque section séquentiellement
-    timed_functions = [
-        (timing_decorator(generate_executive_summary), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return),
-        (timing_decorator(generate_portfolio_overview), portfolio, portfolio_data, returns, weights),
-        (timing_decorator(generate_performance_analysis), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
-        (timing_decorator(generate_correlation_heatmap), portfolio_data),
-        (timing_decorator(generate_monte_carlo_simulation), portfolio, portfolio_data, returns, weights, weighted_returns),
-        (timing_decorator(generate_future_outlook), portfolio, portfolio_data, returns, weights),
-        (timing_decorator(generate_stock_performance_comparison), portfolio_data, weights),
-        (timing_decorator(generate_contribution_to_return), portfolio, portfolio_data, returns, weights),
-        (timing_decorator(generate_additional_ratios_table), portfolio, portfolio_data, returns, weights, start_date, end_date),
-        (timing_decorator(generate_risk_analysis), portfolio, portfolio_data, returns, weights, weighted_returns),
-        (timing_decorator(generate_best_worst_performers), portfolio, portfolio_data, returns, weights),
-        (timing_decorator(generate_dividend_table), portfolio),
-        (timing_decorator(generate_sector_allocation), portfolio, portfolio_data, returns, weights),
-        (timing_decorator(generate_stress_tests), portfolio, portfolio_data, returns, weights, weighted_returns),
-        (timing_decorator(generate_recommendations), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return),
+    # Sections du rapport
+    sections = [
+        ("Résumé Exécutif", lambda p, pd, r, w, wr, tr, ar: generate_executive_summary(p, pd, r, w, wr, tr, ar)),
+        ("Vue d'Ensemble du Portefeuille", lambda p, pd, r, w, wr, tr, ar: generate_portfolio_overview(p, pd, r, w)),
+        ("Analyse de Performance", lambda p, pd, r, w, wr, tr, ar: generate_performance_analysis(p, pd, r, w, wr, tr, ar, start_date, end_date)),
+        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w)),
+        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w)),
+        ("Ratios Supplémentaires", lambda p, pd, r, w, wr, tr, ar: generate_additional_ratios_table(p, pd, r, w, start_date, end_date)),
+        ("Analyse des Risques", lambda p, pd, r, w, wr, tr, ar: generate_risk_analysis(p, pd, r, w, wr)),
+        ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
+        ("Meilleures et Pires Performances", lambda p, pd, r, w, wr, tr, ar: generate_best_worst_performers(p, pd, r, w)),
+        ("Analyse des Dividendes", lambda p, pd, r, w, wr, tr, ar: generate_dividend_table(p)),
+        ("Allocation Sectorielle", lambda p, pd, r, w, wr, tr, ar: generate_sector_allocation(p, pd, r, w)),
+        ("Simulation Monte Carlo", lambda p, pd, r, w, wr, tr, ar: generate_monte_carlo_simulation(p, pd, r, w, wr)),
+        ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w, wr)),
+        ("Perspectives Futures", lambda p, pd, r, w, wr, tr, ar: generate_future_outlook(p, pd, r, w)),
+        ("Recommandations", lambda p, pd, r, w, wr, tr, ar: generate_recommendations(p, pd, r, w, wr, tr, ar))
     ]
-
-    for func, *args in timed_functions:
-        elements.extend(func(*args))
+    total_steps = len(sections)
+    
+    for index, (title, function) in enumerate(sections, 1):
+        section_start_time = time.time()
         
+        elements.append(create_section_header(title))
+        new_elements = function(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return)
+        
+        if isinstance(new_elements, list):
+            elements.extend(new_elements)
+        else:
+            elements.append(create_formatted_paragraph(str(new_elements)))
+        elements.append(PageBreak())
+        
+        section_end_time = time.time()
+        section_execution_time = section_end_time - section_start_time
+        
+        print(f"Section '{title}' traitée en {section_execution_time:.2f} secondes")
+        print(f"Progression : {index}/{len(sections)} sections traitées")
+    
     # Glossaire et avertissements
     elements.append(create_section_header("Glossaire"))
     elements.extend(generate_glossary())

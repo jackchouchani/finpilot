@@ -87,9 +87,6 @@ function Portfolio() {
     const [portfolioValue, setPortfolioValue] = useState(100000); // Valeur par défaut
     const [displayMode, setDisplayMode] = useState('weight'); // 'weight' ou 'shares'
     const [editingStock, setEditingStock] = useState(null);
-    const [reportProgress, setReportProgress] = useState(0);
-    const [currentStep, setCurrentStep] = useState('');
-    const [updateTrigger, setUpdateTrigger] = useState(0);
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -108,11 +105,30 @@ function Portfolio() {
         fetchPortfolio();
     }, []);
 
+    const fetchLatestPrices = useCallback(async () => {
+        if (!portfolio || !portfolio.stocks) {
+            console.error("Portfolio or portfolio.stocks is undefined");
+            return;
+        }
+        const updatedPrices = { ...livePrices };
+        for (const stock of portfolio.stocks) {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
+                if (response.data && response.data.price) {
+                    updatedPrices[stock.symbol] = response.data.price;
+                }
+            } catch (error) {
+                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
+            }
+        }
+        setLivePrices(updatedPrices);
+    }, [portfolio, livePrices]);
+
     useEffect(() => {
         if (portfolio.stocks && portfolio.stocks.length > 0) {
             fetchLatestPrices();
         }
-    }, [portfolio, fetchLatestPrices]); // Ajoutez fetchLatestPrices comme dépendance
+    }, [portfolio, fetchLatestPrices]);
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {
@@ -202,26 +218,6 @@ function Portfolio() {
             ? (parseFloat(stock.weight) / 100) * portfolioValue
             : parseFloat(stock.shares || stock.weight) * currentPrice;
     };
-
-    const fetchLatestPrices = useCallback(async () => {
-        if (!portfolio || !portfolio.stocks) {
-            console.error("Portfolio or portfolio.stocks is undefined");
-            return;
-        }
-        const updatedPrices = { ...livePrices };
-        for (const stock of portfolio.stocks) {
-            try {
-                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
-                if (response.data && response.data.price) {
-                    updatedPrices[stock.symbol] = response.data.price;
-                }
-            } catch (error) {
-                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
-            }
-        }
-        setLivePrices(updatedPrices);
-        setUpdateTrigger(prev => prev + 1); // Force le re-rendu
-    }, [portfolio, livePrices]);
 
     const addStock = () => {
         setPortfolio(prevPortfolio => ({

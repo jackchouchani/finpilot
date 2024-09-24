@@ -37,8 +37,18 @@ class SentimentAnalysisAgent:
         if not news:
             return "Analyse impossible : aucun article trouvé."
 
-        sentiments = [self.analyze_sentiment(article['title'] + ' ' + article.get('description', '')) for article in news[:10]]
-        average_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
+        sentiments = []
+        for article in news[:10]:
+            title = article.get('title', '')
+            description = article.get('description', '')
+            text = f"{title} {description}".strip()
+            if text:
+                sentiments.append(self.analyze_sentiment(text))
+
+        if not sentiments:
+            return "Analyse impossible : aucun texte valide trouvé dans les articles."
+
+        average_sentiment = sum(sentiments) / len(sentiments)
 
         if average_sentiment > 0.1:
             sentiment_category = "Positif"
@@ -60,7 +70,11 @@ Interprétation:
 Articles récents analysés:
 """
         for i, article in enumerate(news[:5], 1):
-            rapport += f"{i}. {article['title']}\n Sentiment: {self.analyze_sentiment(article['title'] + ' ' + article.get('description', '')):.2f}\n\n"
+            title = article.get('title', '')
+            description = article.get('description', '')
+            text = f"{title} {description}".strip()
+            sentiment = self.analyze_sentiment(text) if text else 0
+            rapport += f"{i}. {title}\n Sentiment: {sentiment:.2f}\n\n"
 
         rapport += f"""
 Conclusion:

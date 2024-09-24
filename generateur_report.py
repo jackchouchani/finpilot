@@ -22,6 +22,7 @@ from functools import lru_cache, wraps
 import asyncio
 import aiohttp
 from fredapi import Fred
+from multiprocessing import Pool
 
 # Bibliothèques de visualisation
 import plotly.express as px
@@ -219,8 +220,9 @@ def calculate_portfolio_returns(portfolio_data, weights):
     annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
     return weighted_returns, total_return, annualized_return
 
-def process_section_wrapper(x):
-    return process_section(*x)
+def execute_section(section_tuple):
+    func, *args = section_tuple
+    return func(*args)
 
 @timing_decorator
 def generate_report(data):
@@ -261,8 +263,8 @@ def generate_report(data):
         (generate_future_outlook, portfolio, portfolio_data, returns, weights),
     ]
 
-    with ProcessPoolExecutor() as executor:
-        parallel_results = list(executor.map(lambda x: x[0](*x[1:]), sections_to_parallelize))
+     with Pool() as pool:
+        parallel_results = pool.starmap(lambda f, *args: f(*args), sections_to_parallelize)
 
     elements = []
     

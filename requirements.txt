@@ -35,3 +35,8 @@ tqdm
 scikit-learn
 groq
 deepl
+pandas_datareader
+multiprocessing
+functools
+aiohttp
+asyncio

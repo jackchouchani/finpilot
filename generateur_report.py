@@ -18,6 +18,10 @@ from tqdm import tqdm
 from sklearn.decomposition import PCA
 import pandas_datareader as pdr
 import scipy.stats as stats
+from multiprocessing import Pool
+from functools import lru_cache
+import asyncio
+import aiohttp
 
 # Bibliothèques de visualisation
 import plotly.express as px
@@ -32,6 +36,27 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+
+@lru_cache(maxsize=None)
+def get_stock_info(symbol):
+    ticker = yf.Ticker(symbol)
+    return ticker.info
+
+def get_bulk_stock_data(symbols, start_date, end_date):
+    data = yf.download(symbols, start=start_date, end=end_date)
+    return {symbol: data['Close'][symbol] for symbol in symbols}
+
+async def fetch_stock_data(session, url):
+    async with session.get(url) as response:
+        return await response.json()
+
+async def get_multiple_stock_data(urls):
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch_stock_data(session, url) for url in urls]
+        return await asyncio.gather(*tasks)
+
+def process_section(section_func, *args):
+    return section_func(*args)
 
 
 def generate_ai_content(prompt):
@@ -125,16 +150,9 @@ def calculate_portfolio_performance(portfolio, start_date, end_date):
         - returns (DataFrame): Rendements quotidiens des actions.
         - weights (ndarray): Poids des actions dans le portefeuille.
     """
-    portfolio_data = {}
-    for stock in portfolio['stocks']:
-        try:
-            ticker = yf.Ticker(stock['symbol'])
-            hist = ticker.history(start=start_date, end=end_date)
-            portfolio_data[stock['symbol']] = hist['Close']
-        except Exception as e:
-            print(f"Erreur lors de la récupération des données pour {stock['symbol']}: {e}")
-            continue
-
+    symbols = [stock['symbol'] for stock in portfolio['stocks']]
+    portfolio_data = get_bulk_stock_data(symbols, start_date, end_date)
+    
     df = pd.DataFrame(portfolio_data)
     returns = df.pct_change().dropna()
     weights = np.array([float(stock['weight']) / 100 for stock in portfolio['stocks']])
@@ -168,9 +186,22 @@ def generate_report(data):
                             rightMargin=0.5*inch, leftMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
     
+    portfolio_data, returns, weights = calculate_portfolio_performance(portfolio, start_date, end_date)
+    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
+
+    sections_to_parallelize = [
+        (generate_performance_analysis, portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
+        (generate_correlation_heatmap, portfolio_data),
+        (generate_monte_carlo_simulation, portfolio, portfolio_data, returns, weights, weighted_returns),
+        (generate_future_outlook, portfolio, portfolio_data, returns, weights),
+    ]
+
+    with Pool() as pool:
+        parallel_results = pool.starmap(process_section, sections_to_parallelize)
+
     elements = []
     
-    # Page de titre
+    # Ajoutez les sections non parallélisées
     elements.extend(create_title_page(
         "Rapport de Performance du Portefeuille",
         f"Pour : {data.get('client_name', 'Client Estimé')}",
@@ -185,43 +216,23 @@ def generate_report(data):
     # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
-    # Sections du rapport
-    sections = [
-        ("Résumé Exécutif", lambda p, pd, r, w, wr, tr, ar: generate_executive_summary(p, pd, r, w, wr, tr, ar)),
-        ("Vue d'Ensemble du Portefeuille", lambda p, pd, r, w, wr, tr, ar: generate_portfolio_overview(p, pd, r, w)),
-        ("Analyse de Performance", lambda p, pd, r, w, wr, tr, ar: generate_performance_analysis(p, pd, r, w, wr, tr, ar, start_date, end_date)),
-        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w)),
-        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w)),
-        ("Ratios Supplémentaires", lambda p, pd, r, w, wr, tr, ar: generate_additional_ratios_table(p, pd, r, w, start_date, end_date)),
-        ("Analyse des Risques", lambda p, pd, r, w, wr, tr, ar: generate_risk_analysis(p, pd, r, w, wr)),
-        ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
-        ("Meilleures et Pires Performances", lambda p, pd, r, w, wr, tr, ar: generate_best_worst_performers(p, pd, r, w)),
-        ("Analyse des Dividendes", lambda p, pd, r, w, wr, tr, ar: generate_dividend_table(p)),
-        ("Allocation Sectorielle", lambda p, pd, r, w, wr, tr, ar: generate_sector_allocation(p, pd, r, w)),
-        ("Simulation Monte Carlo", lambda p, pd, r, w, wr, tr, ar: generate_monte_carlo_simulation(p, pd, r, w, wr)),
-        ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w, wr)),
-        ("Perspectives Futures", lambda p, pd, r, w, wr, tr, ar: generate_future_outlook(p, pd, r, w)),
-        ("Recommandations", lambda p, pd, r, w, wr, tr, ar: generate_recommendations(p, pd, r, w, wr, tr, ar))
-    ]
-    total_steps = len(sections)
-    
-    for index, (title, function) in enumerate(sections, 1):
-        start_time = time.time()
-        
-        elements.append(create_section_header(title))
-        new_elements = function(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return)
-        
-        if isinstance(new_elements, list):
-            elements.extend(new_elements)
-        else:
-            elements.append(create_formatted_paragraph(str(new_elements)))
-        elements.append(PageBreak())
-        
-        end_time = time.time()
-        execution_time = end_time - start_time
-        
-        print(f"Section '{title}' traitée en {execution_time:.2f} secondes")
-        print(f"Progression : {index}/{len(sections)} sections traitées")
+    elements.extend(generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return))
+    elements.extend(generate_portfolio_overview(portfolio, portfolio_data, returns, weights))
+
+    # Ajoutez les résultats parallélisés
+    for result in parallel_results:
+        elements.extend(result)
+
+    # Ajoutez les sections restantes non parallélisées
+    elements.extend(generate_stock_performance_comparison(portfolio_data, weights))
+    elements.extend(generate_contribution_to_return(portfolio, portfolio_data, returns, weights))
+    elements.extend(generate_additional_ratios_table(portfolio, portfolio_data, returns, weights, start_date, end_date))
+    elements.extend(generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted_returns))
+    elements.extend(generate_best_worst_performers(portfolio, portfolio_data, returns, weights))
+    elements.extend(generate_dividend_table(portfolio))
+    elements.extend(generate_sector_allocation(portfolio, portfolio_data, returns, weights))
+    elements.extend(generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_returns))
+    elements.extend(generate_recommendations(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return))
         
     # Glossaire et avertissements
     elements.append(create_section_header("Glossaire"))
@@ -894,14 +905,18 @@ def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted
 
 def generate_sector_allocation(portfolio, portfolio_data, returns, weights):
     elements = []
-    
+
+    async def get_sectors():
+        urls = [f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{stock['symbol']}?modules=assetProfile" for stock in portfolio['stocks']]
+        results = await get_multiple_stock_data(urls)
+        sectors = {}
+        for stock, result in zip(portfolio['stocks'], results):
+            sector = result.get('quoteSummary', {}).get('result', [{}])[0].get('assetProfile', {}).get('sector', 'Unknown')
+            sectors[stock['symbol']] = sector
+        return sectors
+
     # Obtenir les secteurs pour chaque action
-    sectors = {}
-    for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
-        info = ticker.info
-        sector = info.get('sector', 'Unknown')
-        sectors[stock['symbol']] = sector
+    sectors = asyncio.run(get_sectors())
     
     # Calculer l'allocation sectorielle
     sector_weights = {}
@@ -1001,7 +1016,7 @@ def generate_dividend_table(portfolio):
     
     dividend_data = [['Titre', 'Rendement du Dividende', 'Fréquence', 'Dernier Dividende']]
     for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
+        ticker = get_stock_info(stock['symbol'])
         info = ticker.info
         dividend_yield = info.get('dividendYield', 0)
         dividend_rate = info.get('dividendRate', 0)
@@ -1144,7 +1159,7 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_
     # Obtenir les secteurs pour chaque action
     stock_sectors = {}
     for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
+        ticker = get_stock_info(stock['symbol'])
         info = ticker.info
         stock_sectors[stock['symbol']] = info.get('sector', 'Unknown')
     
@@ -1225,7 +1240,7 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     pe_ratios = {}
     earnings_growth = {}
     for stock in portfolio['stocks']:
-        ticker = yf.Ticker(stock['symbol'])
+        ticker = get_stock_info(stock['symbol'])
         info = ticker.info
         pe_ratios[stock['symbol']] = info.get('trailingPE', 'N/A')
         earnings_growth[stock['symbol']] = info.get('earningsQuarterlyGrowth', 'N/A')
@@ -1324,7 +1339,7 @@ def calculate_sector_allocation(portfolio):
     sector_cache = {}
     for stock in portfolio['stocks']:
         if stock['symbol'] not in sector_cache:
-            ticker = yf.Ticker(stock['symbol'])
+            ticker = get_stock_info(stock['symbol'])
             info = ticker.info
             sector_cache[stock['symbol']] = info.get('sector', 'Unknown')
         sector = sector_cache[stock['symbol']]

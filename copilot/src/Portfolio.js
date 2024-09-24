@@ -106,29 +106,23 @@ function Portfolio() {
     }, []);
 
     const fetchLatestPrices = useCallback(async () => {
-        if (!portfolio || !portfolio.stocks) {
-            console.error("Portfolio or portfolio.stocks is undefined");
+        if (!portfolio || !portfolio.stocks || portfolio.stocks.length === 0) {
             return;
         }
-        const updatedPrices = { ...livePrices };
-        for (const stock of portfolio.stocks) {
-            try {
-                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
-                if (response.data && response.data.price) {
-                    updatedPrices[stock.symbol] = response.data.price;
-                }
-            } catch (error) {
-                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
-            }
+        const symbols = portfolio.stocks.map(stock => stock.symbol).join(',');
+        try {
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/live_prices?symbols=${symbols}`);
+            setLivePrices(response.data);
+        } catch (error) {
+            console.error("Erreur lors de la récupération des prix en direct:", error);
         }
-        setLivePrices(updatedPrices);
-    }, [portfolio, livePrices]);
+    }, [portfolio]);
 
     useEffect(() => {
-        if (portfolio.stocks && portfolio.stocks.length > 0) {
-            fetchLatestPrices();
-        }
-    }, [portfolio, fetchLatestPrices]);
+        fetchLatestPrices();
+        const interval = setInterval(fetchLatestPrices, 60000); // Mise à jour toutes les minutes
+        return () => clearInterval(interval);
+    }, [fetchLatestPrices]);
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {
@@ -435,7 +429,7 @@ function Portfolio() {
                                                 formatNumber(parseFloat(stock.entry_price))
                                             )}
                                         </TableCell>
-                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Loading...'}</TableCell>
+                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Chargement...'}</TableCell>
                                         <TableCell>{formatNumber(value)}</TableCell>
                                         <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
                                         <TableCell>

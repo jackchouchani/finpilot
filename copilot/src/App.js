@@ -820,7 +820,7 @@ function AppContent({
                                                 handleSubmit={handleSubmit}
                                                 loading={loading}
                                                 customInput={agentInputRef.current ? agentInputRef.current.value : ''}
-                                                disableInput={true}
+                                                disableInput={false}
                                             />
                                         </>
                                     )}

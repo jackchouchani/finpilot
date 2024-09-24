@@ -38,7 +38,7 @@ import axios from 'axios';
 import { logout } from './Auth';
 import ErrorBoundary from './ErrorBoundary';
 import ChatBox from './ChatBox';
-import { debounce } from 'lodash';
+import logo from './assets/logo.jpg';
 
 const api = axios.create({
     baseURL: process.env.REACT_APP_API_URL,
@@ -648,7 +648,7 @@ function AppContent({
                     >
                         <MenuIcon />
                     </IconButton>
-                    <img src="/public/logo.jpg" alt="FinPilot Logo" style={{ height: 40, marginRight: 16 }} />
+                    <img src={logo} alt="FinPilot Logo" style={{ height: 40, marginRight: 16 }} />
                     <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
                         FinPilot
                     </Typography>

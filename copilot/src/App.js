@@ -38,6 +38,7 @@ import axios from 'axios';
 import { logout } from './Auth';
 import ErrorBoundary from './ErrorBoundary';
 import ChatBox from './ChatBox';
+import { debounce } from 'lodash';
 
 const api = axios.create({
     baseURL: process.env.REACT_APP_API_URL,
@@ -520,9 +521,16 @@ function App() {
         }
     }, []);
 
-    const setInputCallback = useCallback((value) => {
-        setInput(value);
-    }, []);
+    const debouncedSetInput = useCallback(
+        debounce((value) => {
+            setInput(value);
+        }, 300),
+        []
+    );
+
+    const handleInputChange = useCallback((e) => {
+        debouncedSetInput(e.target.value);
+    }, [debouncedSetInput]);
 
     if (!isLoggedIn) {
         return (
@@ -565,7 +573,7 @@ function App() {
                 setActiveTab={setActiveTab}
                 messages={messages}
                 input={input}
-                setInput={setInputCallback}
+                setInput={handleInputChange}
                 handleSubmit={handleSubmit}
                 loading={loading}
                 handlePDFUpload={handlePDFUpload}
@@ -654,6 +662,10 @@ function AppContent({
     const handleClose = () => {
         setAnchorEl(null);
     };
+
+    const handleInputChange = useCallback((e) => {
+        setInput(e.target.value);
+    }, [setInput]);
 
     return (
         <Box sx={{ display: 'flex' }}>

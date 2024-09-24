@@ -105,25 +105,36 @@ function Portfolio() {
         fetchPortfolio();
     }, []);
 
-    const fetchLatestPrices = useCallback(async () => {
-        if (!portfolio || !portfolio.stocks || portfolio.stocks.length === 0) {
-            return;
-        }
-        const symbols = portfolio.stocks.map(stock => stock.symbol).join(',');
+    const fetchLatestPrice = useCallback(async (symbol) => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbols=${symbols}`);
-            setLivePrices(response.data);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${symbol}`);
+            return response.data.price;
         } catch (error) {
-            console.error("Erreur lors de la récupération des prix en direct:", error);
+            console.error(`Erreur lors de la récupération du prix pour ${symbol}:`, error);
+            return null;
         }
-    }, [portfolio]);
+    }, []);
+
+    const updateAllPrices = useCallback(async () => {
+        if (!portfolio.stocks || portfolio.stocks.length === 0) return;
+
+        const updatedPrices = { ...livePrices };
+        for (const stock of portfolio.stocks) {
+            const price = await fetchLatestPrice(stock.symbol);
+            if (price !== null) {
+                updatedPrices[stock.symbol] = price;
+            }
+        }
+        setLivePrices(updatedPrices);
+    }, [portfolio.stocks, fetchLatestPrice, livePrices]);
+
 
     useEffect(() => {
-        fetchLatestPrices();
+        updateAllPrices();
         // Vous pouvez également ajouter un intervalle pour mettre à jour les prix régulièrement si nécessaire
         // const interval = setInterval(fetchLatestPrices, 60000); // Mise à jour toutes les minutes
         // return () => clearInterval(interval);
-    }, [fetchLatestPrices]);
+    }, [updateAllPrices]);
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {

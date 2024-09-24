@@ -657,7 +657,7 @@ function AppContent({
                         <MenuIcon />
                     </IconButton>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <img src="./logo.jpg" alt="FinPilot Logo" style={{ height: 40, marginRight: 16 }} />
+                        <img src="./logo.jpg" alt="FinPilot Logo" style={{ height: 50, marginRight: 16 }} />
                         <Typography variant="h6" noWrap component="div">
                             FinPilot
                         </Typography>

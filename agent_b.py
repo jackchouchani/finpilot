@@ -22,7 +22,7 @@ class SentimentAnalysisAgent:
             "to": yesterday.isoformat(),
             "sortBy": "popularity",
             "language": "en",
-            "pageSize": 100,  # Augmentation du nombre d'articles
+            "pageSize": 100,
             "apiKey": self.news_api_key
         }
         response = requests.get(url, params=params)
@@ -36,7 +36,15 @@ class SentimentAnalysisAgent:
             return []
 
     def analyze_sentiment(self, text):
+        if not text:
+            return 0
         return self.sia.polarity_scores(text)['compound']
+
+    def get_article_text(self, article):
+        title = article.get('title', '')
+        description = article.get('description', '')
+        content = article.get('content', '')
+        return ' '.join(filter(None, [title, description, content]))
 
     def analyze(self, company):
         news = self.get_news(company)
@@ -45,10 +53,7 @@ class SentimentAnalysisAgent:
 
         sentiments = []
         for article in news:
-            title = article.get('title', '')
-            description = article.get('description', '')
-            content = article.get('content', '')
-            text = f"{title} {description} {content}".strip()
+            text = self.get_article_text(article)
             if text:
                 sentiments.append(self.analyze_sentiment(text))
 
@@ -78,11 +83,11 @@ Le sentiment général concernant {company} est {sentiment_category.lower()}.
 
 Articles récents analysés:
 """
-        for i, article in enumerate(sorted(news[:10], key=lambda x: abs(self.analyze_sentiment(x['title'] + x.get('description', ''))), reverse=True), 1):
-            title = article.get('title', '')
-            description = article.get('description', '')
-            text = f"{title} {description}".strip()
+        sorted_articles = sorted(news, key=lambda x: abs(self.analyze_sentiment(self.get_article_text(x))), reverse=True)
+        for i, article in enumerate(sorted_articles[:10], 1):
+            text = self.get_article_text(article)
             sentiment = self.analyze_sentiment(text)
+            title = article.get('title', 'Titre non disponible')
             rapport += f"{i}. {title}\n Sentiment: {sentiment:.2f}\n\n"
 
         rapport += f"""
@@ -116,8 +121,3 @@ et une compréhension plus large du contexte de l'entreprise et de son secteur a
         return f"La perception de l'entreprise semble être {strength}. {consistency}"
 
 sentiment_agent = SentimentAnalysisAgent()
-
-# Test de l'agent
-test_company = "AAPL"
-result = sentiment_agent.analyze(test_company)
-print(result)

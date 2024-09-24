@@ -5,6 +5,9 @@ import {
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid
 } from 'recharts';
+import SaveIcon from '@mui/icons-material/Save';
+import SimulationIcon from '@mui/icons-material/Timeline';
+import ReportIcon from '@mui/icons-material/Assessment';
 import { Info } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -479,11 +482,11 @@ function Portfolio() {
                 </Box>
 
                 <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                    <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary">
+                    <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary" startIcon={<SaveIcon />}>
                         Sauvegarder le Portefeuille
                     </Button>
-                    <Button onClick={() => setOpenScenario(true)} variant="contained">Simuler un Scénario</Button>
-                    <Button onClick={generateReport} variant="contained">Générer un Rapport</Button>
+                    <Button onClick={() => setOpenScenario(true)} variant="contained" startIcon={<SimulationIcon />}>Simuler un Scénario</Button>
+                    <Button onClick={generateReport} variant="contained" startIcon={<ReportIcon />}>Générer un Rapport</Button>
                 </Box>
 
                 <Dialog

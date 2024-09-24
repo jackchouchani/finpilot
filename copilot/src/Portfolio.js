@@ -111,7 +111,7 @@ function Portfolio() {
         }
         const symbols = portfolio.stocks.map(stock => stock.symbol).join(',');
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/live_prices?symbols=${symbols}`);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbols=${symbols}`);
             setLivePrices(response.data);
         } catch (error) {
             console.error("Erreur lors de la récupération des prix en direct:", error);
@@ -120,8 +120,9 @@ function Portfolio() {
 
     useEffect(() => {
         fetchLatestPrices();
-        const interval = setInterval(fetchLatestPrices, 60000); // Mise à jour toutes les minutes
-        return () => clearInterval(interval);
+        // Vous pouvez également ajouter un intervalle pour mettre à jour les prix régulièrement si nécessaire
+        // const interval = setInterval(fetchLatestPrices, 60000); // Mise à jour toutes les minutes
+        // return () => clearInterval(interval);
     }, [fetchLatestPrices]);
 
     useEffect(() => {
@@ -313,7 +314,12 @@ function Portfolio() {
         }).format(number);
     };
 
-    const calculateDiff = (entryPrice, currentPrice, shares) => {
+    const calculateDiff = (stock) => {
+        const entryPrice = parseFloat(stock.entry_price);
+        const currentPrice = livePrices[stock.symbol] || entryPrice;
+        const shares = displayMode === 'weight'
+            ? (parseFloat(stock.weight) / 100) * portfolioValue / entryPrice
+            : parseFloat(stock.weight);
         const diff = (currentPrice - entryPrice) * shares;
         const color = diff >= 0 ? 'green' : 'red';
         return { diff, color };
@@ -398,7 +404,7 @@ function Portfolio() {
                                     ? (parseFloat(stock.weight) / 100) * portfolioValue / parseFloat(stock.entry_price)
                                     : parseFloat(stock.weight);
                                 const value = shares * currentPrice;
-                                const { diff, color } = calculateDiff(parseFloat(stock.entry_price), currentPrice, shares);
+                                const { diff, color } = calculateDiff(stock);
                                 return (
                                     <TableRow key={index}>
                                         <TableCell>{stock.symbol}</TableCell>
@@ -429,7 +435,11 @@ function Portfolio() {
                                                 formatNumber(parseFloat(stock.entry_price))
                                             )}
                                         </TableCell>
-                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Chargement...'}</TableCell>
+                                        <TableCell>
+                                            {livePrices[stock.symbol]
+                                                ? formatNumber(livePrices[stock.symbol])
+                                                : 'Chargement...'}
+                                        </TableCell>
                                         <TableCell>{formatNumber(value)}</TableCell>
                                         <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
                                         <TableCell>

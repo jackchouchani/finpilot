@@ -89,6 +89,7 @@ function App() {
     const [settings, setSettings] = useState({
         risk_tolerance: 'moderate',
     });
+    const agentInputRef = useRef(null);
 
     const toggleDarkMode = () => {
         setDarkMode(!darkMode);
@@ -472,8 +473,6 @@ function App() {
             alert('Error clearing chat history. Please try again.');
         }
     }, []);
-
-    const agentInputRef = useRef(null);
 
     const handleSubmit = async (e, inputValue) => {
         e.preventDefault();

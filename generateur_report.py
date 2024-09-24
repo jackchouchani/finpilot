@@ -219,6 +219,9 @@ def calculate_portfolio_returns(portfolio_data, weights):
     annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
     return weighted_returns, total_return, annualized_return
 
+def process_section_wrapper(x):
+    return process_section(*x)
+
 @timing_decorator
 def generate_report(data):
     """
@@ -259,7 +262,7 @@ def generate_report(data):
     ]
 
     with ProcessPoolExecutor() as executor:
-        parallel_results = list(executor.map(lambda x: process_section(*x), sections_to_parallelize))
+        parallel_results = list(executor.map(partial(process_section), sections_to_parallelize))
 
     elements = []
     

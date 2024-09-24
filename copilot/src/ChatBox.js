@@ -59,7 +59,11 @@ function ChatBox({ messages, input, setInput, handleSubmit, loading }) {
                     disabled={loading}
                     inputRef={inputRef}
                 />
-                <Button type="submit" variant="contained" disabled={loading || !input.trim()}>
+                <Button 
+                    type="submit" 
+                    variant="contained" 
+                    disabled={loading || !inputRef.current || !inputRef.current.value.trim()}
+                >
                     Envoyer
                 </Button>
             </Box>

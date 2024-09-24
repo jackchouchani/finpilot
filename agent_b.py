@@ -1,18 +1,21 @@
 from textblob import TextBlob
 import requests
+import datetime
 
 class SentimentAnalysisAgent:
     def __init__(self):
-        self.news_api_key = "c6cc145ad227419c88756838786b70d1"  # Remplacez par votre clé API
+        self.news_api_key = "c6cc145ad227419c88756838786b70d1"
 
     def get_news(self, query):
+        today = datetime.date.today()
+        yesterday = today - datetime.timedelta(days=1)
         url = "https://newsapi.org/v2/everything"
         params = {
-            "q": f'"{query}" AND (stock OR market OR finance OR investor)',
-            "language": "fr,en",
-            "sortBy": "relevancy",
-            "pageSize": 20,
-            # "domains": "reuters.com,bloomberg.com,ft.com,lesechos.fr,boursorama.com",
+            "q": query,
+            "from": yesterday.isoformat(),
+            "to": yesterday.isoformat(),
+            "sortBy": "popularity",
+            "language": "en",
             "apiKey": self.news_api_key
         }
         response = requests.get(url, params=params)
@@ -32,7 +35,6 @@ class SentimentAnalysisAgent:
     def analyze(self, company):
         news = self.get_news(company)
         if not news:
-            print("Aucun article n'a été trouvé. Vérifiez votre requête et votre clé API.")
             return "Analyse impossible : aucun article trouvé."
 
         sentiments = [self.analyze_sentiment(article['title'] + ' ' + article.get('description', '')) for article in news[:10]]
@@ -50,6 +52,7 @@ Analyse de sentiment pour {company}
 Nombre d'articles analysés: {len(sentiments)}
 Sentiment moyen: {average_sentiment:.2f} (sur une échelle de -1 à 1)
 Catégorie de sentiment: {sentiment_category}
+
 Interprétation:
 {f'Le sentiment général concernant {company} est {sentiment_category.lower()}. ' if sentiment_category != "Neutre" else f'Le sentiment général concernant {company} est neutre. '}
 {'Cela pourrait indiquer une perception positive de l\'entreprise dans les médias récents.' if sentiment_category == "Positif" else 'Cela pourrait indiquer une perception négative de l\'entreprise dans les médias récents.' if sentiment_category == "Négatif" else 'Cela suggère que les opinions sont mitigées ou que les nouvelles récentes n\'ont pas eu d\'impact significatif sur la perception de l\'entreprise.'}

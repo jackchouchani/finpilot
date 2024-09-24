@@ -573,6 +573,7 @@ function App() {
                 setComparisonEndDate={setComparisonEndDate}
                 backtestResults={backtestResults}
                 comparisonResults={comparisonResults}
+                agentInputRef={agentInputRef}
             />
         </ThemeProvider>
     );
@@ -622,6 +623,7 @@ function AppContent({
     backtestResults,
     comparisonResults,
     isMobile,
+    agentInputRef,
 }) {
     const [anchorEl, setAnchorEl] = React.useState(null);
 

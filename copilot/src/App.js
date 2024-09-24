@@ -490,15 +490,13 @@ function App() {
 
     const inputRef = useRef(null);
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e, inputValue) => {
         e.preventDefault();
-        const inputValue = inputRef.current.value.trim();
         if (!inputValue) return;
 
         setLoading(true);
         const newMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [...prevMessages, newMessage]);
-        inputRef.current.value = ''; // Vider l'input après l'envoi
 
         try {
             const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {

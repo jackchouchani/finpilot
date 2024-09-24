@@ -13,6 +13,15 @@ function ChatBox({ messages, handleSubmit, loading }) {
 
     const inputRef = useRef(null);
 
+    const onSubmit = (e) => {
+        e.preventDefault();
+        const inputValue = inputRef.current.value.trim();
+        if (inputValue) {
+            handleSubmit(e, inputValue);
+            inputRef.current.value = ''; // Vider l'input après l'envoi
+        }
+    };
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
@@ -47,7 +56,7 @@ function ChatBox({ messages, handleSubmit, loading }) {
                     <div ref={messagesEndRef} />
                 </List>
             </Paper>
-            <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+            <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
                 <TextField
                     fullWidth
                     placeholder="Tapez votre message ici..."
@@ -58,7 +67,7 @@ function ChatBox({ messages, handleSubmit, loading }) {
                 <Button 
                     type="submit" 
                     variant="contained" 
-                    disabled={loading || !inputRef.current || !inputRef.current.value.trim()}
+                    disabled={loading}
                 >
                     Envoyer
                 </Button>

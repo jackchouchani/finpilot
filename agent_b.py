@@ -12,7 +12,7 @@ class SentimentAnalysisAgent:
             "language": "fr,en",
             "sortBy": "relevancy",
             "pageSize": 20,
-            "domains": "reuters.com,bloomberg.com,ft.com,lesechos.fr,boursorama.com",
+            # "domains": "reuters.com,bloomberg.com,ft.com,lesechos.fr,boursorama.com",
             "apiKey": self.news_api_key
         }
         response = requests.get(url, params=params)

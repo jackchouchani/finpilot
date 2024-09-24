@@ -81,7 +81,7 @@ Que pensez-vous de ces suggestions ? Souhaitez-vous que nous discutions plus en 
         return rapport
 
     def _format_portfolio(self, weights):
-        return "\n".join([f"• {ticker}: {weight}" for ticker, weight in weights.items()])
+        return "\n".join([f"- {ticker}: {weight}" for ticker, weight in weights.items()])
 
     def _generate_key_points(self, current, optimized):
         points = []
@@ -91,12 +91,12 @@ Que pensez-vous de ces suggestions ? Souhaitez-vous que nous discutions plus en 
             diff = optimized_weight - current_weight
             if abs(diff) > 0.05:  # Seuil arbitraire pour les changements significatifs
                 if diff > 0:
-                    points.append(f"• L'optimisation suggère d'augmenter significativement la part de {ticker} (de {current[ticker]} à {optimized[ticker]}).")
+                    points.append(f"- L'optimisation suggère d'augmenter significativement la part de {ticker} (de {current[ticker]} à {optimized[ticker]}).")
                 else:
-                    points.append(f"• L'optimisation suggère de réduire significativement la part de {ticker} (de {current[ticker]} à {optimized[ticker]}).")
+                    points.append(f"- L'optimisation suggère de réduire significativement la part de {ticker} (de {current[ticker]} à {optimized[ticker]}).")
         
         if not points:
-            points.append("• Les changements suggérés sont relativement mineurs pour tous les titres.")
+            points.append("- Les changements suggérés sont relativement mineurs pour tous les titres.")
         
         return "\n".join(points)
 

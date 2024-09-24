@@ -35,6 +35,6 @@ tqdm
 scikit-learn
 groq
 deepl
-pandas_datareader
 aiohttp
 asyncio
+fredapi

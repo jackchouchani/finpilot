@@ -16,12 +16,12 @@ import anthropic
 from flask import jsonify
 from tqdm import tqdm
 from sklearn.decomposition import PCA
-import pandas_datareader as pdr
 import scipy.stats as stats
 from multiprocessing import Pool
 from functools import lru_cache
 import asyncio
 import aiohttp
+from fredapi import Fred
 
 # Bibliothèques de visualisation
 import plotly.express as px
@@ -36,6 +36,8 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
 
 anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+fred_api_key = os.environ.get('FRED_API_KEY')  # Stockez votre clé API dans une variable d'environnement
+fred = Fred(api_key=fred_api_key)
 
 @lru_cache(maxsize=None)
 def get_stock_info(symbol):
@@ -57,6 +59,21 @@ async def get_multiple_stock_data(urls):
 
 def process_section(section_func, *args):
     return section_func(*args)
+
+def get_fred_data(series_id, start_date, end_date):
+    """
+    Récupère les données de FRED pour une série spécifique.
+
+    Parameters:
+    series_id (str): Identifiant de la série FRED.
+    start_date (str): Date de début au format 'YYYY-MM-DD'.
+    end_date (str): Date de fin au format 'YYYY-MM-DD'.
+
+    Returns:
+    DataFrame: Données de la série FRED.
+    """
+    data = fred.get_series(series_id, start_date, end_date)
+    return pd.DataFrame(data, columns=[series_id])
 
 
 def generate_ai_content(prompt):
@@ -1296,9 +1313,9 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     start_date = current_date - timedelta(days=30)  # Données du dernier mois
     
     try:
-        inflation = pdr.get_data_fred('CPIAUCSL', start=start_date, end=current_date)
-        unemployment = pdr.get_data_fred('UNRATE', start=start_date, end=current_date)
-        gdp_growth = pdr.get_data_fred('GDP', start=start_date, end=current_date)
+        inflation = get_fred_data('CPIAUCSL', start_date, current_date)
+        unemployment = get_fred_data('UNRATE', start_date, current_date)
+        gdp_growth = get_fred_data('GDP', start_date, current_date)
         
         latest_inflation = inflation.iloc[-1]['CPIAUCSL']
         latest_unemployment = unemployment.iloc[-1]['UNRATE']

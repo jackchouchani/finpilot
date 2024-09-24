@@ -220,6 +220,14 @@ function App() {
     }, []);
 
     useEffect(() => {
+        const intervalId = setInterval(() => {
+            fetchLatestPrices();
+        }, 60000); // Met à jour les prix toutes les minutes
+
+        return () => clearInterval(intervalId);
+    }, [fetchLatestPrices]);
+
+    useEffect(() => {
         fetchLivePrice();
     }, [fetchLivePrice]);
 

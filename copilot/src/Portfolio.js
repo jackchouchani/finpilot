@@ -89,6 +89,7 @@ function Portfolio() {
     const [editingStock, setEditingStock] = useState(null);
     const [reportProgress, setReportProgress] = useState(0);
     const [currentStep, setCurrentStep] = useState('');
+    const [updateTrigger, setUpdateTrigger] = useState(0);
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -111,7 +112,7 @@ function Portfolio() {
         if (portfolio.stocks && portfolio.stocks.length > 0) {
             fetchLatestPrices();
         }
-    }, [portfolio]);
+    }, [portfolio, fetchLatestPrices]); // Ajoutez fetchLatestPrices comme dépendance
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {
@@ -142,439 +143,440 @@ function Portfolio() {
     }, [portfolio]);
 
 
-        useEffect(() => {
-            if (newStock.symbol) {
-                const fetchNewStockPrice = async () => {
-                    try {
-                        const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
-                        if (response.data && response.data.price) {
-                            setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
-                        }
-                    } catch (error) {
-                        console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
-                    }
-                };
-                fetchNewStockPrice();
-            }
-        }, [newStock.symbol]);
-
-        useEffect(() => {
-            const fetchPortfolioValue = async () => {
+    useEffect(() => {
+        if (newStock.symbol) {
+            const fetchNewStockPrice = async () => {
                 try {
-                    const response = await axios.get(process.env.REACT_APP_API_URL + '/get_portfolio_value', {
-                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                    });
-                    setPortfolioValue(response.data.portfolio_value);
+                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
+                    if (response.data && response.data.price) {
+                        setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
+                    }
                 } catch (error) {
-                    console.error("Error fetching portfolio value:", error);
+                    console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
                 }
             };
-            fetchPortfolioValue();
-        }, []);
-
-        const updatePortfolioValue = async (newValue) => {
-            try {
-                await axios.post(process.env.REACT_APP_API_URL + '/update_portfolio_value',
-                    { portfolio_value: newValue },
-                    { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
-                );
-                setPortfolioValue(newValue);
-            } catch (error) {
-                console.error("Error updating portfolio value:", error);
-            }
-        };
-
-        const fetchPortfolio = async () => {
-            try {
-                const response = await axios.get(process.env.REACT_APP_API_URL + '/portfolio');
-                setPortfolio(response.data);
-            } catch (error) {
-                console.error("Erreur lors de la récupération du portfolio:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        const calculateValue = (stock) => {
-            const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
-            return displayMode === 'weight'
-                ? (parseFloat(stock.weight) / 100) * portfolioValue
-                : parseFloat(stock.shares || stock.weight) * currentPrice;
-        };
-
-        const fetchLatestPrices = async () => {
-            if (!portfolio || !portfolio.stocks) {
-                console.error("Portfolio or portfolio.stocks is undefined");
-                return;
-            }
-            const updatedPrices = { ...livePrices };
-            for (const stock of portfolio.stocks) {
-                try {
-                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
-                    if (response.data && response.data.price) {
-                        updatedPrices[stock.symbol] = response.data.price;
-                    }
-                } catch (error) {
-                    console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
-                }
-            }
-            setLivePrices(updatedPrices);
-        };
-
-        const addStock = () => {
-            setPortfolio(prevPortfolio => ({
-                ...prevPortfolio,
-                stocks: [...(prevPortfolio.stocks || []), {
-                    symbol: newStock.symbol,
-                    weight: newStock.weight,
-                    entry_price: newStock.entryPrice
-                }]
-            }));
-            setNewStock({ symbol: '', weight: '', entryPrice: '' });
-        };
-
-        const savePortfolio = async () => {
-            try {
-                const response = await axios.post(process.env.REACT_APP_API_URL + '/portfolio', portfolio);
-                if (response.status === 200) {
-                    alert('Portfolio sauvegardé avec succès!');
-                    fetchPortfolio();
-                } else {
-                    alert('Erreur lors de la sauvegarde du portfolio.');
-                }
-            } catch (error) {
-                console.error("Erreur lors de la sauvegarde du portfolio:", error);
-                alert('Erreur lors de la sauvegarde du portfolio. Veuillez réessayer.');
-            }
-        };
-
-        const simulateScenario = async () => {
-            try {
-                const response = await axios.post(process.env.REACT_APP_API_URL + '/simulate_scenario', {
-                    portfolio: {
-                        stocks: portfolio.stocks.map(stock => ({
-                            symbol: stock.symbol,
-                            weight: parseFloat(stock.weight)
-                        }))
-                    },
-                    scenario: selectedScenario
-                });
-                setScenarioResults(response.data);
-                setOpenScenario(true);
-            } catch (error) {
-                console.error("Erreur lors de la simulation du scénario:", error);
-                alert('Erreur lors de la simulation du scénario. Veuillez réessayer.');
-            }
-        };
-
-        const generateReport = async () => {
-            setLoading(true);
-            try {
-                const response = await axios.post(
-                    `${process.env.REACT_APP_API_URL}/generate_report`,
-                    { portfolio: portfolio },
-                    {
-                        responseType: 'json',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        }
-                    }
-                );
-
-                console.log("Response data:", response.data); // Ajoutez cette ligne pour déboguer
-
-                if (response.data && response.data.report) {
-                    setReportData(response.data.report);
-                    setOpenReport(true);
-                } else {
-                    console.error("Invalid report data:", response.data); // Ajoutez cette ligne
-                    throw new Error('Invalid report data received');
-                }
-            } catch (error) {
-                console.error("Erreur lors de la génération du rapport:", error);
-                alert(`Erreur lors de la génération du rapport: ${error.message}`);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        const handleEditStock = (index) => {
-            setEditingStock(index);
-        };
-
-        const handleSaveStock = (index) => {
-            setEditingStock(null);
-            // Ici, vous pouvez ajouter une logique pour sauvegarder les modifications dans la base de données
-        };
-
-        const handleStockChange = (index, field, value) => {
-            const updatedStocks = [...portfolio.stocks];
-            updatedStocks[index] = { ...updatedStocks[index], [field]: value };
-            setPortfolio({ ...portfolio, stocks: updatedStocks });
-        };
-
-        const formatNumber = (number) => {
-            return new Intl.NumberFormat('fr-FR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(number);
-        };
-
-        const calculateDiff = (entryPrice, currentPrice, shares) => {
-            const diff = (currentPrice - entryPrice) * shares;
-            const color = diff >= 0 ? 'green' : 'red';
-            return { diff, color };
-        };
-
-        if (loading) {
-            return <CircularProgress />;
+            fetchNewStockPrice();
         }
+    }, [newStock.symbol]);
 
-        return (
-            <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Dernières Nouvelles</Typography>
-                {loading ? (
-                    <CircularProgress />
-                ) : news && news.length > 0 ? (
-                    <List>
-                        {news.map((item, index) => (
-                            <ListItem key={index}>
-                                <ListItemText primary={item.title} secondary={item.description} />
-                            </ListItem>
-                        ))}
-                    </List>
-                ) : (
-                    <Typography>Aucune nouvelle disponible pour les actions actuelles</Typography>
-                )}
+    useEffect(() => {
+        const fetchPortfolioValue = async () => {
+            try {
+                const response = await axios.get(process.env.REACT_APP_API_URL + '/get_portfolio_value', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                setPortfolioValue(response.data.portfolio_value);
+            } catch (error) {
+                console.error("Error fetching portfolio value:", error);
+            }
+        };
+        fetchPortfolioValue();
+    }, []);
 
-                <form onSubmit={handleSubmit}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                        <Autocomplete
-                            options={['AAPL', 'GOOGL', 'MSFT', 'AMZN']}
-                            renderInput={(params) => <TextField {...params} label="Symbole de l'action" />}
-                            onInputChange={(event, newValue) => setNewStock({ ...newStock, symbol: newValue })}
-                            value={newStock.symbol}
-                            sx={{ flexGrow: 1 }}
-                        />
-                        <TextField
-                            label={displayMode === 'weight' ? "Poids (%)" : "Nombre d'actions"}
-                            type="number"
-                            name={displayMode === 'weight' ? 'weight' : 'shares'}
-                            value={displayMode === 'weight' ? newStock.weight : newStock.shares}
-                            onChange={handleChange}
-                            InputProps={{
-                                endAdornment: displayMode === 'weight' ? <InputAdornment position="end">%</InputAdornment> : null,
-                            }}
-                            sx={{ flexGrow: 1 }}
-                        />
-                        <TextField
-                            label="Prix d'entrée"
-                            type="number"
-                            name="entryPrice"
-                            value={newStock.entryPrice}
-                            onChange={handleChange}
-                            sx={{ flexGrow: 1 }}
-                        />
-                        <Tooltip title={`Le ${displayMode === 'weight' ? 'poids' : 'nombre d\'actions'} représente ${displayMode === 'weight' ? 'le pourcentage' : 'la quantité'} de l'action dans votre portefeuille.`}>
-                            <IconButton>
-                                <Info />
-                            </IconButton>
-                        </Tooltip>
-                        <Button type="submit" variant="contained" color="primary">Ajouter</Button>
-                    </Box>
-                </form>
+    const updatePortfolioValue = async (newValue) => {
+        try {
+            await axios.post(process.env.REACT_APP_API_URL + '/update_portfolio_value',
+                { portfolio_value: newValue },
+                { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+            );
+            setPortfolioValue(newValue);
+        } catch (error) {
+            console.error("Error updating portfolio value:", error);
+        }
+    };
 
-                {portfolio && portfolio.stocks && portfolio.stocks.length > 0 ? (
-                    <>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Symbole</TableCell>
-                                    <TableCell>{displayMode === 'weight' ? 'Poids (%)' : 'Actions'}</TableCell>
-                                    <TableCell>Prix d'entrée</TableCell>
-                                    <TableCell>Prix actuel</TableCell>
-                                    <TableCell>Valeur</TableCell>
-                                    <TableCell>Différence</TableCell>
-                                    <TableCell>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {portfolio.stocks.map((stock, index) => {
-                                    const shares = displayMode === 'weight'
-                                        ? (parseFloat(stock.weight) / 100) * portfolioValue / parseFloat(stock.entry_price)
-                                        : parseFloat(stock.weight);
-                                    const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
-                                    const value = shares * currentPrice;
-                                    const { diff, color } = calculateDiff(parseFloat(stock.entry_price), currentPrice, shares);
-                                    return (
-                                        <TableRow key={index}>
-                                            <TableCell>{stock.symbol}</TableCell>
-                                            <TableCell>
-                                                {editingStock === index ? (
-                                                    <TextField
-                                                        type="number"
-                                                        value={displayMode === 'weight' ? stock.weight : shares}
-                                                        onChange={(e) => handleStockChange(index, displayMode === 'weight' ? 'weight' : 'shares', e.target.value)}
-                                                        InputProps={displayMode === 'weight' ? {
-                                                            endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                                                        } : {}}
-                                                    />
-                                                ) : (
-                                                    displayMode === 'weight'
-                                                        ? `${formatNumber(parseFloat(stock.weight))}%`
-                                                        : formatNumber(shares)
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {editingStock === index ? (
-                                                    <TextField
-                                                        type="number"
-                                                        value={stock.entry_price}
-                                                        onChange={(e) => handleStockChange(index, 'entry_price', e.target.value)}
-                                                    />
-                                                ) : (
-                                                    formatNumber(parseFloat(stock.entry_price))
-                                                )}
-                                            </TableCell>
-                                            <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Loading...'}</TableCell>
-                                            <TableCell>{formatNumber(value)}</TableCell>
-                                            <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
-                                            <TableCell>
-                                                {editingStock === index ? (
-                                                    <Button onClick={() => handleSaveStock(index)}>Save</Button>
-                                                ) : (
-                                                    <Button onClick={() => handleEditStock(index)}>Edit</Button>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                        <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Allocation du Portefeuille</Typography>
-                        <PortfolioPieChart portfolio={portfolio} />
-                    </>
-                ) : (
-                    <Typography sx={{ my: 2 }}>Le portefeuille est actuellement vide. Ajoutez des actions pour commencer.</Typography>
-                )}
+    const fetchPortfolio = async () => {
+        try {
+            const response = await axios.get(process.env.REACT_APP_API_URL + '/portfolio');
+            setPortfolio(response.data);
+        } catch (error) {
+            console.error("Erreur lors de la récupération du portfolio:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-                <Box sx={{ mt: 3 }}>
-                    <TextField
-                        label="Valeur du Portefeuille"
-                        value={formatNumber(portfolioValue)}
-                        onChange={(e) => {
-                            const newValue = parseFloat(e.target.value.replace(/[^0-9,-]/g, '').replace(',', '.'));
-                            if (!isNaN(newValue)) {
-                                setPortfolioValue(newValue);
-                                updatePortfolioValue(newValue);
-                            }
-                        }}
-                        fullWidth
-                        margin="normal"
-                    />
-                    <Typography variant="h6" sx={{ mt: 2 }}>Valeur Actuelle du Portefeuille: {portfolioValue.toFixed(2)}</Typography>
-                    <FormControlLabel
-                        control={<Switch checked={displayMode === 'shares'} onChange={() => setDisplayMode(displayMode === 'weight' ? 'shares' : 'weight')} />}
-                        label={`Passer en mode ${displayMode === 'weight' ? 'Actions' : 'Poids'}`}
-                        sx={{ mt: 2 }}
-                    />
-                </Box>
+    const calculateValue = (stock) => {
+        const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
+        return displayMode === 'weight'
+            ? (parseFloat(stock.weight) / 100) * portfolioValue
+            : parseFloat(stock.shares || stock.weight) * currentPrice;
+    };
 
-                <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                    <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary" startIcon={<SaveIcon />}>
-                        Sauvegarder le Portefeuille
-                    </Button>
-                    <Button onClick={() => setOpenScenario(true)} variant="contained" startIcon={<SimulationIcon />}>Simuler un Scénario</Button>
-                    <Button onClick={generateReport} variant="contained" startIcon={<ReportIcon />}>Générer un Rapport</Button>
-                </Box>
+    const fetchLatestPrices = useCallback(async () => {
+        if (!portfolio || !portfolio.stocks) {
+            console.error("Portfolio or portfolio.stocks is undefined");
+            return;
+        }
+        const updatedPrices = { ...livePrices };
+        for (const stock of portfolio.stocks) {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
+                if (response.data && response.data.price) {
+                    updatedPrices[stock.symbol] = response.data.price;
+                }
+            } catch (error) {
+                console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
+            }
+        }
+        setLivePrices(updatedPrices);
+        setUpdateTrigger(prev => prev + 1); // Force le re-rendu
+    }, [portfolio, livePrices]);
 
-                <Dialog
-                    open={openScenario}
-                    onClose={() => setOpenScenario(false)}
-                    fullWidth
-                    maxWidth="md"
-                >
-                    <DialogTitle>Simulation de Scénario</DialogTitle>
-                    <DialogContent>
-                        <Select
-                            value={selectedScenario}
-                            onChange={(e) => setSelectedScenario(e.target.value)}
-                            fullWidth
-                            sx={{ mb: 2 }}
-                        >
-                            <MenuItem value="market_crash">Krach Boursier</MenuItem>
-                            <MenuItem value="bull_market">Marché Haussier</MenuItem>
-                            <MenuItem value="high_inflation">Forte Inflation</MenuItem>
-                        </Select>
-                        <Button onClick={simulateScenario} variant="contained" sx={{ mb: 2 }}>Lancer la Simulation</Button>
-                        {scenarioResults && scenarioResults.daily_returns && scenarioResults.daily_returns.length > 0 ? (
-                            <Box>
-                                <Typography>Scénario: {scenarioResults.scenario}</Typography>
-                                <Typography>Valeur Initiale: {scenarioResults.initial_value.toFixed(2)} €</Typography>
-                                <Typography>Valeur Finale: {scenarioResults.final_value.toFixed(2)} €</Typography>
-                                <Typography>Rendement Total: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
-                                <Box sx={{ width: '100%', height: 400 }}>
-                                    <ResponsiveContainer width="100%" height={400}>
-                                        <LineChart data={scenarioResults.portfolio_values.map((value, index) => ({ day: index, value: value }))}>
-                                            <XAxis
-                                                dataKey="day"
-                                                tickFormatter={(tick) => `Jour ${tick + 1}`}
-                                            />
-                                            <YAxis
-                                                tickFormatter={(value) => `$${value.toFixed(0)}`}
-                                            />
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <RechartsTooltip
-                                                formatter={(value) => [`$${value.toFixed(2)}`, "Valeur du Portefeuille"]}
-                                                labelFormatter={(label) => `Jour ${label + 1}`}
-                                            />
-                                            <Legend />
-                                            <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Valeur du Portefeuille" />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </Box>
-                            </Box>
-                        ) : (
-                            <Typography>Aucune donnée de scénario disponible</Typography>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setOpenScenario(false)}>Fermer</Button>
-                    </DialogActions>
-                </Dialog>
+    const addStock = () => {
+        setPortfolio(prevPortfolio => ({
+            ...prevPortfolio,
+            stocks: [...(prevPortfolio.stocks || []), {
+                symbol: newStock.symbol,
+                weight: newStock.weight,
+                entry_price: newStock.entryPrice
+            }]
+        }));
+        setNewStock({ symbol: '', weight: '', entryPrice: '' });
+    };
 
-                <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
-                    <DialogTitle>Rapport du Portefeuille</DialogTitle>
-                    <DialogContent>
-                        {reportData ? (
-                            <iframe
-                                src={`data:application/pdf;base64,${reportData}`}
-                                width="100%"
-                                height="500px"
-                                style={{ border: 'none' }}
-                            />
-                        ) : (
-                            <Typography>Aucune donnée de rapport disponible</Typography>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setOpenReport(false)}>Fermer</Button>
-                        {reportData && (
-                            <Button onClick={() => {
-                                const linkSource = `data:application/pdf;base64,${reportData}`;
-                                const downloadLink = document.createElement("a");
-                                downloadLink.href = linkSource;
-                                downloadLink.download = "rapport_portefeuille.pdf";
-                                downloadLink.click();
-                            }}>
-                                Télécharger le PDF
-                            </Button>
-                        )}
-                    </DialogActions>
-                </Dialog>
-            </Paper>
-        );
+    const savePortfolio = async () => {
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/portfolio', portfolio);
+            if (response.status === 200) {
+                alert('Portfolio sauvegardé avec succès!');
+                fetchPortfolio();
+            } else {
+                alert('Erreur lors de la sauvegarde du portfolio.');
+            }
+        } catch (error) {
+            console.error("Erreur lors de la sauvegarde du portfolio:", error);
+            alert('Erreur lors de la sauvegarde du portfolio. Veuillez réessayer.');
+        }
+    };
+
+    const simulateScenario = async () => {
+        try {
+            const response = await axios.post(process.env.REACT_APP_API_URL + '/simulate_scenario', {
+                portfolio: {
+                    stocks: portfolio.stocks.map(stock => ({
+                        symbol: stock.symbol,
+                        weight: parseFloat(stock.weight)
+                    }))
+                },
+                scenario: selectedScenario
+            });
+            setScenarioResults(response.data);
+            setOpenScenario(true);
+        } catch (error) {
+            console.error("Erreur lors de la simulation du scénario:", error);
+            alert('Erreur lors de la simulation du scénario. Veuillez réessayer.');
+        }
+    };
+
+    const generateReport = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_URL}/generate_report`,
+                { portfolio: portfolio },
+                {
+                    responseType: 'json',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }
+            );
+
+            console.log("Response data:", response.data); // Ajoutez cette ligne pour déboguer
+
+            if (response.data && response.data.report) {
+                setReportData(response.data.report);
+                setOpenReport(true);
+            } else {
+                console.error("Invalid report data:", response.data); // Ajoutez cette ligne
+                throw new Error('Invalid report data received');
+            }
+        } catch (error) {
+            console.error("Erreur lors de la génération du rapport:", error);
+            alert(`Erreur lors de la génération du rapport: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEditStock = (index) => {
+        setEditingStock(index);
+    };
+
+    const handleSaveStock = (index) => {
+        setEditingStock(null);
+        // Ici, vous pouvez ajouter une logique pour sauvegarder les modifications dans la base de données
+    };
+
+    const handleStockChange = (index, field, value) => {
+        const updatedStocks = [...portfolio.stocks];
+        updatedStocks[index] = { ...updatedStocks[index], [field]: value };
+        setPortfolio({ ...portfolio, stocks: updatedStocks });
+    };
+
+    const formatNumber = (number) => {
+        return new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(number);
+    };
+
+    const calculateDiff = (entryPrice, currentPrice, shares) => {
+        const diff = (currentPrice - entryPrice) * shares;
+        const color = diff >= 0 ? 'green' : 'red';
+        return { diff, color };
+    };
+
+    if (loading) {
+        return <CircularProgress />;
     }
+
+    return (
+        <Paper sx={{ padding: 2 }}>
+            <Typography variant="h6">Dernières Nouvelles</Typography>
+            {loading ? (
+                <CircularProgress />
+            ) : news && news.length > 0 ? (
+                <List>
+                    {news.map((item, index) => (
+                        <ListItem key={index}>
+                            <ListItemText primary={item.title} secondary={item.description} />
+                        </ListItem>
+                    ))}
+                </List>
+            ) : (
+                <Typography>Aucune nouvelle disponible pour les actions actuelles</Typography>
+            )}
+
+            <form onSubmit={handleSubmit}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                    <Autocomplete
+                        options={['AAPL', 'GOOGL', 'MSFT', 'AMZN']}
+                        renderInput={(params) => <TextField {...params} label="Symbole de l'action" />}
+                        onInputChange={(event, newValue) => setNewStock({ ...newStock, symbol: newValue })}
+                        value={newStock.symbol}
+                        sx={{ flexGrow: 1 }}
+                    />
+                    <TextField
+                        label={displayMode === 'weight' ? "Poids (%)" : "Nombre d'actions"}
+                        type="number"
+                        name={displayMode === 'weight' ? 'weight' : 'shares'}
+                        value={displayMode === 'weight' ? newStock.weight : newStock.shares}
+                        onChange={handleChange}
+                        InputProps={{
+                            endAdornment: displayMode === 'weight' ? <InputAdornment position="end">%</InputAdornment> : null,
+                        }}
+                        sx={{ flexGrow: 1 }}
+                    />
+                    <TextField
+                        label="Prix d'entrée"
+                        type="number"
+                        name="entryPrice"
+                        value={newStock.entryPrice}
+                        onChange={handleChange}
+                        sx={{ flexGrow: 1 }}
+                    />
+                    <Tooltip title={`Le ${displayMode === 'weight' ? 'poids' : 'nombre d\'actions'} représente ${displayMode === 'weight' ? 'le pourcentage' : 'la quantité'} de l'action dans votre portefeuille.`}>
+                        <IconButton>
+                            <Info />
+                        </IconButton>
+                    </Tooltip>
+                    <Button type="submit" variant="contained" color="primary">Ajouter</Button>
+                </Box>
+            </form>
+
+            {portfolio && portfolio.stocks && portfolio.stocks.length > 0 ? (
+                <>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>Symbole</TableCell>
+                                <TableCell>{displayMode === 'weight' ? 'Poids (%)' : 'Actions'}</TableCell>
+                                <TableCell>Prix d'entrée</TableCell>
+                                <TableCell>Prix actuel</TableCell>
+                                <TableCell>Valeur</TableCell>
+                                <TableCell>Différence</TableCell>
+                                <TableCell>Actions</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {portfolio.stocks.map((stock, index) => {
+                                const currentPrice = livePrices[stock.symbol] || parseFloat(stock.entry_price);
+                                const shares = displayMode === 'weight'
+                                    ? (parseFloat(stock.weight) / 100) * portfolioValue / parseFloat(stock.entry_price)
+                                    : parseFloat(stock.weight);
+                                const value = shares * currentPrice;
+                                const { diff, color } = calculateDiff(parseFloat(stock.entry_price), currentPrice, shares);
+                                return (
+                                    <TableRow key={index}>
+                                        <TableCell>{stock.symbol}</TableCell>
+                                        <TableCell>
+                                            {editingStock === index ? (
+                                                <TextField
+                                                    type="number"
+                                                    value={displayMode === 'weight' ? stock.weight : shares}
+                                                    onChange={(e) => handleStockChange(index, displayMode === 'weight' ? 'weight' : 'shares', e.target.value)}
+                                                    InputProps={displayMode === 'weight' ? {
+                                                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                                                    } : {}}
+                                                />
+                                            ) : (
+                                                displayMode === 'weight'
+                                                    ? `${formatNumber(parseFloat(stock.weight))}%`
+                                                    : formatNumber(shares)
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {editingStock === index ? (
+                                                <TextField
+                                                    type="number"
+                                                    value={stock.entry_price}
+                                                    onChange={(e) => handleStockChange(index, 'entry_price', e.target.value)}
+                                                />
+                                            ) : (
+                                                formatNumber(parseFloat(stock.entry_price))
+                                            )}
+                                        </TableCell>
+                                        <TableCell>{currentPrice ? formatNumber(currentPrice) : 'Loading...'}</TableCell>
+                                        <TableCell>{formatNumber(value)}</TableCell>
+                                        <TableCell style={{ color }}>{formatNumber(diff)}</TableCell>
+                                        <TableCell>
+                                            {editingStock === index ? (
+                                                <Button onClick={() => handleSaveStock(index)}>Save</Button>
+                                            ) : (
+                                                <Button onClick={() => handleEditStock(index)}>Edit</Button>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                    <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Allocation du Portefeuille</Typography>
+                    <PortfolioPieChart portfolio={portfolio} />
+                </>
+            ) : (
+                <Typography sx={{ my: 2 }}>Le portefeuille est actuellement vide. Ajoutez des actions pour commencer.</Typography>
+            )}
+
+            <Box sx={{ mt: 3 }}>
+                <TextField
+                    label="Valeur du Portefeuille"
+                    value={formatNumber(portfolioValue)}
+                    onChange={(e) => {
+                        const newValue = parseFloat(e.target.value.replace(/[^0-9,-]/g, '').replace(',', '.'));
+                        if (!isNaN(newValue)) {
+                            setPortfolioValue(newValue);
+                            updatePortfolioValue(newValue);
+                        }
+                    }}
+                    fullWidth
+                    margin="normal"
+                />
+                <Typography variant="h6" sx={{ mt: 2 }}>Valeur Actuelle du Portefeuille: {portfolioValue.toFixed(2)}</Typography>
+                <FormControlLabel
+                    control={<Switch checked={displayMode === 'shares'} onChange={() => setDisplayMode(displayMode === 'weight' ? 'shares' : 'weight')} />}
+                    label={`Passer en mode ${displayMode === 'weight' ? 'Actions' : 'Poids'}`}
+                    sx={{ mt: 2 }}
+                />
+            </Box>
+
+            <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+                <Button onClick={() => savePortfolio(portfolio.stocks)} variant="contained" color="secondary" startIcon={<SaveIcon />}>
+                    Sauvegarder le Portefeuille
+                </Button>
+                <Button onClick={() => setOpenScenario(true)} variant="contained" startIcon={<SimulationIcon />}>Simuler un Scénario</Button>
+                <Button onClick={generateReport} variant="contained" startIcon={<ReportIcon />}>Générer un Rapport</Button>
+            </Box>
+
+            <Dialog
+                open={openScenario}
+                onClose={() => setOpenScenario(false)}
+                fullWidth
+                maxWidth="md"
+            >
+                <DialogTitle>Simulation de Scénario</DialogTitle>
+                <DialogContent>
+                    <Select
+                        value={selectedScenario}
+                        onChange={(e) => setSelectedScenario(e.target.value)}
+                        fullWidth
+                        sx={{ mb: 2 }}
+                    >
+                        <MenuItem value="market_crash">Krach Boursier</MenuItem>
+                        <MenuItem value="bull_market">Marché Haussier</MenuItem>
+                        <MenuItem value="high_inflation">Forte Inflation</MenuItem>
+                    </Select>
+                    <Button onClick={simulateScenario} variant="contained" sx={{ mb: 2 }}>Lancer la Simulation</Button>
+                    {scenarioResults && scenarioResults.daily_returns && scenarioResults.daily_returns.length > 0 ? (
+                        <Box>
+                            <Typography>Scénario: {scenarioResults.scenario}</Typography>
+                            <Typography>Valeur Initiale: {scenarioResults.initial_value.toFixed(2)} €</Typography>
+                            <Typography>Valeur Finale: {scenarioResults.final_value.toFixed(2)} €</Typography>
+                            <Typography>Rendement Total: {(scenarioResults.total_return * 100).toFixed(2)}%</Typography>
+                            <Box sx={{ width: '100%', height: 400 }}>
+                                <ResponsiveContainer width="100%" height={400}>
+                                    <LineChart data={scenarioResults.portfolio_values.map((value, index) => ({ day: index, value: value }))}>
+                                        <XAxis
+                                            dataKey="day"
+                                            tickFormatter={(tick) => `Jour ${tick + 1}`}
+                                        />
+                                        <YAxis
+                                            tickFormatter={(value) => `$${value.toFixed(0)}`}
+                                        />
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <RechartsTooltip
+                                            formatter={(value) => [`$${value.toFixed(2)}`, "Valeur du Portefeuille"]}
+                                            labelFormatter={(label) => `Jour ${label + 1}`}
+                                        />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} name="Valeur du Portefeuille" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </Box>
+                        </Box>
+                    ) : (
+                        <Typography>Aucune donnée de scénario disponible</Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenScenario(false)}>Fermer</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={openReport} onClose={() => setOpenReport(false)} maxWidth="md" fullWidth>
+                <DialogTitle>Rapport du Portefeuille</DialogTitle>
+                <DialogContent>
+                    {reportData ? (
+                        <iframe
+                            src={`data:application/pdf;base64,${reportData}`}
+                            width="100%"
+                            height="500px"
+                            style={{ border: 'none' }}
+                        />
+                    ) : (
+                        <Typography>Aucune donnée de rapport disponible</Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenReport(false)}>Fermer</Button>
+                    {reportData && (
+                        <Button onClick={() => {
+                            const linkSource = `data:application/pdf;base64,${reportData}`;
+                            const downloadLink = document.createElement("a");
+                            downloadLink.href = linkSource;
+                            downloadLink.download = "rapport_portefeuille.pdf";
+                            downloadLink.click();
+                        }}>
+                            Télécharger le PDF
+                        </Button>
+                    )}
+                </DialogActions>
+            </Dialog>
+        </Paper>
+    );
+}
 
 export default Portfolio;

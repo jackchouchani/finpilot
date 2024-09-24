@@ -17,12 +17,10 @@ from flask import jsonify
 from tqdm import tqdm
 from sklearn.decomposition import PCA
 import scipy.stats as stats
-from concurrent.futures import ProcessPoolExecutor
 from functools import lru_cache, wraps
 import asyncio
 import aiohttp
 from fredapi import Fred
-from multiprocessing import Pool
 
 # Bibliothèques de visualisation
 import plotly.express as px
@@ -220,10 +218,6 @@ def calculate_portfolio_returns(portfolio_data, weights):
     annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
     return weighted_returns, total_return, annualized_return
 
-def execute_section(section_tuple):
-    func, *args = section_tuple
-    return func(*args)
-
 @timing_decorator
 def generate_report(data):
     """
@@ -253,19 +247,6 @@ def generate_report(data):
                             rightMargin=0.5*inch, leftMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
 
-    portfolio_data, returns, weights = calculate_portfolio_performance(portfolio, start_date, end_date)
-    weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
-
-    sections_to_parallelize = [
-        (generate_performance_analysis, portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
-        (generate_correlation_heatmap, portfolio_data),
-        (generate_monte_carlo_simulation, portfolio, portfolio_data, returns, weights, weighted_returns),
-        (generate_future_outlook, portfolio, portfolio_data, returns, weights),
-    ]
-
-    with Pool() as pool:
-        parallel_results = pool.starmap(lambda f, *args: f(*args), sections_to_parallelize)
-
     elements = []
     
     # Ajoutez les sections non parallélisées
@@ -283,20 +264,14 @@ def generate_report(data):
     # Ajoutez d'autres sections selon vos besoins
     elements.append(PageBreak())
 
+    # Générez chaque section séquentiellement
     timed_functions = [
         (timing_decorator(generate_executive_summary), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return),
         (timing_decorator(generate_portfolio_overview), portfolio, portfolio_data, returns, weights),
-    ]
-
-    for func, *args in timed_functions:
-        elements.extend(func(*args))
-
-    # Ajoutez les résultats parallélisés
-    for result in parallel_results:
-        elements.extend(result)
-
-    # Ajoutez les sections restantes non parallélisées
-    timed_functions = [
+        (timing_decorator(generate_performance_analysis), portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return, start_date, end_date),
+        (timing_decorator(generate_correlation_heatmap), portfolio_data),
+        (timing_decorator(generate_monte_carlo_simulation), portfolio, portfolio_data, returns, weights, weighted_returns),
+        (timing_decorator(generate_future_outlook), portfolio, portfolio_data, returns, weights),
         (timing_decorator(generate_stock_performance_comparison), portfolio_data, weights),
         (timing_decorator(generate_contribution_to_return), portfolio, portfolio_data, returns, weights),
         (timing_decorator(generate_additional_ratios_table), portfolio, portfolio_data, returns, weights, start_date, end_date),

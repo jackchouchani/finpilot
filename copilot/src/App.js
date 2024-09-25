@@ -89,9 +89,9 @@ function App() {
     const [settings, setSettings] = useState({
         risk_tolerance: 'moderate',
     });
-    const agentInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    const agentInputRef = useRef(null);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -590,6 +590,8 @@ function App() {
                 setComparisonEndDate={setComparisonEndDate}
                 backtestResults={backtestResults}
                 comparisonResults={comparisonResults}
+                messagesEndRef={messagesEndRef}
+                inputRef={inputRef}
                 agentInputRef={agentInputRef}
             />
         </ThemeProvider>
@@ -640,6 +642,8 @@ function AppContent({
     backtestResults,
     comparisonResults,
     isMobile,
+    messagesEndRef,
+    inputRef,
     agentInputRef,
 }) {
     const [anchorEl, setAnchorEl] = React.useState(null);

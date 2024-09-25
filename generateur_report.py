@@ -301,7 +301,7 @@ def generate_report(data):
         ("Allocation Sectorielle", lambda p, pd, r, w, wr, tr, ar: generate_sector_allocation(p, pd, r, w)),
         ("Simulation Monte Carlo", lambda p, pd, r, w, wr, tr, ar: generate_monte_carlo_simulation(p, pd, r, w, wr)),
         ("Tests de Stress", lambda p, pd, r, w, wr, tr, ar: generate_stress_tests(p, pd, r, w, wr)),
-        ("Perspectives Futures", lambda p, pd, r, w, wr, tr, ar: generate_future_outlook(p, pd, r, w)),
+        ("Perspectives Futures", lambda p, pd, r, w, wr, tr, ar: generate_future_outlook(p, pd, r, w, start_date, end_date)),
         ("Recommandations", lambda p, pd, r, w, wr, tr, ar: generate_recommendations(p, pd, r, w, wr, tr, ar))
     ]
     total_steps = len(sections)
@@ -760,8 +760,8 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
 
         # S'assurer que les deux séries ont le même index
         common_dates = portfolio_returns.index.intersection(benchmark_returns.index)
-        if len(common_dates) < 2:
-            raise ValueError("Pas assez de données communes entre le portefeuille et l'indice de référence")
+        if len(common_dates) < 252:  # Moins d'un an de données communes
+            raise ValueError(f"Pas assez de données communes. Seulement {len(common_dates)} jours en commun.")
         
         portfolio_returns = portfolio_returns.loc[common_dates]
         benchmark_returns = benchmark_returns.loc[common_dates]
@@ -1451,7 +1451,7 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
 
     return elements
 
-def generate_future_outlook(portfolio, portfolio_data, returns, weights):
+def generate_future_outlook(portfolio, portfolio_data, returns, weights, start_date, end_date):
     elements = []
     
     # Calculer quelques métriques supplémentaires pour l'analyse

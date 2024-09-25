@@ -568,6 +568,7 @@ def generate_disclaimer():
     """
     return disclaimer_text.strip()
 
+
 def generate_stock_performance_comparison(portfolio_data, weights, start_date, end_date):
     """
     Génère la comparaison de performance des actions.
@@ -581,9 +582,9 @@ def generate_stock_performance_comparison(portfolio_data, weights, start_date, e
     """
     elements = []
     
-    stock_performance = calculate_stock_performance(portfolio_data, start_date, end_date)
+    stock_performance = {k: v * 100 for k, v in stock_performance.items()}
     
-    stock_performance_list = list(zip(stock_performance.keys(), stock_performance.values()))
+    stock_performance_list = list(stock_performance.items())
     stock_performance_list.sort(key=lambda x: x[1], reverse=True)
     
     fig = go.Figure([go.Bar(
@@ -628,6 +629,7 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights,
     # Calcul des rendements et contributions
     df_portfolio = pd.DataFrame(portfolio_data)
     total_return = (df_portfolio.iloc[-1] / df_portfolio.iloc[0] - 1).sum()
+    print(total_return)
     contributions = []
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']

@@ -794,33 +794,27 @@ function AppContent({
                                     )}
                                     {activeTab === 1 && (
                                         <>
-                                            <TextField
-                                                id="agent-input"
-                                                label="Entrée pour l'agent"
-                                                variant="outlined"
-                                                fullWidth
-                                                margin="normal"
-                                                inputRef={agentInputRef}
-                                            />
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
-                                                {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
-                                                    <Button
-                                                        key={agent}
-                                                        onClick={() => handleAgentCall(agent)}
-                                                        variant="contained"
-                                                        color="primary"
-                                                        disabled={loading}
-                                                    >
-                                                        {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                                                    </Button>
-                                                ))}
-                                            </Box>
                                             <ChatBox
                                                 messages={messages}
                                                 handleSubmit={handleSubmit}
                                                 loading={loading}
                                                 customInput={agentInputRef.current ? agentInputRef.current.value : ''}
                                                 disableInput={false}
+                                                agentButtons={
+                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
+                                                        {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
+                                                            <Button
+                                                                key={agent}
+                                                                onClick={() => handleAgentCall(agent)}
+                                                                variant="contained"
+                                                                color="primary"
+                                                                disabled={loading}
+                                                            >
+                                                                {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                            </Button>
+                                                        ))}
+                                                    </Box>
+                                                }
                                             />
                                         </>
                                     )}

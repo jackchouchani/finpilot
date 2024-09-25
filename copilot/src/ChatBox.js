@@ -58,22 +58,25 @@ function ChatBox({ messages, handleSubmit, loading, customInput, disableInput })
                 </List>
             </Paper>
             {!disableInput && (
-                <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
-                    <TextField
-                        fullWidth
-                        placeholder="Tapez votre message ici..."
-                        variant="outlined"
-                        disabled={loading}
-                        inputRef={inputRef}
-                    />
-                    <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={loading}
-                    >
-                        Envoyer
-                    </Button>
-                </Box>
+                <>
+                    {agentButtons}
+                    <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                        <TextField
+                            fullWidth
+                            placeholder="Tapez votre message ici..."
+                            variant="outlined"
+                            disabled={loading}
+                            inputRef={inputRef}
+                        />
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            disabled={loading}
+                        >
+                            Envoyer
+                        </Button>
+                    </Box>
+                </>
             )}
         </Box>
     );

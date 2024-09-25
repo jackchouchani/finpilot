@@ -297,6 +297,7 @@ function App() {
         }
         const userMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [userMessage, ...prevMessages]);
+        console.log("Data being sent:", data); // Ajoutez cette ligne
         try {
             await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
         } catch (error) {
@@ -805,7 +806,11 @@ function AppContent({
                                                         {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
                                                             <Button
                                                                 key={agent}
-                                                                onClick={() => handleAgentCall(agent)}
+                                                                onClick={() => {
+                                                                    console.log("Clicked agent:", agent); // Ajoutez cette ligne
+                                                                    console.log("Current input value:", agentInputRef.current ? agentInputRef.current.value : 'No value'); // Ajoutez cette ligne
+                                                                    handleAgentCall(agent);
+                                                                }}
                                                                 variant="contained"
                                                                 color="primary"
                                                                 disabled={loading}

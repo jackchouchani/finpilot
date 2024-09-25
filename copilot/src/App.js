@@ -239,8 +239,10 @@ function App() {
 
     const handleAgentCall = async (agentName) => {
         setLoading(true);
-        // Récupérez la valeur actuelle de l'input
+        console.log("Agent Input Ref:", agentInputRef); // Ajoutez cette ligne
+        console.log("Agent Input Ref Current:", agentInputRef.current); // Ajoutez cette ligne
         const inputValue = agentInputRef.current ? agentInputRef.current.value : '';
+        console.log("Input value:", inputValue);
         let data = {};
         switch (agentName) {
             case 'document':

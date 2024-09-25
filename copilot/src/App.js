@@ -859,7 +859,7 @@ function AppContent({
                                                             <ListItem key={index} alignItems="flex-start">
                                                                 <ListItemText
                                                                     primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                                                    secondary={<MessageContent content={message.content} />}
+                                                                    secondary={<MessageContent content={message.content} graphs={message.graphs} />}
                                                                 />
                                                             </ListItem>
                                                         ))}

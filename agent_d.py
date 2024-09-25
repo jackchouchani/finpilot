@@ -35,7 +35,7 @@ class PortfolioOptimizationAgent:
 
         mean_returns = returns.mean()
         cov_matrix = returns.cov()
-        risk_free_rate = 0.01
+        risk_free_rate = 0.03
 
         opt = optimize_portfolio(mean_returns, cov_matrix, risk_free_rate)
         current_std, current_ret = portfolio_performance(weights, mean_returns, cov_matrix)

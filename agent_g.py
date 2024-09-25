@@ -17,31 +17,34 @@ class ComplianceAgent:
     def get_sector_info(self, ticker):
         try:
             stock = yf.Ticker(ticker)
-            return stock.info.get('sector', 'Unknown')
+            return stock.info.get('sector', 'Non disponible')
         except:
-            return 'Unknown'
+            return 'Non disponible'
 
     def get_esg_score(self, ticker):
         try:
             stock = yf.Ticker(ticker)
-            return stock.info.get('esgScore', 0)
+            return stock.info.get('esgScore', 'Non disponible')
         except:
-            return 0
+            return 'Non disponible'
 
     def get_market_type(self, ticker):
         try:
             stock = yf.Ticker(ticker)
-            country = stock.info.get('country', 'Unknown')
+            country = stock.info.get('country', 'Non disponible')
             developed_markets = ['United States', 'Canada', 'United Kingdom', 'Germany', 'France', 'Japan', 'Australia']
-            return 'Developed' if country in developed_markets else 'Emerging'
+            return 'Développé' if country in developed_markets else 'Émergent'
         except:
-            return 'Unknown'
+            return 'Non disponible'
 
     def calculate_volatility(self, tickers, weights):
-        data = yf.download(tickers, period="1y")['Adj Close']
-        returns = data.pct_change().dropna()
-        portfolio_std = np.sqrt(np.dot(weights.T, np.dot(returns.cov(), weights))) * np.sqrt(252)
-        return portfolio_std
+        try:
+            data = yf.download(tickers, period="1y")['Adj Close']
+            returns = data.pct_change().dropna()
+            portfolio_std = np.sqrt(np.dot(weights.T, np.dot(returns.cov(), weights))) * np.sqrt(252)
+            return portfolio_std
+        except:
+            return 'Non disponible'
 
     def check_compliance(self, portfolio):
         violations = []
@@ -72,21 +75,29 @@ class ComplianceAgent:
         # Vérification des scores ESG
         for stock in portfolio:
             esg_score = self.get_esg_score(stock['symbol'])
-            if esg_score < self.regulations["esg_score_threshold"]:
+            if esg_score != 'Non disponible' and esg_score < self.regulations["esg_score_threshold"]:
                 warnings.append(f"{stock['symbol']} a un score ESG de {esg_score}, inférieur au seuil recommandé de {self.regulations['esg_score_threshold']}")
 
         # Vérification de l'exposition aux marchés développés
-        developed_exposure = sum(stock['weight'] / 100 for stock in portfolio if self.get_market_type(stock['symbol']) == 'Developed')
-        if developed_exposure < self.regulations["min_developed_markets_exposure"]:
-            warnings.append(f"L'exposition aux marchés développés ({developed_exposure:.2%}) est inférieure au minimum recommandé ({self.regulations['min_developed_markets_exposure']:.2%})")
+        market_exposure = {'Développé': 0, 'Émergent': 0, 'Non disponible': 0}
+        for stock in portfolio:
+            market_type = self.get_market_type(stock['symbol'])
+            market_exposure[market_type] += stock['weight'] / 100
+
+        if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"]:
+            warnings.append(f"L'exposition aux marchés développés ({market_exposure['Développé']:.2%}) est inférieure au minimum recommandé ({self.regulations['min_developed_markets_exposure']:.2%})")
 
         # Vérification de la volatilité du portefeuille
         tickers = [stock['symbol'] for stock in portfolio]
         weights = np.array([stock['weight'] / 100 for stock in portfolio])
         volatility = self.calculate_volatility(tickers, weights)
-        if volatility > self.regulations["max_volatility"]:
+        if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"]:
             warnings.append(f"La volatilité du portefeuille ({volatility:.2%}) dépasse le maximum recommandé ({self.regulations['max_volatility']:.2%})")
 
+        rapport = self.generate_report(violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict)
+        return rapport
+
+    def generate_report(self, violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict):
         rapport = f"""
 Analyse de conformité avancée
 
@@ -117,30 +128,37 @@ Statut de conformité: {"Non conforme" if violations else "Conforme avec avertis
 
         rapport += f"""
 4. Exposition géographique:
-   - Marchés développés: {developed_exposure:.2%}
-   - Marchés émergents: {1 - developed_exposure:.2%}
+   - Marchés développés: {market_exposure['Développé']:.2%}
+   - Marchés émergents: {market_exposure['Émergent']:.2%}
+   - Non disponible: {market_exposure['Non disponible']:.2%}
 
 5. Mesures de risque:
    - Volatilité du portefeuille: {volatility:.2%}
 
+6. Analyse de concentration:
+   - Action la plus importante: {max(portfolio_dict, key=portfolio_dict.get)} ({max(portfolio_dict.values()):.2%})
+   - Actions représentant plus de 10% du portefeuille: {', '.join([f"{symbol} ({weight:.2%})" for symbol, weight in portfolio_dict.items() if weight > 0.1])}
+
 Conclusion:
-Cette analyse de conformité avancée fournit un aperçu détaillé des potentielles violations réglementaires et des zones de risque dans le portefeuille. 
+Cette analyse de conformité avancée fournit un aperçu détaillé des potentielles violations réglementaires et des zones de risque dans le portefeuille.
 
 Points clés à retenir:
 1. {f"Le portefeuille présente {len(violations)} violation(s) majeure(s) qui doivent être adressées immédiatement." if violations else "Aucune violation majeure n'a été détectée."}
 2. {f"Il y a {len(warnings)} avertissement(s) qui méritent une attention particulière pour améliorer la conformité et réduire les risques." if warnings else "Aucun avertissement n'a été émis."}
 3. L'exposition sectorielle la plus élevée est dans {max(sector_exposure, key=sector_exposure.get)} à {max(sector_exposure.values()):.2%}.
-4. L'exposition aux marchés développés est de {developed_exposure:.2%}, {"ce qui est conforme" if developed_exposure >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
-5. La volatilité du portefeuille est {"conforme" if volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
+4. L'exposition aux marchés développés est de {market_exposure['Développé']:.2%}, {"ce qui est conforme" if market_exposure['Développé'] >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
+5. La volatilité du portefeuille est {"conforme" if volatility != 'Non disponible' and volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
 
 Recommandations:
 1. {f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}." if violations else "Maintenir la conformité actuelle du portefeuille."}
 2. {"Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue." if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure) else ""}
 3. {"Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables." if any("ESG" in w for w in warnings) else ""}
-4. {"Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille." if developed_exposure < self.regulations["min_developed_markets_exposure"] else ""}
-5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility > self.regulations["max_volatility"] else ""}
+4. {"Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille." if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"] else ""}
+5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"] else ""}
 
 Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
+
+*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
 """
         return rapport
 

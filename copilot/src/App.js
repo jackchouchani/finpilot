@@ -494,21 +494,32 @@ function App() {
     const handleSubmit = async (e, inputValue) => {
         e.preventDefault();
         if (!inputValue) return;
-
+    
         setLoading(true);
         const newMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [...prevMessages, newMessage]);
-
+    
         try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
+            // Récupérer le portfolio de l'utilisateur
+            const portfolioResponse = await axios.get(`${process.env.REACT_APP_API_URL}/portfolio`);
+            const userPortfolio = portfolioResponse.data;
+    
+            // Préparer les données à envoyer
+            const requestData = {
                 message: inputValue,
-                conversation_id: conversationId
-            }, {
+                conversation_id: conversationId,
+                portfolio: userPortfolio,
+                risk_profile: settings.riskProfile, // Assurez-vous que cette information est disponible dans votre state
+                // Ajoutez d'autres paramètres pertinents ici
+            };
+    
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/chat`, requestData, {
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
-
+    
             if (response.data && response.data.reply) {
                 setConversationId(response.data.conversation_id);
                 setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);

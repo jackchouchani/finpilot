@@ -859,7 +859,9 @@ def chat():
         user_id = get_jwt_identity()
         data = request.json
         user_message = data.get('message')
-        conversation_id = request.json.get('conversation_id')
+        conversation_id = data.get('conversation_id')
+        user_portfolio = data.get('portfolio')
+        user_risk_profile = data.get('risk_profile')
         use_claude = request.json.get('use_claude', False)
         
         print(f"Début de la fonction chat pour l'utilisateur {user_id}")
@@ -934,13 +936,14 @@ def chat():
             function_info = get_function_info(function_name)
             structured_args = structure_data(function_args)
             if function_name in ['optimize_portfolio', 'manage_risks', 'check_compliance', 'get_investment_recommendation']:
-                portfolio = get_portfolio(user_id)
-                if portfolio:
-                    function_args['portfolio'] = portfolio
+                if user_portfolio:
+                    function_args['portfolio'] = user_portfolio
+                if user_risk_profile:
+                    function_args['risk_profile'] = user_risk_profile
                 else:
                     return jsonify({"reply": "Désolé, je n'ai pas pu accéder à votre portefeuille. Veuillez vérifier que vous en avez bien un.", "conversation_id": conversation_id})
 
-            function_response = execute_function(function_name, structured_args, user_message)
+            function_response = execute_function(function_name, function_args, user_message)
             
             print(f"Réponse de la fonction : {function_response}")
             

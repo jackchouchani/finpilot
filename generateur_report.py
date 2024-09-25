@@ -1517,15 +1517,22 @@ def calculate_sector_allocation(portfolio):
     return sector_weights
 
 def calculate_stock_performance(portfolio_data, start_date, end_date):
-    df = pd.DataFrame(portfolio_data)
-    one_year_ago = pd.Timestamp(end_date) - pd.DateOffset(years=1)
-    start_date = max(pd.Timestamp(start_date), one_year_ago)
-    
     performance = {}
-    for symbol, data in df.items():
-        start_price = data.loc[start_date:].iloc[0]
-        end_price = data.iloc[-1]
-        annual_return = (end_price / start_price) - 1
-        performance[symbol] = annual_return * 100  # Convert to percentage
+    for symbol, data in portfolio_data.items():
+        # Convertir l'index en datetime naïf si nécessaire
+        data.index = data.index.tz_localize(None)
+        
+        # Assurez-vous que start_date et end_date sont des objets datetime naïfs
+        start_date = pd.Timestamp(start_date).tz_localize(None)
+        end_date = pd.Timestamp(end_date).tz_localize(None)
+        
+        try:
+            start_price = data.loc[start_date:].iloc[0]
+            end_price = data.loc[:end_date].iloc[-1]
+            total_return = (end_price - start_price) / start_price
+            performance[symbol] = total_return
+        except IndexError:
+            print(f"Données insuffisantes pour calculer la performance de {symbol}")
+            performance[symbol] = None
     
     return performance

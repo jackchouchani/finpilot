@@ -494,16 +494,16 @@ function App() {
     const handleSubmit = async (e, inputValue) => {
         e.preventDefault();
         if (!inputValue) return;
-    
+
         setLoading(true);
         const newMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [...prevMessages, newMessage]);
-    
+
         try {
             // Récupérer le portfolio de l'utilisateur
             const portfolioResponse = await axios.get(`${process.env.REACT_APP_API_URL}/portfolio`);
             const userPortfolio = portfolioResponse.data;
-    
+
             // Préparer les données à envoyer
             const requestData = {
                 message: inputValue,
@@ -512,14 +512,14 @@ function App() {
                 risk_profile: settings.riskProfile, // Assurez-vous que cette information est disponible dans votre state
                 // Ajoutez d'autres paramètres pertinents ici
             };
-    
+
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/chat`, requestData, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
-    
+
             if (response.data && response.data.reply) {
                 setConversationId(response.data.conversation_id);
                 setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response.data.reply }]);
@@ -853,68 +853,80 @@ function AppContent({
                                     )}
                                     {activeTab === 1 && (
                                         <>
-                                                    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                                        <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
-                                                            <List>
-                                                                {messages.map((message, index) => (
-                                                                    <ListItem key={index} alignItems="flex-start">
-                                                                        <ListItemText
-                                                                            primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                                                            secondary={<MessageContent content={message.content} />}
-                                                                        />
-                                                                    </ListItem>
-                                                                ))}
-                                                                <div ref={messagesEndRef} />
-                                                            </List>
-                                                        </Paper>
-                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
-                                                            {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
-                                                                <Button
-                                                                    key={agent}
-                                                                    onClick={() => {
-                                                                        console.log("Clicked agent:", agent);
-                                                                        console.log("Current input value:", agentInputRef.current ? agentInputRef.current.value : 'No value');
-                                                                        handleAgentCall(agent);
-                                                                    }}
-                                                                    variant="contained"
-                                                                    color="primary"
-                                                                    disabled={loading}
-                                                                >
-                                                                    {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                                                                </Button>
-                                                            ))}
-                                                        </Box>
-                                                        <Box component="form" onSubmit={(e) => {
-                                                            e.preventDefault();
-                                                            const inputValue = agentInputRef.current ? agentInputRef.current.value.trim() : '';
-                                                            if (inputValue) {
-                                                                handleSubmit(e, inputValue);
-                                                                if (agentInputRef.current) {
-                                                                    agentInputRef.current.value = '';
-                                                                }
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
+                                                    <List>
+                                                        {messages.map((message, index) => (
+                                                            <ListItem key={index} alignItems="flex-start">
+                                                                <ListItemText
+                                                                    primary={message.role === 'user' ? 'Vous' : 'IA'}
+                                                                    secondary={<MessageContent content={message.content} />}
+                                                                />
+                                                            </ListItem>
+                                                        ))}
+                                                        <div ref={messagesEndRef} />
+                                                    </List>
+                                                </Paper>
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
+                                                    {[
+                                                        { key: 'document', name: 'Document' },
+                                                        { key: 'sentiment', name: 'Sentiment' },
+                                                        { key: 'financial_modeling', name: 'Modélisation Financière' },
+                                                        { key: 'portfolio_optimization', name: 'Optimisation de Portefeuille' },
+                                                        { key: 'risk_management', name: 'Gestion des Risques' },
+                                                        { key: 'reporting', name: 'Rapports' },
+                                                        { key: 'compliance', name: 'Conformité' },
+                                                        { key: 'market_sentiment', name: 'Sentiment du Marché' },
+                                                        { key: 'user_profile_analysis', name: 'Analyse du Profil Utilisateur' },
+                                                        { key: 'historical_data_analysis', name: 'Analyse de Données Historiques' },
+                                                        { key: 'investment_recommendation', name: 'Recommandation d\'Investissement' }
+                                                    ].map((agent) => (
+                                                        <Button
+                                                            key={agent.key}
+                                                            onClick={() => {
+                                                                console.log("Agent cliqué:", agent.key);
+                                                                console.log("Valeur actuelle de l'input:", agentInputRef.current ? agentInputRef.current.value : 'Pas de valeur');
+                                                                handleAgentCall(agent.key);
+                                                            }}
+                                                            variant="contained"
+                                                            color="primary"
+                                                            disabled={loading}
+                                                        >
+                                                            {agent.name}
+                                                        </Button>
+                                                    ))}
+                                                </Box>
+                                                <Box component="form" onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    const inputValue = agentInputRef.current ? agentInputRef.current.value.trim() : '';
+                                                    if (inputValue) {
+                                                        handleSubmit(e, inputValue);
+                                                        if (agentInputRef.current) {
+                                                            agentInputRef.current.value = '';
+                                                        }
+                                                    }
+                                                }} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                                                    <TextField
+                                                        fullWidth
+                                                        placeholder="Tapez votre message ici..."
+                                                        variant="outlined"
+                                                        disabled={loading}
+                                                        inputRef={agentInputRef}
+                                                        onChange={(e) => {
+                                                            if (agentInputRef.current) {
+                                                                agentInputRef.current.value = e.target.value;
                                                             }
-                                                        }} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
-                                                            <TextField
-                                                                fullWidth
-                                                                placeholder="Tapez votre message ici..."
-                                                                variant="outlined"
-                                                                disabled={loading}
-                                                                inputRef={agentInputRef}
-                                                                onChange={(e) => {
-                                                                    if (agentInputRef.current) {
-                                                                        agentInputRef.current.value = e.target.value;
-                                                                    }
-                                                                }}
-                                                            />
-                                                            <Button
-                                                                type="submit"
-                                                                variant="contained"
-                                                                disabled={loading}
-                                                            >
-                                                                Envoyer
-                                                            </Button>
-                                                        </Box>
-                                                    </Box>
+                                                        }}
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        variant="contained"
+                                                        disabled={loading}
+                                                    >
+                                                        Envoyer
+                                                    </Button>
+                                                </Box>
+                                            </Box>
                                         </>
                                     )}
                                     {activeTab === 2 && (

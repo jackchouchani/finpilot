@@ -90,6 +90,12 @@ function App() {
         risk_tolerance: 'moderate',
     });
     const agentInputRef = useRef(null);
+    const messagesEndRef = useRef(null);
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
 
     const toggleDarkMode = () => {
         setDarkMode(!darkMode);
@@ -773,57 +779,127 @@ function AppContent({
                                 <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
                                     {activeTab === 0 && (
                                         <>
-                                            <ChatBox
-                                                messages={messages}
-                                                handleSubmit={handleSubmit}
-                                                loading={loading}
-                                            />
-                                            <input
-                                                type="file"
-                                                accept=".pdf"
-                                                onChange={handlePDFUpload}
-                                                style={{ display: 'none' }}
-                                                id="pdf-upload"
-                                            />
-                                            <label htmlFor="pdf-upload">
-                                                <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
-                                                    Télécharger PDF
-                                                </Button>
-                                            </label>
-                                            <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
-                                                Vous pouvez aussi glisser-déposer un fichier PDF ici
-                                            </Typography>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
+                                                    <List>
+                                                        {messages.map((message, index) => (
+                                                            <ListItem key={index} alignItems="flex-start">
+                                                                <ListItemText
+                                                                    primary={message.role === 'user' ? 'Vous' : 'IA'}
+                                                                    secondary={<MessageContent content={message.content} />}
+                                                                />
+                                                            </ListItem>
+                                                        ))}
+                                                        <div ref={messagesEndRef} />
+                                                    </List>
+                                                </Paper>
+                                                <Box component="form" onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    const inputValue = inputRef.current ? inputRef.current.value.trim() : '';
+                                                    if (inputValue) {
+                                                        handleSubmit(e, inputValue);
+                                                        if (inputRef.current) {
+                                                            inputRef.current.value = '';
+                                                        }
+                                                    }
+                                                }} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                                                    <TextField
+                                                        fullWidth
+                                                        placeholder="Tapez votre message ici..."
+                                                        variant="outlined"
+                                                        disabled={loading}
+                                                        inputRef={inputRef}
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        variant="contained"
+                                                        disabled={loading}
+                                                    >
+                                                        Envoyer
+                                                    </Button>
+                                                </Box>
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf"
+                                                    onChange={handlePDFUpload}
+                                                    style={{ display: 'none' }}
+                                                    id="pdf-upload"
+                                                />
+                                                <label htmlFor="pdf-upload">
+                                                    <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
+                                                        Télécharger PDF
+                                                    </Button>
+                                                </label>
+                                                <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
+                                                    Vous pouvez aussi glisser-déposer un fichier PDF ici
+                                                </Typography>
+                                            </Box>
                                         </>
                                     )}
                                     {activeTab === 1 && (
                                         <>
-                                            <ChatBox
-                                                messages={messages}
-                                                handleSubmit={handleSubmit}
-                                                loading={loading}
-                                                inputRef={agentInputRef}
-                                                customInput={agentInputRef.current ? agentInputRef.current.value : ''}
-                                                disableInput={false}
-                                                agentButtons={
-                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
-                                                        {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
-                                                            <Button
-                                                                key={agent}
-                                                                onClick={() => {
-                                                                    console.log("Clicked agent:", agent); // Ajoutez cette ligne
-                                                                    console.log("Current input value:", agentInputRef.current ? agentInputRef.current.value : 'No value'); // Ajoutez cette ligne
-                                                                    handleAgentCall(agent);
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                        <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
+                                                            <List>
+                                                                {messages.map((message, index) => (
+                                                                    <ListItem key={index} alignItems="flex-start">
+                                                                        <ListItemText
+                                                                            primary={message.role === 'user' ? 'Vous' : 'IA'}
+                                                                            secondary={<MessageContent content={message.content} />}
+                                                                        />
+                                                                    </ListItem>
+                                                                ))}
+                                                                <div ref={messagesEndRef} />
+                                                            </List>
+                                                        </Paper>
+                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
+                                                            {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
+                                                                <Button
+                                                                    key={agent}
+                                                                    onClick={() => {
+                                                                        console.log("Clicked agent:", agent);
+                                                                        console.log("Current input value:", agentInputRef.current ? agentInputRef.current.value : 'No value');
+                                                                        handleAgentCall(agent);
+                                                                    }}
+                                                                    variant="contained"
+                                                                    color="primary"
+                                                                    disabled={loading}
+                                                                >
+                                                                    {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                                </Button>
+                                                            ))}
+                                                        </Box>
+                                                        <Box component="form" onSubmit={(e) => {
+                                                            e.preventDefault();
+                                                            const inputValue = agentInputRef.current ? agentInputRef.current.value.trim() : '';
+                                                            if (inputValue) {
+                                                                handleSubmit(e, inputValue);
+                                                                if (agentInputRef.current) {
+                                                                    agentInputRef.current.value = '';
+                                                                }
+                                                            }
+                                                        }} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                                                            <TextField
+                                                                fullWidth
+                                                                placeholder="Tapez votre message ici..."
+                                                                variant="outlined"
+                                                                disabled={loading}
+                                                                inputRef={agentInputRef}
+                                                                onChange={(e) => {
+                                                                    if (agentInputRef.current) {
+                                                                        agentInputRef.current.value = e.target.value;
+                                                                    }
                                                                 }}
+                                                            />
+                                                            <Button
+                                                                type="submit"
                                                                 variant="contained"
-                                                                color="primary"
                                                                 disabled={loading}
                                                             >
-                                                                {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                                Envoyer
                                                             </Button>
-                                                        ))}
+                                                        </Box>
                                                     </Box>
-                                                }
-                                            />
                                         </>
                                     )}
                                     {activeTab === 2 && (

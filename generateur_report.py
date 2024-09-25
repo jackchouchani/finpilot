@@ -1384,7 +1384,8 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
     
     # Calculer le rendement total du portefeuille
-    total_return = safe_division((pd.DataFrame(portfolio_data).iloc[-1], pd.DataFrame(portfolio_data).iloc[0]) - 1).sum()
+    df_portfolio = pd.DataFrame(portfolio_data)
+    total_return = ((df_portfolio.iloc[-1] / df_portfolio.iloc[0]) - 1).sum()
     
     # Obtenir des données macroéconomiques actuelles
     current_date = datetime.now()

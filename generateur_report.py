@@ -234,7 +234,7 @@ def calculate_portfolio_returns(portfolio_data, weights):
     returns = df.pct_change().dropna()
     weighted_returns = (returns * weights).sum(axis=1)
     total_return = (1 + weighted_returns).prod() - 1
-    annualized_return = (1 + total_return) ** (safe_division(252, len(returns))) - 1
+    annualized_return = (1 + total_return) ** (safe_division(252.0, len(returns))) - 1
     return weighted_returns, total_return, annualized_return
 
 @timing_decorator
@@ -1421,7 +1421,10 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     return elements
 
 def safe_division(a, b):
-    return np.divide(a, b, out=np.zeros_like(a), where=b!=0)
+    if np.isscalar(a) and np.isscalar(b):
+        return a / b if b != 0 else 0.0
+    else:
+        return np.divide(a, b, out=np.zeros_like(a, dtype=float), where=b!=0)
 
 def calculate_sector_allocation(portfolio):
     sector_weights = {}

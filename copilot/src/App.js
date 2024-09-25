@@ -510,7 +510,6 @@ function App() {
                 conversation_id: conversationId,
                 portfolio: userPortfolio,
                 risk_profile: settings.riskProfile, // Assurez-vous que cette information est disponible dans votre state
-                // Ajoutez d'autres paramètres pertinents ici
             };
 
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/chat`, requestData, {

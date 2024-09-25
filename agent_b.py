@@ -70,8 +70,8 @@ class SentimentAnalysisAgent:
             text = f"{title} {description}"
             sentiment = self.analyze_sentiment(text)
             sentiments.append(sentiment)
-            # Correction ici : utilisez extend() au lieu de update() pour une liste
-            keywords.extend(self.extract_keywords(text))
+            # Correction : utilisez update() avec un Counter créé à partir de la liste
+            keywords.update(Counter(self.extract_keywords(text)))
             sources[article.get('source', {}).get('name', 'Unknown')] += 1
             
             # Analyse de sentiment par thème

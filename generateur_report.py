@@ -52,8 +52,15 @@ def timing_decorator(func):
 @timing_decorator
 @lru_cache(maxsize=None)
 def get_stock_info(symbol):
-    ticker = yf.Ticker(symbol)
-    return ticker
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        if not info:
+            raise ValueError(f"Aucune information disponible pour {symbol}")
+        return ticker
+    except Exception as e:
+        print(f"Erreur lors de la récupération des informations pour {symbol}: {e}")
+        return None
 
 @timing_decorator
 def get_bulk_stock_data(symbols, start_date, end_date):
@@ -88,8 +95,14 @@ def get_fred_data(series_id, start_date, end_date):
     Returns:
     DataFrame: Données de la série FRED.
     """
-    data = fred.get_series(series_id, start_date, end_date)
-    return pd.DataFrame(data, columns=[series_id])
+    try:
+        data = fred.get_series(series_id, start_date, end_date)
+        if data.empty:
+            return pd.DataFrame({series_id: ['N/A']})
+        return pd.DataFrame(data, columns=[series_id])
+    except Exception as e:
+        print(f"Erreur lors de la récupération des données FRED pour {series_id}: {e}")
+        return pd.DataFrame({series_id: ['N/A']})
 
 
 @timing_decorator
@@ -103,9 +116,9 @@ def generate_ai_content(prompt):
             ]
         )
         return message.content[0].text
-    except (IndexError, AttributeError) as e:
-        print(f"Erreur lors de la récupération de la réponse AI: {e}")
-        return ""
+    except Exception as e:
+        print(f"Erreur lors de la génération de contenu AI : {e}")
+        return "Analyse non disponible en raison d'une erreur technique."
 
 @timing_decorator
 def create_formatted_paragraph(text, style_name='Normal'):
@@ -191,8 +204,14 @@ def calculate_portfolio_performance(portfolio, start_date, end_date):
     portfolio_data = get_bulk_stock_data(symbols, start_date, end_date)
     
     df = pd.DataFrame(portfolio_data)
+    if df.empty:
+        raise ValueError("Aucune donnée disponible pour les actions du portefeuille")
+    
     returns = df.pct_change().dropna()
     weights = np.array([float(stock['weight']) / 100 for stock in portfolio['stocks']])
+    
+    if len(returns) < 2:
+        raise ValueError("Pas assez de données pour calculer les rendements")
     
     return portfolio_data, returns, weights
 
@@ -215,7 +234,7 @@ def calculate_portfolio_returns(portfolio_data, weights):
     returns = df.pct_change().dropna()
     weighted_returns = (returns * weights).sum(axis=1)
     total_return = (1 + weighted_returns).prod() - 1
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
+    annualized_return = (1 + total_return) ** (safe_division(252, len(returns))) - 1
     return weighted_returns, total_return, annualized_return
 
 @timing_decorator
@@ -361,6 +380,28 @@ def create_title_page(title, subtitle, date):
     elements.append(PageBreak())
     return elements
 
+def calculate_portfolio_metrics(portfolio_data, weights, risk_free_rate=0.02):
+    df = pd.DataFrame(portfolio_data)
+    weighted_returns = (df.pct_change() * weights).sum(axis=1)
+    cumulative_returns = (1 + weighted_returns).cumprod()
+    total_return = cumulative_returns.iloc[-1] - 1
+    time_period = (df.index[-1] - df.index[0]).days / 365.25
+    annualized_return = (1 + total_return) ** (1 / time_period) - 1
+    volatility = weighted_returns.std() * np.sqrt(252)
+    sharpe_ratio = safe_division((annualized_return - risk_free_rate), volatility)
+    return total_return, annualized_return, volatility, sharpe_ratio, weighted_returns, cumulative_returns
+
+
+def calculate_benchmark_metrics(benchmark_data, risk_free_rate=0.02):
+    returns = benchmark_data.pct_change()
+    cumulative_returns = (1 + returns).cumprod()
+    total_return = cumulative_returns.iloc[-1] - 1
+    time_period = (benchmark_data.index[-1] - benchmark_data.index[0]).days / 365.25
+    annualized_return = (1 + total_return) ** (1 / time_period) - 1
+    volatility = returns.std() * np.sqrt(252)
+    sharpe_ratio = safe_division((annualized_return - risk_free_rate), volatility)
+    return total_return, annualized_return, volatility, sharpe_ratio, cumulative_returns
+
 def generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return):
     """
     Génère le résumé exécutif du rapport.
@@ -377,23 +418,10 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
     Returns:
     list: Éléments à ajouter au rapport.
     """
-    # Calcul du score ESG
-    sp500_data = get_sp500_data(
-        portfolio_data[list(portfolio_data.keys())[0]].index[0],
-        portfolio_data[list(portfolio_data.keys())[0]].index[-1]
-    )
+    total_return, annualized_return, portfolio_volatility, sharpe_ratio, _ = calculate_portfolio_metrics(portfolio_data, weights)
     
-    if sp500_data.empty:
-        sp500_return = 0
-        sp500_volatility = 0
-        sp500_sharpe = 0
-    else:
-        sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
-        sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
-        sp500_sharpe = (sp500_return - 0.02) / sp500_volatility if sp500_volatility != 0 else 0
-    
-    portfolio_volatility = weighted_returns.std() * np.sqrt(252)
-    sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
+    sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
+    sp500_return, sp500_annualized_return, sp500_volatility, sp500_sharpe = calculate_benchmark_metrics(sp500_data)
     
     summary = (
         f"Résumé Exécutif\n"
@@ -407,6 +435,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
         f"• Ratio de Sharpe : {sharpe_ratio:.2f}\n\n"
         f"Comparaison avec le S&P 500 :\n"
         f"• Rendement total S&P 500 : {sp500_return:.2%}\n"
+        f"• Rendement annualisé S&P 500 : {sp500_annualized_return:.2%}\n"
         f"• Volatilité S&P 500 : {sp500_volatility:.2%}\n"
         f"• Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}\n\n"
         f"Le portefeuille a {'sous-performé' if total_return < sp500_return else 'sur-performé'} l'indice S&P 500 sur la période, avec un "
@@ -463,7 +492,7 @@ def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
         symbol = stock['symbol']
         entry_price = float(stock['entry_price'])
         current_price = pd.DataFrame(portfolio_data)[symbol].iloc[-1]
-        stock_return = (current_price / entry_price - 1)
+        stock_return = (safe_division(current_price, entry_price) - 1)
         data.append([symbol, f"{weight:.2%}", f"{entry_price:.2f} €", f"{current_price:.2f} €", f"{stock_return:.2%}"])
     
     table = Table(data)
@@ -594,13 +623,13 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     """
     elements = []
     
-    total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
+    total_return = (safe_division(pd.DataFrame(portfolio_data).iloc[-1], pd.DataFrame(portfolio_data).iloc[0]) - 1).sum()
     contributions = []
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
-        stock_return = pd.DataFrame(portfolio_data)[symbol].iloc[-1] / pd.DataFrame(portfolio_data)[symbol].iloc[0] - 1
+        stock_return = safe_division(pd.DataFrame(portfolio_data)[symbol].iloc[-1], pd.DataFrame(portfolio_data)[symbol].iloc[0]) - 1
         contribution = stock_return * weight
-        contributions.append((symbol, contribution, contribution / total_return))
+        contributions.append((symbol, contribution, safe_division(contribution, total_return)))
     
     contributions.sort(key=lambda x: x[1], reverse=True)
     
@@ -696,19 +725,19 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     excess_returns = portfolio_returns - risk_free_rate
     benchmark_excess_returns = benchmark_returns - risk_free_rate
     
-    beta = np.cov(portfolio_returns, benchmark_returns)[0][1] / np.var(benchmark_returns)
+    beta = safe_division(np.cov(portfolio_returns, benchmark_returns)[0][1], np.var(benchmark_returns))
     alpha = np.mean(excess_returns) - beta * np.mean(benchmark_excess_returns)
     tracking_error = np.std(portfolio_returns - benchmark_returns) * np.sqrt(252)
-    information_ratio = (np.mean(portfolio_returns - benchmark_returns) * 252) / tracking_error
+    information_ratio = safe_division((np.mean(portfolio_returns - benchmark_returns) * 252), tracking_error)
     downside_returns = np.minimum(excess_returns - np.mean(excess_returns), 0)
-    sortino_ratio = np.mean(excess_returns) / (np.std(downside_returns) * np.sqrt(252))
+    sortino_ratio = safe_division(np.mean(excess_returns), (np.std(downside_returns)) * np.sqrt(252))
     
     ratios = {
-        "Beta": beta,
-        "Alpha": alpha * 252,  # Annualisé
-        "Tracking Error": tracking_error,
-        "Information Ratio": information_ratio,
-        "Sortino Ratio": sortino_ratio
+        "Beta": beta if not np.isnan(beta) else "N/A",
+        "Alpha": alpha * 252 if not np.isnan(alpha) else "N/A",
+        "Tracking Error": tracking_error if not np.isnan(tracking_error) else "N/A",
+        "Information Ratio": information_ratio if not np.isnan(information_ratio) else "N/A",
+        "Sortino Ratio": sortino_ratio if not np.isnan(sortino_ratio) else "N/A"
     }
     
     data = [['Ratio', 'Valeur']]
@@ -844,18 +873,10 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, w
     """
     elements = []
     
-    volatility = weighted_returns.std() * np.sqrt(252)
-    cumulative_returns = (1 + weighted_returns).cumprod()
-    risk_free_rate = 0.02  # 2% par exemple
-    sharpe_ratio = (annualized_return - risk_free_rate) / volatility
+    total_return, annualized_return, volatility, sharpe_ratio, _, cumulative_returns = calculate_portfolio_metrics(portfolio_data, weights)
     
     sp500_data = get_sp500_data(start_date, end_date)
-    sp500_returns = sp500_data.pct_change().dropna()
-    sp500_cumulative_returns = (1 + sp500_returns).cumprod()
-    sp500_total_return = sp500_cumulative_returns.iloc[-1] - 1
-    sp500_annualized_return = (1 + sp500_total_return) ** (252 / len(sp500_returns)) - 1
-    sp500_volatility = sp500_returns.std() * np.sqrt(252)
-    sp500_sharpe_ratio = (sp500_annualized_return - 0.02) / sp500_volatility
+    sp500_total_return, sp500_annualized_return, sp500_volatility, sp500_sharpe_ratio, sp500_cumulative_returns = calculate_benchmark_metrics(sp500_data)
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=cumulative_returns.index, y=cumulative_returns,
@@ -929,6 +950,15 @@ def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted
         ['CVaR (95%)', f"{cvar_95:.2%}"],
         ['Drawdown Maximum', f"{max_drawdown:.2%}"]
     ]
+
+    explanation = generate_ai_content(f"""
+    Analysez les métriques de risque suivantes pour le portefeuille :
+    - VaR (95%) : {var_95:.2%}
+    - CVaR (95%) : {cvar_95:.2%}
+    - Drawdown Maximum : {max_drawdown:.2%}
+    Expliquez ce que ces métriques signifient pour l'investisseur et comment elles se comparent aux benchmarks du marché.
+    """)
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     table = Table(risk_data)
     table.setStyle(TableStyle([
@@ -1002,7 +1032,7 @@ def generate_best_worst_performers(portfolio, portfolio_data, returns, weights):
     df = pd.DataFrame(portfolio_data)
     stock_returns = df.pct_change().mean() * 252  # rendements annualisés
     stock_volatility = df.pct_change().std() * np.sqrt(252)  # volatilité annualisée
-    stock_sharpe = stock_returns / stock_volatility  # ratio de Sharpe
+    stock_sharpe = safe_division(stock_returns, stock_volatility)  # ratio de Sharpe
 
     performance_data = []
     for stock, weight in zip(portfolio['stocks'], weights):
@@ -1093,12 +1123,19 @@ def generate_dividend_table(portfolio):
     ]))
     elements.append(table)
     
-    explanation = generate_ai_content(f"""
-    Analysez la politique de dividendes des actions du portefeuille en vous basant sur les données du tableau.
-    Identifiez les actions avec les rendements de dividendes les plus élevés et les plus bas.
-    Discutez de l'impact des dividendes sur le rendement total du portefeuille.
-    Commentez sur la durabilité des dividendes en fonction des taux de distribution (si disponibles).
-    """)
+    if all(row[1] == "N/A" for row in dividend_data[1:]):
+        explanation = "Aucune donnée de dividende n'est disponible pour les actions de ce portefeuille. Cela peut indiquer que les entreprises ne versent pas de dividendes ou que les données sont temporairement indisponibles."
+    else:
+        dividend_info = "\n".join([f"{row[0]}: Rendement {row[1]}, Fréquence {row[2]}, Dernier dividende {row[3]}" for row in dividend_data[1:]])
+        explanation = generate_ai_content(f"""
+        Analysez la politique de dividendes des actions du portefeuille en vous basant sur les données suivantes:
+        
+        {dividend_info}
+        
+        Identifiez les actions avec les rendements de dividendes les plus élevés et les plus bas.
+        Discutez de l'impact des dividendes sur le rendement total du portefeuille.
+        Commentez sur la durabilité des dividendes en fonction des rendements et des montants.
+        """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
@@ -1277,11 +1314,11 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     portfolio_volatility = weighted_returns.std() * np.sqrt(252)
     
     risk_free_rate = 0.02  # Taux sans risque de 2%
-    sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility
+    sharpe_ratio = safe_division((annualized_return - risk_free_rate), portfolio_volatility)
 
     # Comparer avec le S&P 500
     sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
-    sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
+    sp500_return = (safe_division(sp500_data.iloc[-1], sp500_data.iloc[0])) - 1
     sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
 
     # Calculer la corrélation moyenne entre les actions
@@ -1341,7 +1378,7 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
     
     # Calculer le rendement total du portefeuille
-    total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
+    total_return = safe_division((pd.DataFrame(portfolio_data).iloc[-1], pd.DataFrame(portfolio_data).iloc[0]) - 1).sum()
     
     # Obtenir des données macroéconomiques actuelles
     current_date = datetime.now()
@@ -1352,14 +1389,12 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
         unemployment = get_fred_data('UNRATE', start_date, current_date)
         gdp_growth = get_fred_data('GDP', start_date, current_date)
         
-        latest_inflation = inflation.iloc[-1]['CPIAUCSL']
-        latest_unemployment = unemployment.iloc[-1]['UNRATE']
-        latest_gdp_growth = gdp_growth.iloc[-1]['GDP']
+        latest_inflation = inflation.iloc[-1][inflation.columns[0]]
+        latest_unemployment = unemployment.iloc[-1][unemployment.columns[0]]
+        latest_gdp_growth = gdp_growth.iloc[-1][gdp_growth.columns[0]]
     except Exception as e:
         print(f"Erreur lors de la récupération des données macroéconomiques : {e}")
-        latest_inflation = "N/A"
-        latest_unemployment = "N/A"
-        latest_gdp_growth = "N/A"
+        latest_inflation = latest_unemployment = latest_gdp_growth = "N/A"
     
     # Générer le texte des perspectives futures
     outlook_text = generate_ai_content(f"""
@@ -1385,6 +1420,8 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     
     return elements
 
+def safe_division(a, b):
+    return np.divide(a, b, out=np.zeros_like(a), where=b!=0)
 
 def calculate_sector_allocation(portfolio):
     sector_weights = {}
@@ -1395,10 +1432,10 @@ def calculate_sector_allocation(portfolio):
             info = ticker.info
             sector_cache[stock['symbol']] = info.get('sector', 'Unknown')
         sector = sector_cache[stock['symbol']]
-        weight = float(stock['weight']) / 100
+        weight = safe_division(float(stock['weight']),100)
         sector_weights[sector] = sector_weights.get(sector, 0) + weight
     return sector_weights
 
 def calculate_stock_performance(portfolio_data):
     df = pd.DataFrame(portfolio_data)
-    return {symbol: (data.iloc[-1] / data.iloc[0] - 1) for symbol, data in df.items()}
+    return {symbol: (safe_division(data.iloc[-1], data.iloc[0]) - 1) for symbol, data in df.items()}

@@ -661,9 +661,15 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights,
     portfolio_sharpe = (portfolio_returns.mean() * 252 - 0.02) / portfolio_volatility  # Assuming 2% risk-free rate
     
     # Calcul de la performance du benchmark
-    benchmark_return = (benchmark_data.iloc[-1] / benchmark_data.iloc[0] - 1)[0]
-    benchmark_volatility = benchmark_data.pct_change().std()[0] * np.sqrt(252)
-    benchmark_sharpe = (benchmark_data.pct_change().mean()[0] * 252 - 0.02) / benchmark_volatility
+    if isinstance(benchmark_data, pd.Series):
+        benchmark_return = benchmark_data.iloc[-1] / benchmark_data.iloc[0] - 1
+        benchmark_volatility = benchmark_data.pct_change().std() * np.sqrt(252)
+        benchmark_sharpe = (benchmark_data.pct_change().mean() * 252 - 0.02) / benchmark_volatility
+    else:
+        # Si benchmark_data est un DataFrame, supposons que nous voulons la colonne 'Close'
+        benchmark_return = benchmark_data['Close'].iloc[-1] / benchmark_data['Close'].iloc[0] - 1
+        benchmark_volatility = benchmark_data['Close'].pct_change().std() * np.sqrt(252)
+        benchmark_sharpe = (benchmark_data['Close'].pct_change().mean() * 252 - 0.02) / benchmark_volatility
     
     explanation = generate_ai_content(f"""
     Analysez la contribution de chaque action au rendement total du portefeuille en vous basant sur les données suivantes:

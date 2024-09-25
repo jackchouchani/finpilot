@@ -102,6 +102,10 @@ function Portfolio() {
     };
 
     useEffect(() => {
+        fetchPortfolio();
+    }, []);
+
+    useEffect(() => {
         if (portfolio.stocks && portfolio.stocks.length > 0) {
             fetchLatestPrices();
         }

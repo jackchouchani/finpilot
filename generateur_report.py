@@ -1456,7 +1456,7 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights, start_d
     
     # Calculer quelques métriques supplémentaires pour l'analyse
     sector_allocation = calculate_sector_allocation(portfolio)
-    stock_performance = calculate_stock_performance(portfolio_data)
+    stock_performance = calculate_stock_performance(portfolio_data, start_date, end_date)
     
     # Calculer la volatilité du portefeuille
     portfolio_returns = (returns * weights).sum(axis=1)

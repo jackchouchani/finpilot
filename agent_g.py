@@ -163,8 +163,6 @@ Recommandations:
 5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"] else "Continuer à surveiller la volatilité du portefeuille."}
 
 Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
-
-*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
 """
         return rapport
 

@@ -933,16 +933,6 @@ function AppContent({
                                             </label>
                                             {file && <Typography variant="body1" sx={{ mt: 2 }}>{file.name}</Typography>}
                                             {loading && <CircularProgress sx={{ mt: 2 }} />}
-                                            <List>
-                                                {messages.map((message, index) => (
-                                                    <ListItem key={index} alignItems="flex-start">
-                                                        <ListItemText
-                                                            primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                                            secondary={<MessageContent content={message.content} />}
-                                                        />
-                                                    </ListItem>
-                                                ))}
-                                            </List>
                                         </>
                                     )}
                                     {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}

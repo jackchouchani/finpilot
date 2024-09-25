@@ -1050,15 +1050,15 @@ def generate_sector_allocation(portfolio, portfolio_data, returns, weights):
     elements = []
 
     async def get_sector(symbol):
-    try:
-        ticker = yf.Ticker(symbol)
-        info = await asyncio.to_thread(lambda: ticker.info)
-        sector = info.get('sector', 'Unknown')
-        print(f"Secteur pour {symbol}: {sector}")  # Log pour le débogage
-        return symbol, sector
-    except Exception as e:
-        print(f"Erreur lors de la récupération du secteur pour {symbol}: {e}")
-        return symbol, 'Unknown'
+        try:
+            ticker = yf.Ticker(symbol)
+            info = await asyncio.to_thread(lambda: ticker.info)
+            sector = info.get('sector', 'Unknown')
+            print(f"Secteur pour {symbol}: {sector}")  # Log pour le débogage
+            return symbol, sector
+        except Exception as e:
+            print(f"Erreur lors de la récupération du secteur pour {symbol}: {e}")
+            return symbol, 'Unknown'
 
     async def get_sectors():
         tasks = []

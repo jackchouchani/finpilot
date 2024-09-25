@@ -815,6 +815,7 @@ function AppContent({
                                                         ))}
                                                     </Box>
                                                 }
+                                                inputRef={agentInputRef}
                                             />
                                         </>
                                     )}

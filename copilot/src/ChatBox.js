@@ -67,6 +67,7 @@ function ChatBox({ messages, handleSubmit, loading, customInput, disableInput, a
                             variant="outlined"
                             disabled={loading}
                             inputRef={inputRef}
+                            defaultValue={customInput} // Ajoutez cette ligne si ce n'est pas déjà fait
                         />
                         <Button
                             type="submit"

@@ -261,7 +261,7 @@ def generate_report(data):
     weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
     
     # Récupération des données de référence (par exemple, S&P 500)
-    benchmark_data = sp500_data(start_date, end_date)  # Assurez-vous d'avoir cette fonction
+    benchmark_data = get_sp500_data(start_date, end_date)  # Assurez-vous d'avoir cette fonction
     
     # Création du document PDF
     buffer = BytesIO()

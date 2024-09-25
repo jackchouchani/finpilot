@@ -794,6 +794,7 @@ function AppContent({
                                     )}
                                     {activeTab === 1 && (
                                         <>
+                                            {console.log("Rendering Agents tab")}
                                             <TextField
                                                 id="agent-input"
                                                 label="Entrée pour l'agent"
@@ -803,6 +804,7 @@ function AppContent({
                                                 inputRef={agentInputRef}
                                             />
                                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
+                                                {console.log("Rendering agent buttons")}
                                                 {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
                                                     <Button
                                                         key={agent}

@@ -111,23 +111,7 @@ function Portfolio() {
         }
     }, [portfolio]);
 
-    useEffect(() => {
-        if (newStock.symbol) {
-            const fetchNewStockPrice = async () => {
-                try {
-                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
-                    if (response.data && response.data.price) {
-                        setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
-                    }
-                } catch (error) {
-                    console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
-                }
-            };
-            fetchNewStockPrice();
-        }
-    }, [newStock.symbol]);
-
-    const fetchLatestPrices = async () => {
+    const fetchLatestPrices = useCallback(async () => {
         if (!portfolio || !portfolio.stocks) {
             console.error("Portfolio or portfolio.stocks is undefined");
             return;
@@ -144,7 +128,7 @@ function Portfolio() {
             }
         }
         setLivePrices(updatedPrices);
-    };
+    }, [portfolio, livePrices]);
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {

@@ -801,6 +801,7 @@ function AppContent({
                                                 messages={messages}
                                                 handleSubmit={handleSubmit}
                                                 loading={loading}
+                                                inputRef={agentInputRef}
                                                 customInput={agentInputRef.current ? agentInputRef.current.value : ''}
                                                 disableInput={false}
                                                 agentButtons={
@@ -822,7 +823,6 @@ function AppContent({
                                                         ))}
                                                     </Box>
                                                 }
-                                                inputRef={agentInputRef}
                                             />
                                         </>
                                     )}

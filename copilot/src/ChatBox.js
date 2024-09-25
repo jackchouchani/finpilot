@@ -68,6 +68,11 @@ function ChatBox({ messages, handleSubmit, loading, customInput, disableInput, a
                             disabled={loading}
                             inputRef={inputRef}
                             defaultValue={customInput} // Ajoutez cette ligne si ce n'est pas déjà fait
+                            onChange={(e) => {
+                                if (inputRef.current) {
+                                    inputRef.current.value = e.target.value;
+                                }
+                            }}
                         />
                         <Button
                             type="submit"

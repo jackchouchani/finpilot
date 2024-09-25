@@ -418,7 +418,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
     Returns:
     list: Éléments à ajouter au rapport.
     """
-    total_return, annualized_return, portfolio_volatility, sharpe_ratio, _ = calculate_portfolio_metrics(portfolio_data, weights)
+    total_return, annualized_return, portfolio_volatility, sharpe_ratio, _, cumulative_returns = calculate_portfolio_metrics(portfolio_data, weights)
     
     sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
     sp500_return, sp500_annualized_return, sp500_volatility, sp500_sharpe = calculate_benchmark_metrics(sp500_data)

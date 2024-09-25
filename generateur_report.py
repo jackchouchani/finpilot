@@ -251,9 +251,11 @@ def generate_report(data):
     start_time = time.time()
     
     portfolio = data['portfolio']
-    start_date = data.get('start_date', (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d'))
-    end_date = data.get('end_date', (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'))
-    
+    end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+    # Définir start_date à un an avant end_date
+    start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=365)).strftime('%Y-%m-%d')
+
     # Calcul des rendements et des métriques de performance
     portfolio_data, returns, weights = calculate_portfolio_performance(portfolio, start_date, end_date)
     

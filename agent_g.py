@@ -155,37 +155,19 @@ Points clés à retenir:
 4. L'exposition aux marchés développés est de {market_exposure['Développé']:.2%}, {"ce qui est conforme" if market_exposure['Développé'] >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
 5. La volatilité du portefeuille est {"conforme" if volatility != 'Non disponible' and volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
 
+
+Recommandations:"""
+        
+1. {f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}." if violations else "Maintenir la conformité actuelle du portefeuille."}
+2. {"Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue." if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure) else "Envisager une diversification dans d'autres secteurs pour réduire le risque sectoriel."}
+3. {"Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables." if any("ESG" in w for w in warnings) else "Continuer à surveiller les scores ESG des positions actuelles."}
+4. {"Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille." if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"] else "Maintenir l'exposition actuelle aux marchés développés."}
+5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"] else "Continuer à surveiller la volatilité du portefeuille."}
+
+Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
+
+*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
 """
-        recommandations = []
-
-        if violations:
-            recommandations.append(f"1. Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}.")
-        else:
-            recommandations.append("1. Maintenir la conformité actuelle du portefeuille.")
-
-        if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure):
-            recommandations.append("2. Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue.")
-        else:
-            recommandations.append("2. Envisager une diversification dans d'autres secteurs pour réduire le risque sectoriel.")
-
-        if any("ESG" in w for w in warnings):
-            recommandations.append("3. Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables.")
-        else:
-            recommandations.append("3. Continuer à surveiller les scores ESG des positions actuelles.")
-
-        if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"]:
-            recommandations.append("4. Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille.")
-        else:
-            recommandations.append("4. Maintenir l'exposition actuelle aux marchés développés.")
-
-        if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"]:
-            recommandations.append("5. Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation.")
-        else:
-            recommandations.append("5. Continuer à surveiller la volatilité du portefeuille.")
-
-        rapport += "Recommandations:\n"
-        for recommendation in recommandations:
-            rapport += f"{recommendation}\n"
-            return rapport
+        return rapport
 
 compliance_agent = ComplianceAgent()

@@ -288,8 +288,8 @@ def generate_report(data):
         ("Résumé Exécutif", lambda p, pd, r, w, wr, tr, ar: generate_executive_summary(p, pd, r, w, wr, tr, ar)),
         ("Vue d'Ensemble du Portefeuille", lambda p, pd, r, w, wr, tr, ar: generate_portfolio_overview(p, pd, r, w)),
         ("Analyse de Performance", lambda p, pd, r, w, wr, tr, ar: generate_performance_analysis(p, pd, r, w, wr, tr, ar, start_date, end_date)),
-        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w)),
-        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w)),
+        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w, start_date, end_date)),
+        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w, start_date, end_date, benchmark_data)),
         ("Ratios Supplémentaires", lambda p, pd, r, w, wr, tr, ar: generate_additional_ratios_table(p, pd, r, w, start_date, end_date)),
         ("Analyse des Risques", lambda p, pd, r, w, wr, tr, ar: generate_risk_analysis(p, pd, r, w, wr)),
         ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
@@ -380,7 +380,7 @@ def create_title_page(title, subtitle, date):
     elements.append(PageBreak())
     return elements
 
-def calculate_portfolio_metrics(portfolio_data, weights, risk_free_rate=0.02):
+def calculate_portfolio_metrics(portfolio_data, weights, risk_free_rate=0.04):
     df = pd.DataFrame(portfolio_data)
     weighted_returns = (df.pct_change() * weights).sum(axis=1)
     cumulative_returns = (1 + weighted_returns).cumprod()
@@ -392,7 +392,7 @@ def calculate_portfolio_metrics(portfolio_data, weights, risk_free_rate=0.02):
     return total_return, annualized_return, volatility, sharpe_ratio, weighted_returns, cumulative_returns
 
 
-def calculate_benchmark_metrics(benchmark_data, risk_free_rate=0.02):
+def calculate_benchmark_metrics(benchmark_data, risk_free_rate=0.05):
     returns = benchmark_data.pct_change()
     cumulative_returns = (1 + returns).cumprod()
     total_return = cumulative_returns.iloc[-1] - 1
@@ -424,7 +424,6 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
     sp500_return, sp500_annualized_return, sp500_volatility, sp500_sharpe, _ = calculate_benchmark_metrics(sp500_data)
     
     summary = (
-        f"Résumé Exécutif\n"
         f"Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du "
         f"{portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au "
         f"{portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.\n\n"
@@ -566,7 +565,7 @@ def generate_disclaimer():
     """
     return disclaimer_text.strip()
 
-def generate_stock_performance_comparison(portfolio_data, weights):
+def generate_stock_performance_comparison(portfolio_data, weights, start_date, end_date):
     """
     Génère la comparaison de performance des actions.
 
@@ -579,19 +578,19 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     """
     elements = []
     
-    stock_returns = pd.DataFrame(portfolio_data).pct_change().mean() * 252
+    stock_performance = calculate_stock_performance(portfolio_data, start_date, end_date)
     
-    stock_performance = list(zip(stock_returns.index, stock_returns.values * 100))
-    stock_performance.sort(key=lambda x: x[1], reverse=True)
+    stock_performance_list = list(zip(stock_performance.keys(), stock_performance.values()))
+    stock_performance_list.sort(key=lambda x: x[1], reverse=True)
     
     fig = go.Figure([go.Bar(
-        x=[s[0] for s in stock_performance],
-        y=[s[1] for s in stock_performance],
-        text=[f"{s[1]:.2%}%" for s in stock_performance],
+        x=[s[0] for s in stock_performance_list],
+        y=[s[1] for s in stock_performance_list],
+        text=[f"{s[1]:.2f}%" for s in stock_performance_list],
         textposition='auto',
     )])
-    fig.update_layout(title="Comparaison de Performance des Actions",
-                      xaxis_title="Action", yaxis_title="Rendement Annualisé (%)")
+    fig.update_layout(title="Comparaison de Performance des Actions (1 an)",
+                      xaxis_title="Action", yaxis_title="Rendement Annuel (%)")
     
     img_buffer = BytesIO()
     fig.write_image(img_buffer, format='png')
@@ -599,8 +598,8 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     elements.append(Image(img_buffer, width=500, height=300))
     
     explanation = generate_ai_content(f"""
-    Analysez la performance relative des actions du portefeuille en vous basant sur les données suivantes:
-    {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in stock_performance])}
+    Analysez la performance relative des actions du portefeuille sur la dernière année en vous basant sur les données suivantes:
+    {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in stock_performance_list])}
     Identifiez les meilleures et les pires performances, et suggérez des explications possibles pour ces écarts de performance.
     Considérez également l'impact de la pondération de chaque action (poids: {weights}) sur la performance globale du portefeuille.
     """)
@@ -608,7 +607,7 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     
     return elements
 
-def generate_contribution_to_return(portfolio, portfolio_data, returns, weights):
+def generate_contribution_to_return(portfolio, portfolio_data, returns, weights, start_date, end_date, benchmark_data):
     """
     Génère la contribution de chaque action au rendement total du portefeuille.
 
@@ -623,19 +622,22 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     """
     elements = []
     
-    total_return = (safe_division(pd.DataFrame(portfolio_data).iloc[-1], pd.DataFrame(portfolio_data).iloc[0]) - 1).sum()
+    # Calcul des rendements et contributions
+    df_portfolio = pd.DataFrame(portfolio_data)
+    total_return = (df_portfolio.iloc[-1] / df_portfolio.iloc[0] - 1).sum()
     contributions = []
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
-        stock_return = safe_division(pd.DataFrame(portfolio_data)[symbol].iloc[-1], pd.DataFrame(portfolio_data)[symbol].iloc[0]) - 1
+        stock_return = df_portfolio[symbol].iloc[-1] / df_portfolio[symbol].iloc[0] - 1
         contribution = stock_return * weight
-        contributions.append((symbol, contribution, safe_division(contribution, total_return)))
+        contributions.append((symbol, contribution, contribution / total_return, weight))
     
     contributions.sort(key=lambda x: x[1], reverse=True)
     
-    data = [['Action', 'Contribution', '% du Total']]
-    for symbol, contribution, percentage in contributions:
-        data.append([symbol, f"{contribution:.2%}", f"{percentage:.2%}"])
+    # Création du tableau
+    data = [['Action', 'Contribution', '% du Total', 'Pondération']]
+    for symbol, contribution, percentage, weight in contributions:
+        data.append([symbol, f"{contribution:.2%}", f"{percentage:.2%}", f"{weight:.2%}"])
     
     table = Table(data)
     table.setStyle(TableStyle([
@@ -650,10 +652,41 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     ]))
     elements.append(table)
     
+    # Calcul des rendements ajustés au risque
+    portfolio_returns = (returns * weights).sum(axis=1)
+    portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
+    portfolio_sharpe = (portfolio_returns.mean() * 252 - 0.02) / portfolio_volatility  # Assuming 2% risk-free rate
+    
+    # Calcul de la performance du benchmark
+    benchmark_return = (benchmark_data.iloc[-1] / benchmark_data.iloc[0] - 1)[0]
+    benchmark_volatility = benchmark_data.pct_change().std()[0] * np.sqrt(252)
+    benchmark_sharpe = (benchmark_data.pct_change().mean()[0] * 252 - 0.02) / benchmark_volatility
+    
     explanation = generate_ai_content(f"""
     Analysez la contribution de chaque action au rendement total du portefeuille en vous basant sur les données suivantes:
-    {', '.join([f"{s[0]}: {s[1]:.2%}%" for s in contributions])}
-    Identifiez les actions qui ont le plus contribué positivement et négativement, et expliquez l'impact de la pondération sur ces contributions.
+
+    Période de performance: du {start_date} au {end_date}
+    
+    Contributions individuelles:
+    {', '.join([f"{s[0]}: contribution {s[1]:.2%}, % du total {s[2]:.2%}, pondération {s[3]:.2%}" for s in contributions])}
+    
+    Performance du portefeuille:
+    - Rendement total: {total_return:.2%}
+    - Volatilité annualisée: {portfolio_volatility:.2%}
+    - Ratio de Sharpe: {portfolio_sharpe:.2f}
+    
+    Performance de l'indice de référence:
+    - Rendement total: {benchmark_return:.2%}
+    - Volatilité annualisée: {benchmark_volatility:.2%}
+    - Ratio de Sharpe: {benchmark_sharpe:.2f}
+
+    Basez votre analyse sur les points suivants:
+    1. Identifiez les actions qui ont le plus contribué positivement et négativement au rendement total.
+    2. Expliquez l'impact de la pondération sur ces contributions.
+    3. Comparez la performance du portefeuille à celle de l'indice de référence, en tenant compte du rendement et du risque.
+    4. Discutez de la relation entre la pondération de chaque action et sa contribution au rendement total.
+    5. Suggérez des ajustements potentiels de pondération basés sur ces performances, en tenant compte du rapport rendement/risque.
+    6. Rappelez que la performance passée ne garantit pas les résultats futurs et expliquez pourquoi c'est important pour l'investisseur.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
@@ -707,47 +740,68 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     """
     elements = []
     
-    # Recalculer les rendements du portefeuille
-    df = pd.DataFrame(portfolio_data)
-    portfolio_returns = df.pct_change().dropna()
-    portfolio_returns = (portfolio_returns * weights).sum(axis=1)
+    try:
+        # Recalculer les rendements du portefeuille
+        df = pd.DataFrame(portfolio_data)
+        portfolio_returns = df.pct_change().dropna()
+        portfolio_returns = (portfolio_returns * weights).sum(axis=1)
 
-    # Obtenir les rendements du S&P 500
-    benchmark_returns = get_sp500_returns(start_date, end_date)
+        # Obtenir les rendements du S&P 500
+        benchmark_returns = get_sp500_returns(start_date, end_date)
 
-    # S'assurer que les deux séries ont le même index
-    common_dates = portfolio_returns.index.intersection(benchmark_returns.index)
-    portfolio_returns = portfolio_returns.loc[common_dates]
-    benchmark_returns = benchmark_returns.loc[common_dates]
+        # S'assurer que les deux séries ont le même index
+        common_dates = portfolio_returns.index.intersection(benchmark_returns.index)
+        if len(common_dates) < 2:
+            raise ValueError("Pas assez de données communes entre le portefeuille et l'indice de référence")
+        
+        portfolio_returns = portfolio_returns.loc[common_dates]
+        benchmark_returns = benchmark_returns.loc[common_dates]
 
-    risk_free_rate = 0.02 / 252  # Taux journalier
-    
-    excess_returns = portfolio_returns - risk_free_rate
-    benchmark_excess_returns = benchmark_returns - risk_free_rate
-    
-    beta = safe_division(np.cov(portfolio_returns, benchmark_returns)[0][1], np.var(benchmark_returns))
-    alpha = np.mean(excess_returns) - beta * np.mean(benchmark_excess_returns)
-    tracking_error = np.std(portfolio_returns - benchmark_returns) * np.sqrt(252)
-    information_ratio = safe_division((np.mean(portfolio_returns - benchmark_returns) * 252), tracking_error)
-    downside_returns = np.minimum(excess_returns - np.mean(excess_returns), 0)
-    sortino_ratio = safe_division(np.mean(excess_returns), (np.std(downside_returns)) * np.sqrt(252))
-    
-    ratios = {
-        "Beta": beta if not np.isnan(beta) else "N/A",
-        "Alpha": alpha * 252 if not np.isnan(alpha) else "N/A",
-        "Tracking Error": tracking_error if not np.isnan(tracking_error) else "N/A",
-        "Information Ratio": information_ratio if not np.isnan(information_ratio) else "N/A",
-        "Sortino Ratio": sortino_ratio if not np.isnan(sortino_ratio) else "N/A"
-    }
+        risk_free_rate = 0.02 / 252  # Taux journalier
+        
+        excess_returns = portfolio_returns - risk_free_rate
+        benchmark_excess_returns = benchmark_returns - risk_free_rate
+        
+        # Calcul du beta
+        covariance = np.cov(portfolio_returns, benchmark_returns)[0][1]
+        benchmark_variance = np.var(benchmark_returns)
+        beta = covariance / benchmark_variance if benchmark_variance != 0 else np.nan
+
+        # Calcul de l'alpha
+        alpha = np.mean(excess_returns) - beta * np.mean(benchmark_excess_returns)
+        
+        # Calcul du tracking error
+        tracking_error = np.std(portfolio_returns - benchmark_returns) * np.sqrt(252)
+        
+        # Calcul de l'information ratio
+        excess_return = np.mean(portfolio_returns - benchmark_returns) * 252
+        information_ratio = excess_return / tracking_error if tracking_error != 0 else np.nan
+        
+        # Calcul du Sortino ratio
+        downside_returns = np.minimum(excess_returns - np.mean(excess_returns), 0)
+        downside_deviation = np.sqrt(np.mean(downside_returns**2)) * np.sqrt(252)
+        sortino_ratio = np.mean(excess_returns) / downside_deviation if downside_deviation != 0 else np.nan
+        
+        ratios = {
+            "Beta": beta,
+            "Alpha": alpha * 252,  # Annualisé
+            "Tracking Error": tracking_error,
+            "Information Ratio": information_ratio,
+            "Sortino Ratio": sortino_ratio
+        }
+    except Exception as e:
+        print(f"Erreur lors du calcul des ratios : {e}")
+        ratios = {
+            "Beta": np.nan,
+            "Alpha": np.nan,
+            "Tracking Error": np.nan,
+            "Information Ratio": np.nan,
+            "Sortino Ratio": np.nan
+        }
     
     data = [['Ratio', 'Valeur']]
     for ratio, value in ratios.items():
-        if isinstance(value, (int, float)):
-            # Si la valeur est un nombre, formatez-la avec 4 décimales
-            formatted_value = f"{value:.4f}"
-        else:
-            # Pour tout autre type, y compris les chaînes, laissez-le tel quel
-            formatted_value = str(value)
+        formatted_value = f"{value:.4f}" if not np.isnan(value) else "N/A"
         data.append([ratio, formatted_value])
     
     table = Table(data)
@@ -771,6 +825,7 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     Information Ratio: {ratios['Information Ratio']}
     Sortino Ratio: {ratios['Sortino Ratio']}
     Expliquez ce que chaque ratio signifie et comment interpréter ces valeurs dans le contexte de ce portefeuille.
+    Si certains ratios sont N/A, expliquez pourquoi cela pourrait être le cas et quelles informations supplémentaires seraient nécessaires pour les calculer.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
@@ -994,13 +1049,25 @@ def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted
 def generate_sector_allocation(portfolio, portfolio_data, returns, weights):
     elements = []
 
+    async def get_sector(symbol):
+    try:
+        ticker = yf.Ticker(symbol)
+        info = await asyncio.to_thread(lambda: ticker.info)
+        sector = info.get('sector', 'Unknown')
+        print(f"Secteur pour {symbol}: {sector}")  # Log pour le débogage
+        return symbol, sector
+    except Exception as e:
+        print(f"Erreur lors de la récupération du secteur pour {symbol}: {e}")
+        return symbol, 'Unknown'
+
     async def get_sectors():
-        urls = [f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{stock['symbol']}?modules=assetProfile" for stock in portfolio['stocks']]
-        results = await get_multiple_stock_data(urls)
-        sectors = {}
-        for stock, result in zip(portfolio['stocks'], results):
-            sector = result.get('quoteSummary', {}).get('result', [{}])[0].get('assetProfile', {}).get('sector', 'Unknown')
-            sectors[stock['symbol']] = sector
+        tasks = []
+        for stock in portfolio['stocks']:
+            task = asyncio.create_task(get_sector(stock['symbol']))
+            tasks.append(task)
+        
+        results = await asyncio.gather(*tasks)
+        sectors = dict(results)
         return sectors
 
     # Obtenir les secteurs pour chaque action
@@ -1285,15 +1352,18 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_
     # Création d'un graphique pour visualiser les impacts
     fig = go.Figure(data=[go.Bar(
         x=list(scenarios.keys()),
-        y=[impact * 100 for impact in portfolio_impacts.values()],
+        y=[impact for impact in portfolio_impacts.values()],
         text=[f"{impact:.2%}" for impact in portfolio_impacts.values()],
         textposition='auto',
     )])
     fig.update_layout(
         title="Impact des Scénarios de Stress sur le Portefeuille",
         xaxis_title="Scénarios",
-        yaxis_title="Impact sur la Valeur du Portefeuille (%)",
-        yaxis_tickformat='.2%'
+        yaxis_title="Impact sur la Valeur du Portefeuille",
+        yaxis=dict(
+            tickformat='.0%',
+            range=[min(portfolio_impacts.values()) * 1.1, max(0, max(portfolio_impacts.values())) * 1.1],
+        )
     )
     
     img_buffer = BytesIO()
@@ -1392,7 +1462,7 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     start_date = current_date - timedelta(days=30)  # Données du dernier mois
     
     try:
-        inflation = get_fred_data('CPIAUCSL', start_date, current_date)
+        inflation = get_fred_data('FPCPITOTLZGUSA', start_date, current_date)
         unemployment = get_fred_data('UNRATE', start_date, current_date)
         gdp_growth = get_fred_data('GDP', start_date, current_date)
         
@@ -1446,6 +1516,16 @@ def calculate_sector_allocation(portfolio):
         sector_weights[sector] = sector_weights.get(sector, 0) + weight
     return sector_weights
 
-def calculate_stock_performance(portfolio_data):
+def calculate_stock_performance(portfolio_data, start_date, end_date):
     df = pd.DataFrame(portfolio_data)
-    return {symbol: (safe_division(data.iloc[-1], data.iloc[0]) - 1) for symbol, data in df.items()}
+    one_year_ago = pd.Timestamp(end_date) - pd.DateOffset(years=1)
+    start_date = max(pd.Timestamp(start_date), one_year_ago)
+    
+    performance = {}
+    for symbol, data in df.items():
+        start_price = data.loc[start_date:].iloc[0]
+        end_price = data.iloc[-1]
+        annual_return = (end_price / start_price) - 1
+        performance[symbol] = annual_return * 100  # Convert to percentage
+    
+    return performance

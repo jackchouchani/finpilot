@@ -1210,6 +1210,7 @@ def settings():
     
     if request.method == 'GET':
         settings = {
+            'name': get_user_setting(user_id, 'name', ''),
             'defaultPortfolioValue': get_user_setting(user_id, 'default_portfolio_value', 100000),
             'riskProfile': get_user_setting(user_id, 'risk_profile', 'moderate'),
             'preferredSectors': get_user_setting(user_id, 'preferred_sectors', []),
@@ -1229,6 +1230,7 @@ def settings():
         if not data:
             return jsonify({"erreur": "No JSON data provided"}), 400
         
+        set_user_setting(user_id, 'name', data.get('name', ''))
         set_user_setting(user_id, 'default_portfolio_value', data.get('defaultPortfolioValue', 100000))
         set_user_setting(user_id, 'risk_profile', data.get('riskProfile', 'moderate'))
         set_user_setting(user_id, 'preferred_sectors', data.get('preferredSectors', []))
@@ -1579,7 +1581,17 @@ def get_portfolio_value():
                 return jsonify({"portfolio_value": 100000}), 200  # Valeur par défaut
     except Exception as e:
         return jsonify({"erreur": str(e)}), 500
+    
+def update_db_structure():
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            ALTER TABLE user_settings
+            ADD COLUMN name TEXT
+        ''')
+        conn.commit()
 
 if __name__ == '__main__':
     init_db()
+    update_db_structure()
     app.run(debug=True)

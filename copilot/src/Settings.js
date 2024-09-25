@@ -16,7 +16,8 @@ function Settings({ onClearChat }) {
         defaultPortfolioValue: 100000,
         riskProfile: 'moderate',
         preferredSectors: [],
-        theme: 'light'
+        theme: 'light',
+        name: ''
     });
 
     useEffect(() => {
@@ -86,6 +87,13 @@ function Settings({ onClearChat }) {
 
     return (
         <Box>
+            <TextField
+                label="Nom"
+                value={settings.name}
+                onChange={(e) => handleSettingsChange('name', e.target.value)}
+                fullWidth
+                margin="normal"
+            />
             <TextField
                 label="Valeur par défaut du portefeuille"
                 value={settings.defaultPortfolioValue}

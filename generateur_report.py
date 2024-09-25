@@ -582,7 +582,12 @@ def generate_stock_performance_comparison(portfolio_data, weights, start_date, e
     """
     elements = []
     
-    stock_performance = {k: v * 100 for k, v in stock_performance.items()}
+    stock_performance = {}
+    for symbol, data in portfolio_data.items():
+        start_price = data.loc[start_date]
+        end_price = data.loc[end_date]
+        performance = (end_price / start_price - 1) * 100  # Calcul direct en pourcentage
+        stock_performance[symbol] = performance
     
     stock_performance_list = list(stock_performance.items())
     stock_performance_list.sort(key=lambda x: x[1], reverse=True)
@@ -605,7 +610,7 @@ def generate_stock_performance_comparison(portfolio_data, weights, start_date, e
     Analysez la performance relative des actions du portefeuille sur la dernière année en vous basant sur les données suivantes:
     {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in stock_performance_list])}
     Identifiez les meilleures et les pires performances, et suggérez des explications possibles pour ces écarts de performance.
-    Considérez également l'impact de la pondération de chaque action (poids: {weights}) sur la performance globale du portefeuille.
+    Considérez également l'impact de la pondération de chaque action (poids: {[f'{w:.2%}' for w in weights]}) sur la performance globale du portefeuille.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     

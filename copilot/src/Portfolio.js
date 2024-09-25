@@ -22,7 +22,11 @@ export const PortfolioPieChart = ({ portfolio }) => {
         entryPrice: parseFloat(stock.entry_price)
     }));
 
-    const COLORS = ['#1976d2', '#2196f3', '#64b5f6', '#0d47a1', '#bbdefb'];
+    const COLORS = [
+        '#1976d2', '#2196f3', '#64b5f6', '#0d47a1', '#bbdefb',
+        '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107',
+        '#ff9800', '#ff5722', '#795548', '#9c27b0', '#e91e63'
+    ];
 
     const renderCustomizedLabel = ({
         cx, cy, midAngle, innerRadius, outerRadius, percent, index

@@ -786,7 +786,7 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
 
         # S'assurer que les deux séries ont le même index
         common_dates = portfolio_returns.index.intersection(benchmark_returns.index)
-        if len(common_dates) < 252:  # Moins d'un an de données communes
+        if len(common_dates) < 200:  # Moins d'un an de données communes
             raise ValueError(f"Pas assez de données communes. Seulement {len(common_dates)} jours en commun.")
         
         portfolio_returns = portfolio_returns.loc[common_dates]

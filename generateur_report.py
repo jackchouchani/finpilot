@@ -745,11 +745,8 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
         if isinstance(value, (int, float)):
             # Si la valeur est un nombre, formatez-la avec 4 décimales
             formatted_value = f"{value:.4f}"
-        elif value == "N/A":
-            # Si la valeur est "N/A", laissez-la telle quelle
-            formatted_value = value
         else:
-            # Pour tout autre type, convertissez-le en chaîne
+            # Pour tout autre type, y compris les chaînes, laissez-le tel quel
             formatted_value = str(value)
         data.append([ratio, formatted_value])
     
@@ -768,11 +765,11 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     
     explanation = generate_ai_content(f"""
     Analysez les ratios supplémentaires du portefeuille en vous basant sur les données suivantes:
-    Beta: {ratios['Beta']:.4f}
-    Alpha: {ratios['Alpha']:.4f}
-    Tracking Error: {ratios['Tracking Error']:.4f}
-    Information Ratio: {ratios['Information Ratio']:.4f}
-    Sortino Ratio: {ratios['Sortino Ratio']:.4f}
+    Beta: {ratios['Beta']}
+    Alpha: {ratios['Alpha']}
+    Tracking Error: {ratios['Tracking Error']}
+    Information Ratio: {ratios['Information Ratio']}
+    Sortino Ratio: {ratios['Sortino Ratio']}
     Expliquez ce que chaque ratio signifie et comment interpréter ces valeurs dans le contexte de ce portefeuille.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))

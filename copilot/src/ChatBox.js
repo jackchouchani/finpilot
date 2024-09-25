@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Box, TextField, Button, List, ListItem, ListItemText, Paper } from '@mui/material';
 import MessageContent from './MessageContent';
 
-function ChatBox({ messages, handleSubmit, loading, customInput, disableInput }) {
+function ChatBox({ messages, handleSubmit, loading, customInput, disableInput, agentButtons }) {
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 

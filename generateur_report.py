@@ -260,6 +260,9 @@ def generate_report(data):
     # Calcul des rendements pondérés une seule fois
     weighted_returns, total_return, annualized_return = calculate_portfolio_returns(portfolio_data, weights)
     
+    # Récupération des données de référence (par exemple, S&P 500)
+    benchmark_data = get_benchmark_data(start_date, end_date)  # Assurez-vous d'avoir cette fonction
+    
     # Création du document PDF
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 

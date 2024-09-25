@@ -19,31 +19,34 @@ class ComplianceAgent:
     def get_sector_info(self, ticker):
         try:
             stock = yf.Ticker(ticker)
-            return stock.info.get('sector', 'Unknown')
+            return stock.info.get('sector', 'Non disponible')
         except:
-            return 'Unknown'
+            return 'Non disponible'
 
     def get_esg_score(self, ticker):
         try:
             stock = yf.Ticker(ticker)
-            return stock.info.get('esgScore', 0)
+            return stock.info.get('esgScore', 'Non disponible')
         except:
-            return 0
+            return 'Non disponible'
 
     def get_market_type(self, ticker):
         try:
             stock = yf.Ticker(ticker)
-            country = stock.info.get('country', 'Unknown')
+            country = stock.info.get('country', 'Non disponible')
             developed_markets = ['United States', 'Canada', 'United Kingdom', 'Germany', 'France', 'Japan', 'Australia']
-            return 'Developed' if country in developed_markets else 'Emerging'
+            return 'Développé' if country in developed_markets else 'Émergent'
         except:
-            return 'Unknown'
+            return 'Non disponible'
 
     def calculate_volatility(self, tickers, weights):
-        data = yf.download(tickers, period="1y")['Adj Close']
-        returns = data.pct_change().dropna()
-        portfolio_std = np.sqrt(np.dot(weights.T, np.dot(returns.cov(), weights))) * np.sqrt(252)
-        return portfolio_std
+        try:
+            data = yf.download(tickers, period="1y")['Adj Close']
+            returns = data.pct_change().dropna()
+            portfolio_std = np.sqrt(np.dot(weights.T, np.dot(returns.cov(), weights))) * np.sqrt(252)
+            return portfolio_std
+        except:
+            return 'Non disponible'
 
     def check_compliance(self, portfolio):
         violations = []
@@ -74,21 +77,29 @@ class ComplianceAgent:
         # Vérification des scores ESG
         for stock in portfolio:
             esg_score = self.get_esg_score(stock['symbol'])
-            if esg_score < self.regulations["esg_score_threshold"]:
+            if esg_score != 'Non disponible' and esg_score < self.regulations["esg_score_threshold"]:
                 warnings.append(f"{stock['symbol']} a un score ESG de {esg_score}, inférieur au seuil recommandé de {self.regulations['esg_score_threshold']}")
 
         # Vérification de l'exposition aux marchés développés
-        developed_exposure = sum(stock['weight'] / 100 for stock in portfolio if self.get_market_type(stock['symbol']) == 'Developed')
-        if developed_exposure < self.regulations["min_developed_markets_exposure"]:
-            warnings.append(f"L'exposition aux marchés développés ({developed_exposure:.2%}) est inférieure au minimum recommandé ({self.regulations['min_developed_markets_exposure']:.2%})")
+        market_exposure = {'Développé': 0, 'Émergent': 0, 'Non disponible': 0}
+        for stock in portfolio:
+            market_type = self.get_market_type(stock['symbol'])
+            market_exposure[market_type] += stock['weight'] / 100
+
+        if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"]:
+            warnings.append(f"L'exposition aux marchés développés ({market_exposure['Développé']:.2%}) est inférieure au minimum recommandé ({self.regulations['min_developed_markets_exposure']:.2%})")
 
         # Vérification de la volatilité du portefeuille
         tickers = [stock['symbol'] for stock in portfolio]
         weights = np.array([stock['weight'] / 100 for stock in portfolio])
         volatility = self.calculate_volatility(tickers, weights)
-        if volatility > self.regulations["max_volatility"]:
+        if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"]:
             warnings.append(f"La volatilité du portefeuille ({volatility:.2%}) dépasse le maximum recommandé ({self.regulations['max_volatility']:.2%})")
 
+        rapport = self.generate_report(violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict)
+        return rapport
+
+    def generate_report(self, violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict):
         rapport = f"""
 Analyse de conformité avancée
 
@@ -119,30 +130,37 @@ Statut de conformité: {"Non conforme" if violations else "Conforme avec avertis
 
         rapport += f"""
 4. Exposition géographique:
-   - Marchés développés: {developed_exposure:.2%}
-   - Marchés émergents: {1 - developed_exposure:.2%}
+   - Marchés développés: {market_exposure['Développé']:.2%}
+   - Marchés émergents: {market_exposure['Émergent']:.2%}
+   - Non disponible: {market_exposure['Non disponible']:.2%}
 
 5. Mesures de risque:
    - Volatilité du portefeuille: {volatility:.2%}
 
+6. Analyse de concentration:
+   - Action la plus importante: {max(portfolio_dict, key=portfolio_dict.get)} ({max(portfolio_dict.values()):.2%})
+   - Actions représentant plus de 10% du portefeuille: {', '.join([f"{symbol} ({weight:.2%})" for symbol, weight in portfolio_dict.items() if weight > 0.1])}
+
 Conclusion:
-Cette analyse de conformité avancée fournit un aperçu détaillé des potentielles violations réglementaires et des zones de risque dans le portefeuille. 
+Cette analyse de conformité avancée fournit un aperçu détaillé des potentielles violations réglementaires et des zones de risque dans le portefeuille.
 
 Points clés à retenir:
 1. {f"Le portefeuille présente {len(violations)} violation(s) majeure(s) qui doivent être adressées immédiatement." if violations else "Aucune violation majeure n'a été détectée."}
 2. {f"Il y a {len(warnings)} avertissement(s) qui méritent une attention particulière pour améliorer la conformité et réduire les risques." if warnings else "Aucun avertissement n'a été émis."}
 3. L'exposition sectorielle la plus élevée est dans {max(sector_exposure, key=sector_exposure.get)} à {max(sector_exposure.values()):.2%}.
-4. L'exposition aux marchés développés est de {developed_exposure:.2%}, {"ce qui est conforme" if developed_exposure >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
-5. La volatilité du portefeuille est {"conforme" if volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
+4. L'exposition aux marchés développés est de {market_exposure['Développé']:.2%}, {"ce qui est conforme" if market_exposure['Développé'] >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
+5. La volatilité du portefeuille est {"conforme" if volatility != 'Non disponible' and volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
 
 Recommandations:
 1. {f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}." if violations else "Maintenir la conformité actuelle du portefeuille."}
 2. {"Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue." if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure) else ""}
 3. {"Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables." if any("ESG" in w for w in warnings) else ""}
-4. {"Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille." if developed_exposure < self.regulations["min_developed_markets_exposure"] else ""}
-5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility > self.regulations["max_volatility"] else ""}
+4. {"Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille." if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"] else ""}
+5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"] else ""}
 
 Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
+
+*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
 """
         return rapport
 
@@ -275,8 +293,8 @@ class SentimentAnalysisAgent:
             text = f"{title} {description}"
             sentiment = self.analyze_sentiment(text)
             sentiments.append(sentiment)
-            # Correction ici : utilisez extend() au lieu de update() pour une liste
-            keywords.extend(self.extract_keywords(text))
+            # Correction : utilisez update() avec un Counter créé à partir de la liste
+            keywords.update(Counter(self.extract_keywords(text)))
             sources[article.get('source', {}).get('name', 'Unknown')] += 1
             
             # Analyse de sentiment par thème
@@ -737,8 +755,15 @@ def timing_decorator(func):
 @timing_decorator
 @lru_cache(maxsize=None)
 def get_stock_info(symbol):
-    ticker = yf.Ticker(symbol)
-    return ticker
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        if not info:
+            raise ValueError(f"Aucune information disponible pour {symbol}")
+        return ticker
+    except Exception as e:
+        print(f"Erreur lors de la récupération des informations pour {symbol}: {e}")
+        return None
 
 @timing_decorator
 def get_bulk_stock_data(symbols, start_date, end_date):
@@ -773,8 +798,14 @@ def get_fred_data(series_id, start_date, end_date):
     Returns:
     DataFrame: Données de la série FRED.
     """
-    data = fred.get_series(series_id, start_date, end_date)
-    return pd.DataFrame(data, columns=[series_id])
+    try:
+        data = fred.get_series(series_id, start_date, end_date)
+        if data.empty:
+            return pd.DataFrame({series_id: ['N/A']})
+        return pd.DataFrame(data, columns=[series_id])
+    except Exception as e:
+        print(f"Erreur lors de la récupération des données FRED pour {series_id}: {e}")
+        return pd.DataFrame({series_id: ['N/A']})
 
 
 @timing_decorator
@@ -788,9 +819,9 @@ def generate_ai_content(prompt):
             ]
         )
         return message.content[0].text
-    except (IndexError, AttributeError) as e:
-        print(f"Erreur lors de la récupération de la réponse AI: {e}")
-        return ""
+    except Exception as e:
+        print(f"Erreur lors de la génération de contenu AI : {e}")
+        return "Analyse non disponible en raison d'une erreur technique."
 
 @timing_decorator
 def create_formatted_paragraph(text, style_name='Normal'):
@@ -876,8 +907,14 @@ def calculate_portfolio_performance(portfolio, start_date, end_date):
     portfolio_data = get_bulk_stock_data(symbols, start_date, end_date)
     
     df = pd.DataFrame(portfolio_data)
+    if df.empty:
+        raise ValueError("Aucune donnée disponible pour les actions du portefeuille")
+    
     returns = df.pct_change().dropna()
     weights = np.array([float(stock['weight']) / 100 for stock in portfolio['stocks']])
+    
+    if len(returns) < 2:
+        raise ValueError("Pas assez de données pour calculer les rendements")
     
     return portfolio_data, returns, weights
 
@@ -900,7 +937,7 @@ def calculate_portfolio_returns(portfolio_data, weights):
     returns = df.pct_change().dropna()
     weighted_returns = (returns * weights).sum(axis=1)
     total_return = (1 + weighted_returns).prod() - 1
-    annualized_return = (1 + total_return) ** (252 / len(returns)) - 1
+    annualized_return = (1 + total_return) ** (safe_division(252.0, len(returns))) - 1
     return weighted_returns, total_return, annualized_return
 
 @timing_decorator
@@ -954,8 +991,8 @@ def generate_report(data):
         ("Résumé Exécutif", lambda p, pd, r, w, wr, tr, ar: generate_executive_summary(p, pd, r, w, wr, tr, ar)),
         ("Vue d'Ensemble du Portefeuille", lambda p, pd, r, w, wr, tr, ar: generate_portfolio_overview(p, pd, r, w)),
         ("Analyse de Performance", lambda p, pd, r, w, wr, tr, ar: generate_performance_analysis(p, pd, r, w, wr, tr, ar, start_date, end_date)),
-        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w)),
-        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w)),
+        ("Comparaison de Performance des Actions", lambda p, pd, r, w, wr, tr, ar: generate_stock_performance_comparison(pd, w, start_date, end_date)),
+        ("Contribution au Rendement", lambda p, pd, r, w, wr, tr, ar: generate_contribution_to_return(p, pd, r, w, start_date, end_date, benchmark_data)),
         ("Ratios Supplémentaires", lambda p, pd, r, w, wr, tr, ar: generate_additional_ratios_table(p, pd, r, w, start_date, end_date)),
         ("Analyse des Risques", lambda p, pd, r, w, wr, tr, ar: generate_risk_analysis(p, pd, r, w, wr)),
         ("Corrélation des Actions", lambda p, pd, r, w, wr, tr, ar: generate_correlation_heatmap(pd)),
@@ -1046,6 +1083,28 @@ def create_title_page(title, subtitle, date):
     elements.append(PageBreak())
     return elements
 
+def calculate_portfolio_metrics(portfolio_data, weights, risk_free_rate=0.04):
+    df = pd.DataFrame(portfolio_data)
+    weighted_returns = (df.pct_change() * weights).sum(axis=1)
+    cumulative_returns = (1 + weighted_returns).cumprod()
+    total_return = cumulative_returns.iloc[-1] - 1
+    time_period = (df.index[-1] - df.index[0]).days / 365.25
+    annualized_return = (1 + total_return) ** (1 / time_period) - 1
+    volatility = weighted_returns.std() * np.sqrt(252)
+    sharpe_ratio = safe_division((annualized_return - risk_free_rate), volatility)
+    return total_return, annualized_return, volatility, sharpe_ratio, weighted_returns, cumulative_returns
+
+
+def calculate_benchmark_metrics(benchmark_data, risk_free_rate=0.05):
+    returns = benchmark_data.pct_change()
+    cumulative_returns = (1 + returns).cumprod()
+    total_return = cumulative_returns.iloc[-1] - 1
+    time_period = (benchmark_data.index[-1] - benchmark_data.index[0]).days / 365.25
+    annualized_return = (1 + total_return) ** (1 / time_period) - 1
+    volatility = returns.std() * np.sqrt(252)
+    sharpe_ratio = safe_division((annualized_return - risk_free_rate), volatility)
+    return total_return, annualized_return, volatility, sharpe_ratio, cumulative_returns
+
 def generate_executive_summary(portfolio, portfolio_data, returns, weights, weighted_returns, total_return, annualized_return):
     """
     Génère le résumé exécutif du rapport.
@@ -1062,26 +1121,12 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
     Returns:
     list: Éléments à ajouter au rapport.
     """
-    # Calcul du score ESG
-    sp500_data = get_sp500_data(
-        portfolio_data[list(portfolio_data.keys())[0]].index[0],
-        portfolio_data[list(portfolio_data.keys())[0]].index[-1]
-    )
+    total_return, annualized_return, portfolio_volatility, sharpe_ratio, _, cumulative_returns = calculate_portfolio_metrics(portfolio_data, weights)
     
-    if sp500_data.empty:
-        sp500_return = 0
-        sp500_volatility = 0
-        sp500_sharpe = 0
-    else:
-        sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
-        sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
-        sp500_sharpe = (sp500_return - 0.02) / sp500_volatility if sp500_volatility != 0 else 0
-    
-    portfolio_volatility = weighted_returns.std() * np.sqrt(252)
-    sharpe_ratio = (annualized_return - 0.02) / portfolio_volatility if portfolio_volatility != 0 else 0
+    sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
+    sp500_return, sp500_annualized_return, sp500_volatility, sp500_sharpe, _ = calculate_benchmark_metrics(sp500_data)
     
     summary = (
-        f"Résumé Exécutif\n"
         f"Ce rapport présente une analyse détaillée de la performance du portefeuille sur la période du "
         f"{portfolio_data[list(portfolio_data.keys())[0]].index[0].strftime('%d/%m/%Y')} au "
         f"{portfolio_data[list(portfolio_data.keys())[0]].index[-1].strftime('%d/%m/%Y')}.\n\n"
@@ -1092,6 +1137,7 @@ def generate_executive_summary(portfolio, portfolio_data, returns, weights, weig
         f"• Ratio de Sharpe : {sharpe_ratio:.2f}\n\n"
         f"Comparaison avec le S&P 500 :\n"
         f"• Rendement total S&P 500 : {sp500_return:.2%}\n"
+        f"• Rendement annualisé S&P 500 : {sp500_annualized_return:.2%}\n"
         f"• Volatilité S&P 500 : {sp500_volatility:.2%}\n"
         f"• Ratio de Sharpe S&P 500 : {sp500_sharpe:.2f}\n\n"
         f"Le portefeuille a {'sous-performé' if total_return < sp500_return else 'sur-performé'} l'indice S&P 500 sur la période, avec un "
@@ -1148,7 +1194,7 @@ def generate_portfolio_overview(portfolio, portfolio_data, returns, weights):
         symbol = stock['symbol']
         entry_price = float(stock['entry_price'])
         current_price = pd.DataFrame(portfolio_data)[symbol].iloc[-1]
-        stock_return = (current_price / entry_price - 1)
+        stock_return = (safe_division(current_price, entry_price) - 1)
         data.append([symbol, f"{weight:.2%}", f"{entry_price:.2f} €", f"{current_price:.2f} €", f"{stock_return:.2%}"])
     
     table = Table(data)
@@ -1222,7 +1268,7 @@ def generate_disclaimer():
     """
     return disclaimer_text.strip()
 
-def generate_stock_performance_comparison(portfolio_data, weights):
+def generate_stock_performance_comparison(portfolio_data, weights, start_date, end_date):
     """
     Génère la comparaison de performance des actions.
 
@@ -1235,19 +1281,19 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     """
     elements = []
     
-    stock_returns = pd.DataFrame(portfolio_data).pct_change().mean() * 252
+    stock_performance = calculate_stock_performance(portfolio_data, start_date, end_date)
     
-    stock_performance = list(zip(stock_returns.index, stock_returns.values * 100))
-    stock_performance.sort(key=lambda x: x[1], reverse=True)
+    stock_performance_list = list(zip(stock_performance.keys(), stock_performance.values()))
+    stock_performance_list.sort(key=lambda x: x[1], reverse=True)
     
     fig = go.Figure([go.Bar(
-        x=[s[0] for s in stock_performance],
-        y=[s[1] for s in stock_performance],
-        text=[f"{s[1]:.2%}%" for s in stock_performance],
+        x=[s[0] for s in stock_performance_list],
+        y=[s[1] for s in stock_performance_list],
+        text=[f"{s[1]:.2f}%" for s in stock_performance_list],
         textposition='auto',
     )])
-    fig.update_layout(title="Comparaison de Performance des Actions",
-                      xaxis_title="Action", yaxis_title="Rendement Annualisé (%)")
+    fig.update_layout(title="Comparaison de Performance des Actions (1 an)",
+                      xaxis_title="Action", yaxis_title="Rendement Annuel (%)")
     
     img_buffer = BytesIO()
     fig.write_image(img_buffer, format='png')
@@ -1255,8 +1301,8 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     elements.append(Image(img_buffer, width=500, height=300))
     
     explanation = generate_ai_content(f"""
-    Analysez la performance relative des actions du portefeuille en vous basant sur les données suivantes:
-    {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in stock_performance])}
+    Analysez la performance relative des actions du portefeuille sur la dernière année en vous basant sur les données suivantes:
+    {', '.join([f"{s[0]}: {s[1]:.2f}%" for s in stock_performance_list])}
     Identifiez les meilleures et les pires performances, et suggérez des explications possibles pour ces écarts de performance.
     Considérez également l'impact de la pondération de chaque action (poids: {weights}) sur la performance globale du portefeuille.
     """)
@@ -1264,7 +1310,7 @@ def generate_stock_performance_comparison(portfolio_data, weights):
     
     return elements
 
-def generate_contribution_to_return(portfolio, portfolio_data, returns, weights):
+def generate_contribution_to_return(portfolio, portfolio_data, returns, weights, start_date, end_date, benchmark_data):
     """
     Génère la contribution de chaque action au rendement total du portefeuille.
 
@@ -1279,19 +1325,22 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     """
     elements = []
     
-    total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
+    # Calcul des rendements et contributions
+    df_portfolio = pd.DataFrame(portfolio_data)
+    total_return = (df_portfolio.iloc[-1] / df_portfolio.iloc[0] - 1).sum()
     contributions = []
     for stock, weight in zip(portfolio['stocks'], weights):
         symbol = stock['symbol']
-        stock_return = pd.DataFrame(portfolio_data)[symbol].iloc[-1] / pd.DataFrame(portfolio_data)[symbol].iloc[0] - 1
+        stock_return = df_portfolio[symbol].iloc[-1] / df_portfolio[symbol].iloc[0] - 1
         contribution = stock_return * weight
-        contributions.append((symbol, contribution, contribution / total_return))
+        contributions.append((symbol, contribution, contribution / total_return, weight))
     
     contributions.sort(key=lambda x: x[1], reverse=True)
     
-    data = [['Action', 'Contribution', '% du Total']]
-    for symbol, contribution, percentage in contributions:
-        data.append([symbol, f"{contribution:.2%}", f"{percentage:.2%}"])
+    # Création du tableau
+    data = [['Action', 'Contribution', '% du Total', 'Pondération']]
+    for symbol, contribution, percentage, weight in contributions:
+        data.append([symbol, f"{contribution:.2%}", f"{percentage:.2%}", f"{weight:.2%}"])
     
     table = Table(data)
     table.setStyle(TableStyle([
@@ -1306,10 +1355,41 @@ def generate_contribution_to_return(portfolio, portfolio_data, returns, weights)
     ]))
     elements.append(table)
     
+    # Calcul des rendements ajustés au risque
+    portfolio_returns = (returns * weights).sum(axis=1)
+    portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
+    portfolio_sharpe = (portfolio_returns.mean() * 252 - 0.02) / portfolio_volatility  # Assuming 2% risk-free rate
+    
+    # Calcul de la performance du benchmark
+    benchmark_return = (benchmark_data.iloc[-1] / benchmark_data.iloc[0] - 1)[0]
+    benchmark_volatility = benchmark_data.pct_change().std()[0] * np.sqrt(252)
+    benchmark_sharpe = (benchmark_data.pct_change().mean()[0] * 252 - 0.02) / benchmark_volatility
+    
     explanation = generate_ai_content(f"""
     Analysez la contribution de chaque action au rendement total du portefeuille en vous basant sur les données suivantes:
-    {', '.join([f"{s[0]}: {s[1]:.2%}%" for s in contributions])}
-    Identifiez les actions qui ont le plus contribué positivement et négativement, et expliquez l'impact de la pondération sur ces contributions.
+
+    Période de performance: du {start_date} au {end_date}
+    
+    Contributions individuelles:
+    {', '.join([f"{s[0]}: contribution {s[1]:.2%}, % du total {s[2]:.2%}, pondération {s[3]:.2%}" for s in contributions])}
+    
+    Performance du portefeuille:
+    - Rendement total: {total_return:.2%}
+    - Volatilité annualisée: {portfolio_volatility:.2%}
+    - Ratio de Sharpe: {portfolio_sharpe:.2f}
+    
+    Performance de l'indice de référence:
+    - Rendement total: {benchmark_return:.2%}
+    - Volatilité annualisée: {benchmark_volatility:.2%}
+    - Ratio de Sharpe: {benchmark_sharpe:.2f}
+
+    Basez votre analyse sur les points suivants:
+    1. Identifiez les actions qui ont le plus contribué positivement et négativement au rendement total.
+    2. Expliquez l'impact de la pondération sur ces contributions.
+    3. Comparez la performance du portefeuille à celle de l'indice de référence, en tenant compte du rendement et du risque.
+    4. Discutez de la relation entre la pondération de chaque action et sa contribution au rendement total.
+    5. Suggérez des ajustements potentiels de pondération basés sur ces performances, en tenant compte du rapport rendement/risque.
+    6. Rappelez que la performance passée ne garantit pas les résultats futurs et expliquez pourquoi c'est important pour l'investisseur.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
@@ -1363,42 +1443,69 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     """
     elements = []
     
-    # Recalculer les rendements du portefeuille
-    df = pd.DataFrame(portfolio_data)
-    portfolio_returns = df.pct_change().dropna()
-    portfolio_returns = (portfolio_returns * weights).sum(axis=1)
+    try:
+        # Recalculer les rendements du portefeuille
+        df = pd.DataFrame(portfolio_data)
+        portfolio_returns = df.pct_change().dropna()
+        portfolio_returns = (portfolio_returns * weights).sum(axis=1)
 
-    # Obtenir les rendements du S&P 500
-    benchmark_returns = get_sp500_returns(start_date, end_date)
+        # Obtenir les rendements du S&P 500
+        benchmark_returns = get_sp500_returns(start_date, end_date)
 
-    # S'assurer que les deux séries ont le même index
-    common_dates = portfolio_returns.index.intersection(benchmark_returns.index)
-    portfolio_returns = portfolio_returns.loc[common_dates]
-    benchmark_returns = benchmark_returns.loc[common_dates]
+        # S'assurer que les deux séries ont le même index
+        common_dates = portfolio_returns.index.intersection(benchmark_returns.index)
+        if len(common_dates) < 2:
+            raise ValueError("Pas assez de données communes entre le portefeuille et l'indice de référence")
+        
+        portfolio_returns = portfolio_returns.loc[common_dates]
+        benchmark_returns = benchmark_returns.loc[common_dates]
 
-    risk_free_rate = 0.02 / 252  # Taux journalier
-    
-    excess_returns = portfolio_returns - risk_free_rate
-    benchmark_excess_returns = benchmark_returns - risk_free_rate
-    
-    beta = np.cov(portfolio_returns, benchmark_returns)[0][1] / np.var(benchmark_returns)
-    alpha = np.mean(excess_returns) - beta * np.mean(benchmark_excess_returns)
-    tracking_error = np.std(portfolio_returns - benchmark_returns) * np.sqrt(252)
-    information_ratio = (np.mean(portfolio_returns - benchmark_returns) * 252) / tracking_error
-    downside_returns = np.minimum(excess_returns - np.mean(excess_returns), 0)
-    sortino_ratio = np.mean(excess_returns) / (np.std(downside_returns) * np.sqrt(252))
-    
-    ratios = {
-        "Beta": beta,
-        "Alpha": alpha * 252,  # Annualisé
-        "Tracking Error": tracking_error,
-        "Information Ratio": information_ratio,
-        "Sortino Ratio": sortino_ratio
-    }
+        risk_free_rate = 0.02 / 252  # Taux journalier
+        
+        excess_returns = portfolio_returns - risk_free_rate
+        benchmark_excess_returns = benchmark_returns - risk_free_rate
+        
+        # Calcul du beta
+        covariance = np.cov(portfolio_returns, benchmark_returns)[0][1]
+        benchmark_variance = np.var(benchmark_returns)
+        beta = covariance / benchmark_variance if benchmark_variance != 0 else np.nan
+
+        # Calcul de l'alpha
+        alpha = np.mean(excess_returns) - beta * np.mean(benchmark_excess_returns)
+        
+        # Calcul du tracking error
+        tracking_error = np.std(portfolio_returns - benchmark_returns) * np.sqrt(252)
+        
+        # Calcul de l'information ratio
+        excess_return = np.mean(portfolio_returns - benchmark_returns) * 252
+        information_ratio = excess_return / tracking_error if tracking_error != 0 else np.nan
+        
+        # Calcul du Sortino ratio
+        downside_returns = np.minimum(excess_returns - np.mean(excess_returns), 0)
+        downside_deviation = np.sqrt(np.mean(downside_returns**2)) * np.sqrt(252)
+        sortino_ratio = np.mean(excess_returns) / downside_deviation if downside_deviation != 0 else np.nan
+        
+        ratios = {
+            "Beta": beta,
+            "Alpha": alpha * 252,  # Annualisé
+            "Tracking Error": tracking_error,
+            "Information Ratio": information_ratio,
+            "Sortino Ratio": sortino_ratio
+        }
+    except Exception as e:
+        print(f"Erreur lors du calcul des ratios : {e}")
+        ratios = {
+            "Beta": np.nan,
+            "Alpha": np.nan,
+            "Tracking Error": np.nan,
+            "Information Ratio": np.nan,
+            "Sortino Ratio": np.nan
+        }
     
     data = [['Ratio', 'Valeur']]
     for ratio, value in ratios.items():
-        data.append([ratio, f"{value:.4f}"])
+        formatted_value = f"{value:.4f}" if not np.isnan(value) else "N/A"
+        data.append([ratio, formatted_value])
     
     table = Table(data)
     table.setStyle(TableStyle([
@@ -1415,12 +1522,13 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     
     explanation = generate_ai_content(f"""
     Analysez les ratios supplémentaires du portefeuille en vous basant sur les données suivantes:
-    Beta: {ratios['Beta']:.4f}
-    Alpha: {ratios['Alpha']:.4f}
-    Tracking Error: {ratios['Tracking Error']:.4f}
-    Information Ratio: {ratios['Information Ratio']:.4f}
-    Sortino Ratio: {ratios['Sortino Ratio']:.4f}
+    Beta: {ratios['Beta']}
+    Alpha: {ratios['Alpha']}
+    Tracking Error: {ratios['Tracking Error']}
+    Information Ratio: {ratios['Information Ratio']}
+    Sortino Ratio: {ratios['Sortino Ratio']}
     Expliquez ce que chaque ratio signifie et comment interpréter ces valeurs dans le contexte de ce portefeuille.
+    Si certains ratios sont N/A, expliquez pourquoi cela pourrait être le cas et quelles informations supplémentaires seraient nécessaires pour les calculer.
     """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
@@ -1529,18 +1637,10 @@ def generate_performance_analysis(portfolio, portfolio_data, returns, weights, w
     """
     elements = []
     
-    volatility = weighted_returns.std() * np.sqrt(252)
-    cumulative_returns = (1 + weighted_returns).cumprod()
-    risk_free_rate = 0.02  # 2% par exemple
-    sharpe_ratio = (annualized_return - risk_free_rate) / volatility
+    total_return, annualized_return, volatility, sharpe_ratio, _, cumulative_returns = calculate_portfolio_metrics(portfolio_data, weights)
     
     sp500_data = get_sp500_data(start_date, end_date)
-    sp500_returns = sp500_data.pct_change().dropna()
-    sp500_cumulative_returns = (1 + sp500_returns).cumprod()
-    sp500_total_return = sp500_cumulative_returns.iloc[-1] - 1
-    sp500_annualized_return = (1 + sp500_total_return) ** (252 / len(sp500_returns)) - 1
-    sp500_volatility = sp500_returns.std() * np.sqrt(252)
-    sp500_sharpe_ratio = (sp500_annualized_return - 0.02) / sp500_volatility
+    sp500_total_return, sp500_annualized_return, sp500_volatility, sp500_sharpe_ratio, sp500_cumulative_returns = calculate_benchmark_metrics(sp500_data)
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=cumulative_returns.index, y=cumulative_returns,
@@ -1614,6 +1714,15 @@ def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted
         ['CVaR (95%)', f"{cvar_95:.2%}"],
         ['Drawdown Maximum', f"{max_drawdown:.2%}"]
     ]
+
+    explanation = generate_ai_content(f"""
+    Analysez les métriques de risque suivantes pour le portefeuille :
+    - VaR (95%) : {var_95:.2%}
+    - CVaR (95%) : {cvar_95:.2%}
+    - Drawdown Maximum : {max_drawdown:.2%}
+    Expliquez ce que ces métriques signifient pour l'investisseur et comment elles se comparent aux benchmarks du marché.
+    """)
+    elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     table = Table(risk_data)
     table.setStyle(TableStyle([
@@ -1643,13 +1752,25 @@ def generate_risk_analysis(portfolio, portfolio_data, returns, weights, weighted
 def generate_sector_allocation(portfolio, portfolio_data, returns, weights):
     elements = []
 
+    async def get_sector(symbol):
+        try:
+            ticker = yf.Ticker(symbol)
+            info = await asyncio.to_thread(lambda: ticker.info)
+            sector = info.get('sector', 'Unknown')
+            print(f"Secteur pour {symbol}: {sector}")  # Log pour le débogage
+            return symbol, sector
+        except Exception as e:
+            print(f"Erreur lors de la récupération du secteur pour {symbol}: {e}")
+            return symbol, 'Unknown'
+
     async def get_sectors():
-        urls = [f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{stock['symbol']}?modules=assetProfile" for stock in portfolio['stocks']]
-        results = await get_multiple_stock_data(urls)
-        sectors = {}
-        for stock, result in zip(portfolio['stocks'], results):
-            sector = result.get('quoteSummary', {}).get('result', [{}])[0].get('assetProfile', {}).get('sector', 'Unknown')
-            sectors[stock['symbol']] = sector
+        tasks = []
+        for stock in portfolio['stocks']:
+            task = asyncio.create_task(get_sector(stock['symbol']))
+            tasks.append(task)
+        
+        results = await asyncio.gather(*tasks)
+        sectors = dict(results)
         return sectors
 
     # Obtenir les secteurs pour chaque action
@@ -1687,7 +1808,7 @@ def generate_best_worst_performers(portfolio, portfolio_data, returns, weights):
     df = pd.DataFrame(portfolio_data)
     stock_returns = df.pct_change().mean() * 252  # rendements annualisés
     stock_volatility = df.pct_change().std() * np.sqrt(252)  # volatilité annualisée
-    stock_sharpe = stock_returns / stock_volatility  # ratio de Sharpe
+    stock_sharpe = safe_division(stock_returns, stock_volatility)  # ratio de Sharpe
 
     performance_data = []
     for stock, weight in zip(portfolio['stocks'], weights):
@@ -1778,12 +1899,19 @@ def generate_dividend_table(portfolio):
     ]))
     elements.append(table)
     
-    explanation = generate_ai_content(f"""
-    Analysez la politique de dividendes des actions du portefeuille en vous basant sur les données du tableau.
-    Identifiez les actions avec les rendements de dividendes les plus élevés et les plus bas.
-    Discutez de l'impact des dividendes sur le rendement total du portefeuille.
-    Commentez sur la durabilité des dividendes en fonction des taux de distribution (si disponibles).
-    """)
+    if all(row[1] == "N/A" for row in dividend_data[1:]):
+        explanation = "Aucune donnée de dividende n'est disponible pour les actions de ce portefeuille. Cela peut indiquer que les entreprises ne versent pas de dividendes ou que les données sont temporairement indisponibles."
+    else:
+        dividend_info = "\n".join([f"{row[0]}: Rendement {row[1]}, Fréquence {row[2]}, Dernier dividende {row[3]}" for row in dividend_data[1:]])
+        explanation = generate_ai_content(f"""
+        Analysez la politique de dividendes des actions du portefeuille en vous basant sur les données suivantes:
+        
+        {dividend_info}
+        
+        Identifiez les actions avec les rendements de dividendes les plus élevés et les plus bas.
+        Discutez de l'impact des dividendes sur le rendement total du portefeuille.
+        Commentez sur la durabilité des dividendes en fonction des rendements et des montants.
+        """)
     elements.append(create_formatted_paragraph(explanation, 'BodyText'))
     
     return elements
@@ -1927,15 +2055,18 @@ def generate_stress_tests(portfolio, portfolio_data, returns, weights, weighted_
     # Création d'un graphique pour visualiser les impacts
     fig = go.Figure(data=[go.Bar(
         x=list(scenarios.keys()),
-        y=[impact * 100 for impact in portfolio_impacts.values()],
+        y=[impact for impact in portfolio_impacts.values()],
         text=[f"{impact:.2%}" for impact in portfolio_impacts.values()],
         textposition='auto',
     )])
     fig.update_layout(
         title="Impact des Scénarios de Stress sur le Portefeuille",
         xaxis_title="Scénarios",
-        yaxis_title="Impact sur la Valeur du Portefeuille (%)",
-        yaxis_tickformat='.2%'
+        yaxis_title="Impact sur la Valeur du Portefeuille",
+        yaxis=dict(
+            tickformat='.0%',
+            range=[min(portfolio_impacts.values()) * 1.1, max(0, max(portfolio_impacts.values())) * 1.1],
+        )
     )
     
     img_buffer = BytesIO()
@@ -1962,11 +2093,11 @@ def generate_recommendations(portfolio, portfolio_data, returns, weights, weight
     portfolio_volatility = weighted_returns.std() * np.sqrt(252)
     
     risk_free_rate = 0.02  # Taux sans risque de 2%
-    sharpe_ratio = (annualized_return - risk_free_rate) / portfolio_volatility
+    sharpe_ratio = safe_division((annualized_return - risk_free_rate), portfolio_volatility)
 
     # Comparer avec le S&P 500
     sp500_data = get_sp500_data(portfolio_data[list(portfolio_data.keys())[0]].index[0], portfolio_data[list(portfolio_data.keys())[0]].index[-1])
-    sp500_return = (sp500_data.iloc[-1] / sp500_data.iloc[0]) - 1
+    sp500_return = (safe_division(sp500_data.iloc[-1], sp500_data.iloc[0])) - 1
     sp500_volatility = sp500_data.pct_change().std() * np.sqrt(252)
 
     # Calculer la corrélation moyenne entre les actions
@@ -2026,25 +2157,24 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
     
     # Calculer le rendement total du portefeuille
-    total_return = (pd.DataFrame(portfolio_data).iloc[-1] / pd.DataFrame(portfolio_data).iloc[0] - 1).sum()
+    df_portfolio = pd.DataFrame(portfolio_data)
+    total_return = ((df_portfolio.iloc[-1] / df_portfolio.iloc[0]) - 1).sum()
     
     # Obtenir des données macroéconomiques actuelles
     current_date = datetime.now()
     start_date = current_date - timedelta(days=30)  # Données du dernier mois
     
     try:
-        inflation = get_fred_data('CPIAUCSL', start_date, current_date)
+        inflation = get_fred_data('FPCPITOTLZGUSA', start_date, current_date)
         unemployment = get_fred_data('UNRATE', start_date, current_date)
         gdp_growth = get_fred_data('GDP', start_date, current_date)
         
-        latest_inflation = inflation.iloc[-1]['CPIAUCSL']
-        latest_unemployment = unemployment.iloc[-1]['UNRATE']
-        latest_gdp_growth = gdp_growth.iloc[-1]['GDP']
+        latest_inflation = inflation.iloc[-1][inflation.columns[0]]
+        latest_unemployment = unemployment.iloc[-1][unemployment.columns[0]]
+        latest_gdp_growth = gdp_growth.iloc[-1][gdp_growth.columns[0]]
     except Exception as e:
         print(f"Erreur lors de la récupération des données macroéconomiques : {e}")
-        latest_inflation = "N/A"
-        latest_unemployment = "N/A"
-        latest_gdp_growth = "N/A"
+        latest_inflation = latest_unemployment = latest_gdp_growth = "N/A"
     
     # Générer le texte des perspectives futures
     outlook_text = generate_ai_content(f"""
@@ -2070,6 +2200,11 @@ def generate_future_outlook(portfolio, portfolio_data, returns, weights):
     
     return elements
 
+def safe_division(a, b):
+    if np.isscalar(a) and np.isscalar(b):
+        return a / b if b != 0 else 0.0
+    else:
+        return np.divide(a, b, out=np.zeros_like(a, dtype=float), where=b!=0)
 
 def calculate_sector_allocation(portfolio):
     sector_weights = {}
@@ -2080,13 +2215,30 @@ def calculate_sector_allocation(portfolio):
             info = ticker.info
             sector_cache[stock['symbol']] = info.get('sector', 'Unknown')
         sector = sector_cache[stock['symbol']]
-        weight = float(stock['weight']) / 100
+        weight = safe_division(float(stock['weight']),100)
         sector_weights[sector] = sector_weights.get(sector, 0) + weight
     return sector_weights
 
-def calculate_stock_performance(portfolio_data):
-    df = pd.DataFrame(portfolio_data)
-    return {symbol: (data.iloc[-1] / data.iloc[0] - 1) for symbol, data in df.items()}
+def calculate_stock_performance(portfolio_data, start_date, end_date):
+    performance = {}
+    for symbol, data in portfolio_data.items():
+        # Convertir l'index en datetime naïf si nécessaire
+        data.index = data.index.tz_localize(None)
+        
+        # Assurez-vous que start_date et end_date sont des objets datetime naïfs
+        start_date = pd.Timestamp(start_date).tz_localize(None)
+        end_date = pd.Timestamp(end_date).tz_localize(None)
+        
+        try:
+            start_price = data.loc[start_date:].iloc[0]
+            end_price = data.loc[:end_date].iloc[-1]
+            total_return = (end_price - start_price) / start_price
+            performance[symbol] = total_return
+        except IndexError:
+            print(f"Données insuffisantes pour calculer la performance de {symbol}")
+            performance[symbol] = None
+    
+    return performance
 
 >>>
 
@@ -3055,7 +3207,9 @@ def chat():
         user_id = get_jwt_identity()
         data = request.json
         user_message = data.get('message')
-        conversation_id = request.json.get('conversation_id')
+        conversation_id = data.get('conversation_id')
+        user_portfolio = data.get('portfolio')
+        user_risk_profile = data.get('risk_profile')
         use_claude = request.json.get('use_claude', False)
         
         print(f"Début de la fonction chat pour l'utilisateur {user_id}")
@@ -3130,13 +3284,14 @@ def chat():
             function_info = get_function_info(function_name)
             structured_args = structure_data(function_args)
             if function_name in ['optimize_portfolio', 'manage_risks', 'check_compliance', 'get_investment_recommendation']:
-                portfolio = get_portfolio(user_id)
-                if portfolio:
-                    function_args['portfolio'] = portfolio
+                if user_portfolio:
+                    function_args['portfolio'] = user_portfolio
+                if user_risk_profile:
+                    function_args['risk_profile'] = user_risk_profile
                 else:
                     return jsonify({"reply": "Désolé, je n'ai pas pu accéder à votre portefeuille. Veuillez vérifier que vous en avez bien un.", "conversation_id": conversation_id})
 
-            function_response = execute_function(function_name, structured_args, user_message)
+            function_response = execute_function(function_name, function_args, user_message)
             
             print(f"Réponse de la fonction : {function_response}")
             
@@ -3403,6 +3558,7 @@ def settings():
     
     if request.method == 'GET':
         settings = {
+            'name': get_user_setting(user_id, 'name', ''),
             'defaultPortfolioValue': get_user_setting(user_id, 'default_portfolio_value', 100000),
             'riskProfile': get_user_setting(user_id, 'risk_profile', 'moderate'),
             'preferredSectors': get_user_setting(user_id, 'preferred_sectors', []),
@@ -3422,6 +3578,7 @@ def settings():
         if not data:
             return jsonify({"erreur": "No JSON data provided"}), 400
         
+        set_user_setting(user_id, 'name', data.get('name', ''))
         set_user_setting(user_id, 'default_portfolio_value', data.get('defaultPortfolioValue', 100000))
         set_user_setting(user_id, 'risk_profile', data.get('riskProfile', 'moderate'))
         set_user_setting(user_id, 'preferred_sectors', data.get('preferredSectors', []))
@@ -3772,9 +3929,19 @@ def get_portfolio_value():
                 return jsonify({"portfolio_value": 100000}), 200  # Valeur par défaut
     except Exception as e:
         return jsonify({"erreur": str(e)}), 500
+    
+def update_db_structure():
+    with sqlite3.connect(DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            ALTER TABLE user_settings
+            ADD COLUMN name TEXT
+        ''')
+        conn.commit()
 
 if __name__ == '__main__':
     init_db()
+    update_db_structure()
     app.run(debug=True)
 >>>
 
@@ -4052,7 +4219,7 @@ class PortfolioOptimizationAgent:
 
         mean_returns = returns.mean()
         cov_matrix = returns.cov()
-        risk_free_rate = 0.01
+        risk_free_rate = 0.03
 
         opt = optimize_portfolio(mean_returns, cov_matrix, risk_free_rate)
         current_std, current_ret = portfolio_performance(weights, mean_returns, cov_matrix)
@@ -4182,7 +4349,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Box, TextField, Button, List, ListItem, ListItemText, Paper } from '@mui/material';
 import MessageContent from './MessageContent';
 
-function ChatBox({ messages, handleSubmit, loading, customInput, disableInput }) {
+function ChatBox({ messages, handleSubmit, loading, customInput, disableInput, agentButtons }) {
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -4238,22 +4405,31 @@ function ChatBox({ messages, handleSubmit, loading, customInput, disableInput })
                 </List>
             </Paper>
             {!disableInput && (
-                <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
-                    <TextField
-                        fullWidth
-                        placeholder="Tapez votre message ici..."
-                        variant="outlined"
-                        disabled={loading}
-                        inputRef={inputRef}
-                    />
-                    <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={loading}
-                    >
-                        Envoyer
-                    </Button>
-                </Box>
+                <>
+                    {agentButtons}
+                    <Box component="form" onSubmit={onSubmit} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                        <TextField
+                            fullWidth
+                            placeholder="Tapez votre message ici..."
+                            variant="outlined"
+                            disabled={loading}
+                            inputRef={inputRef}
+                            defaultValue={customInput} // Ajoutez cette ligne si ce n'est pas déjà fait
+                            onChange={(e) => {
+                                if (inputRef.current) {
+                                    inputRef.current.value = e.target.value;
+                                }
+                            }}
+                        />
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            disabled={loading}
+                        >
+                            Envoyer
+                        </Button>
+                    </Box>
+                </>
             )}
         </Box>
     );
@@ -4864,23 +5040,7 @@ function Portfolio() {
         }
     }, [portfolio]);
 
-    useEffect(() => {
-        if (newStock.symbol) {
-            const fetchNewStockPrice = async () => {
-                try {
-                    const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${newStock.symbol}`);
-                    if (response.data && response.data.price) {
-                        setLivePrices(prev => ({ ...prev, [newStock.symbol]: response.data.price }));
-                    }
-                } catch (error) {
-                    console.error(`Erreur lors de la récupération du prix pour ${newStock.symbol}:`, error);
-                }
-            };
-            fetchNewStockPrice();
-        }
-    }, [newStock.symbol]);
-
-    const fetchLatestPrices = async () => {
+    const fetchLatestPrices = useCallback(async () => {
         if (!portfolio || !portfolio.stocks) {
             console.error("Portfolio or portfolio.stocks is undefined");
             return;
@@ -4889,15 +5049,15 @@ function Portfolio() {
         for (const stock of portfolio.stocks) {
             try {
                 const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
-                if (response.data && response.data.price) {
-                    updatedPrices[stock.symbol] = response.data.price;
+                if (response.data && response.data.prix) {
+                    updatedPrices[stock.symbol] = response.data.prix;
                 }
             } catch (error) {
                 console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);
             }
         }
         setLivePrices(updatedPrices);
-    };
+    }, [portfolio, livePrices]);
 
     useEffect(() => {
         const fetchNewsAndTranslate = async () => {
@@ -5522,7 +5682,13 @@ function App() {
     const [settings, setSettings] = useState({
         risk_tolerance: 'moderate',
     });
+    const messagesEndRef = useRef(null);
+    const inputRef = useRef(null);
     const agentInputRef = useRef(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
 
     const toggleDarkMode = () => {
         setDarkMode(!darkMode);
@@ -5672,8 +5838,10 @@ function App() {
 
     const handleAgentCall = async (agentName) => {
         setLoading(true);
-        // Récupérez la valeur actuelle de l'input
+        console.log("Agent Input Ref:", agentInputRef); // Ajoutez cette ligne
+        console.log("Agent Input Ref Current:", agentInputRef.current); // Ajoutez cette ligne
         const inputValue = agentInputRef.current ? agentInputRef.current.value : '';
+        console.log("Input value:", inputValue);
         let data = {};
         switch (agentName) {
             case 'document':
@@ -5730,6 +5898,7 @@ function App() {
         }
         const userMessage = { role: 'user', content: inputValue };
         setMessages(prevMessages => [userMessage, ...prevMessages]);
+        console.log("Data being sent:", data); // Ajoutez cette ligne
         try {
             await axios.post(process.env.REACT_APP_API_URL + '/chat_history', userMessage);
         } catch (error) {
@@ -5924,12 +6093,23 @@ function App() {
         setMessages(prevMessages => [...prevMessages, newMessage]);
 
         try {
-            const response = await axios.post(process.env.REACT_APP_API_URL + '/chat', {
+            // Récupérer le portfolio de l'utilisateur
+            const portfolioResponse = await axios.get(`${process.env.REACT_APP_API_URL}/portfolio`);
+            const userPortfolio = portfolioResponse.data;
+
+            // Préparer les données à envoyer
+            const requestData = {
                 message: inputValue,
-                conversation_id: conversationId
-            }, {
+                conversation_id: conversationId,
+                portfolio: userPortfolio,
+                risk_profile: settings.riskProfile, // Assurez-vous que cette information est disponible dans votre state
+                // Ajoutez d'autres paramètres pertinents ici
+            };
+
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/chat`, requestData, {
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
 
@@ -6014,6 +6194,8 @@ function App() {
                 setComparisonEndDate={setComparisonEndDate}
                 backtestResults={backtestResults}
                 comparisonResults={comparisonResults}
+                messagesEndRef={messagesEndRef}
+                inputRef={inputRef}
                 agentInputRef={agentInputRef}
             />
         </ThemeProvider>
@@ -6064,6 +6246,8 @@ function AppContent({
     backtestResults,
     comparisonResults,
     isMobile,
+    messagesEndRef,
+    inputRef,
     agentInputRef,
 }) {
     const [anchorEl, setAnchorEl] = React.useState(null);
@@ -6203,58 +6387,139 @@ function AppContent({
                                 <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
                                     {activeTab === 0 && (
                                         <>
-                                            <ChatBox
-                                                messages={messages}
-                                                handleSubmit={handleSubmit}
-                                                loading={loading}
-                                            />
-                                            <input
-                                                type="file"
-                                                accept=".pdf"
-                                                onChange={handlePDFUpload}
-                                                style={{ display: 'none' }}
-                                                id="pdf-upload"
-                                            />
-                                            <label htmlFor="pdf-upload">
-                                                <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
-                                                    Télécharger PDF
-                                                </Button>
-                                            </label>
-                                            <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
-                                                Vous pouvez aussi glisser-déposer un fichier PDF ici
-                                            </Typography>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
+                                                    <List>
+                                                        {messages.map((message, index) => (
+                                                            <ListItem key={index} alignItems="flex-start">
+                                                                <ListItemText
+                                                                    primary={message.role === 'user' ? 'Vous' : 'IA'}
+                                                                    secondary={<MessageContent content={message.content} />}
+                                                                />
+                                                            </ListItem>
+                                                        ))}
+                                                        <div ref={messagesEndRef} />
+                                                    </List>
+                                                </Paper>
+                                                <Box component="form" onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    const inputValue = inputRef.current ? inputRef.current.value.trim() : '';
+                                                    if (inputValue) {
+                                                        handleSubmit(e, inputValue);
+                                                        if (inputRef.current) {
+                                                            inputRef.current.value = '';
+                                                        }
+                                                    }
+                                                }} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                                                    <TextField
+                                                        fullWidth
+                                                        placeholder="Tapez votre message ici..."
+                                                        variant="outlined"
+                                                        disabled={loading}
+                                                        inputRef={inputRef}
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        variant="contained"
+                                                        disabled={loading}
+                                                    >
+                                                        Envoyer
+                                                    </Button>
+                                                </Box>
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf"
+                                                    onChange={handlePDFUpload}
+                                                    style={{ display: 'none' }}
+                                                    id="pdf-upload"
+                                                />
+                                                <label htmlFor="pdf-upload">
+                                                    <Button variant="contained" component="span" color="secondary" sx={{ mt: 2 }}>
+                                                        Télécharger PDF
+                                                    </Button>
+                                                </label>
+                                                <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
+                                                    Vous pouvez aussi glisser-déposer un fichier PDF ici
+                                                </Typography>
+                                            </Box>
                                         </>
                                     )}
                                     {activeTab === 1 && (
                                         <>
-                                            <TextField
-                                                id="agent-input"
-                                                label="Entrée pour l'agent"
-                                                variant="outlined"
-                                                fullWidth
-                                                margin="normal"
-                                                inputRef={agentInputRef}
-                                            />
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
-                                                {['document', 'sentiment', 'financial_modeling', 'portfolio_optimization', 'risk_management', 'reporting', 'compliance', 'market_sentiment', 'user_profile_analysis', 'historical_data_analysis', 'investment_recommendation'].map((agent) => (
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Paper sx={{ flexGrow: 1, overflow: 'auto', mb: 2, p: 2 }}>
+                                                    <List>
+                                                        {messages.map((message, index) => (
+                                                            <ListItem key={index} alignItems="flex-start">
+                                                                <ListItemText
+                                                                    primary={message.role === 'user' ? 'Vous' : 'IA'}
+                                                                    secondary={<MessageContent content={message.content} />}
+                                                                />
+                                                            </ListItem>
+                                                        ))}
+                                                        <div ref={messagesEndRef} />
+                                                    </List>
+                                                </Paper>
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, mb: 2 }}>
+                                                    {[
+                                                        { key: 'document', name: 'Document' },
+                                                        { key: 'sentiment', name: 'Sentiment' },
+                                                        { key: 'financial_modeling', name: 'Modélisation Financière' },
+                                                        { key: 'portfolio_optimization', name: 'Optimisation de Portefeuille' },
+                                                        { key: 'risk_management', name: 'Gestion des Risques' },
+                                                        { key: 'reporting', name: 'Rapports' },
+                                                        { key: 'compliance', name: 'Conformité' },
+                                                        { key: 'market_sentiment', name: 'Sentiment du Marché' },
+                                                        { key: 'user_profile_analysis', name: 'Analyse du Profil Utilisateur' },
+                                                        { key: 'historical_data_analysis', name: 'Analyse de Données Historiques' },
+                                                        { key: 'investment_recommendation', name: 'Recommandation d\'Investissement' }
+                                                    ].map((agent) => (
+                                                        <Button
+                                                            key={agent.key}
+                                                            onClick={() => {
+                                                                console.log("Agent cliqué:", agent.key);
+                                                                console.log("Valeur actuelle de l'input:", agentInputRef.current ? agentInputRef.current.value : 'Pas de valeur');
+                                                                handleAgentCall(agent.key);
+                                                            }}
+                                                            variant="contained"
+                                                            color="primary"
+                                                            disabled={loading}
+                                                        >
+                                                            {agent.name}
+                                                        </Button>
+                                                    ))}
+                                                </Box>
+                                                <Box component="form" onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    const inputValue = agentInputRef.current ? agentInputRef.current.value.trim() : '';
+                                                    if (inputValue) {
+                                                        handleSubmit(e, inputValue);
+                                                        if (agentInputRef.current) {
+                                                            agentInputRef.current.value = '';
+                                                        }
+                                                    }
+                                                }} sx={{ display: 'flex', position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
+                                                    <TextField
+                                                        fullWidth
+                                                        placeholder="Tapez votre message ici..."
+                                                        variant="outlined"
+                                                        disabled={loading}
+                                                        inputRef={agentInputRef}
+                                                        onChange={(e) => {
+                                                            if (agentInputRef.current) {
+                                                                agentInputRef.current.value = e.target.value;
+                                                            }
+                                                        }}
+                                                    />
                                                     <Button
-                                                        key={agent}
-                                                        onClick={() => handleAgentCall(agent)}
+                                                        type="submit"
                                                         variant="contained"
-                                                        color="primary"
                                                         disabled={loading}
                                                     >
-                                                        {agent.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                                        Envoyer
                                                     </Button>
-                                                ))}
+                                                </Box>
                                             </Box>
-                                            <ChatBox
-                                                messages={messages}
-                                                handleSubmit={handleSubmit}
-                                                loading={loading}
-                                                customInput={agentInputRef.current ? agentInputRef.current.value : ''}
-                                                disableInput={false}
-                                            />
                                         </>
                                     )}
                                     {activeTab === 2 && (
@@ -6273,16 +6538,6 @@ function AppContent({
                                             </label>
                                             {file && <Typography variant="body1" sx={{ mt: 2 }}>{file.name}</Typography>}
                                             {loading && <CircularProgress sx={{ mt: 2 }} />}
-                                            <List>
-                                                {messages.map((message, index) => (
-                                                    <ListItem key={index} alignItems="flex-start">
-                                                        <ListItemText
-                                                            primary={message.role === 'user' ? 'Vous' : 'IA'}
-                                                            secondary={<MessageContent content={message.content} />}
-                                                        />
-                                                    </ListItem>
-                                                ))}
-                                            </List>
                                         </>
                                     )}
                                     {activeTab === 3 && <Settings onClearChat={clearChatHistory} />}
@@ -6520,7 +6775,8 @@ function Settings({ onClearChat }) {
         defaultPortfolioValue: 100000,
         riskProfile: 'moderate',
         preferredSectors: [],
-        theme: 'light'
+        theme: 'light',
+        name: ''
     });
 
     useEffect(() => {
@@ -6590,6 +6846,13 @@ function Settings({ onClearChat }) {
 
     return (
         <Box>
+            <TextField
+                label="Nom"
+                value={settings.name}
+                onChange={(e) => handleSettingsChange('name', e.target.value)}
+                fullWidth
+                margin="normal"
+            />
             <TextField
                 label="Valeur par défaut du portefeuille"
                 value={settings.defaultPortfolioValue}

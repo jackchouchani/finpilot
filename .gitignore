@@ -36,3 +36,4 @@ formatted_articles.json
 import json.py
 compilation_texte.txt
 articles.json
+compilation-code.txt

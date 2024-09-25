@@ -120,8 +120,8 @@ function Portfolio() {
         for (const stock of portfolio.stocks) {
             try {
                 const response = await axios.get(`${process.env.REACT_APP_API_URL}/latest_price?symbol=${stock.symbol}`);
-                if (response.data && response.data.price) {
-                    updatedPrices[stock.symbol] = response.data.price;
+                if (response.data && response.data.prix) {
+                    updatedPrices[stock.symbol] = response.data.prix;
                 }
             } catch (error) {
                 console.error(`Erreur lors de la récupération du prix pour ${stock.symbol}:`, error);

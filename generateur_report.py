@@ -742,7 +742,16 @@ def generate_additional_ratios_table(portfolio, portfolio_data, returns, weights
     
     data = [['Ratio', 'Valeur']]
     for ratio, value in ratios.items():
-        data.append([ratio, f"{value:.4f}"])
+        if isinstance(value, (int, float)):
+            # Si la valeur est un nombre, formatez-la avec 4 décimales
+            formatted_value = f"{value:.4f}"
+        elif value == "N/A":
+            # Si la valeur est "N/A", laissez-la telle quelle
+            formatted_value = value
+        else:
+            # Pour tout autre type, convertissez-le en chaîne
+            formatted_value = str(value)
+        data.append([ratio, formatted_value])
     
     table = Table(data)
     table.setStyle(TableStyle([

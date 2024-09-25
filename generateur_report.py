@@ -583,16 +583,32 @@ def generate_stock_performance_comparison(portfolio_data, weights, start_date, e
     list: Une liste d'éléments à ajouter à la section de la comparaison de performance des actions.
     """
     elements = []
-    
+
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+
     stock_performance = {}
     for symbol, data in portfolio_data.items():
-        start_price = data.loc[start_date]
-        end_price = data.loc[end_date]
+        # S'assurer que les dates sont dans la plage des données disponibles
+        adjusted_start_date = max(start_date, data.index[0])
+        adjusted_end_date = min(end_date, data.index[-1])
+        
+        if adjusted_start_date >= adjusted_end_date:
+            print(f"Avertissement : Données insuffisantes pour {symbol}")
+            continue
+        
+        start_price = data.loc[adjusted_start_date]
+        end_price = data.loc[adjusted_end_date]
         performance = (end_price / start_price - 1) * 100  # Calcul direct en pourcentage
         stock_performance[symbol] = performance
     
+    if not stock_performance:
+        elements.append(create_formatted_paragraph("Données insuffisantes pour générer la comparaison de performance des actions.", 'BodyText'))
+        return elements
+
     stock_performance_list = list(stock_performance.items())
     stock_performance_list.sort(key=lambda x: x[1], reverse=True)
+    
     
     fig = go.Figure([go.Bar(
         x=[s[0] for s in stock_performance_list],

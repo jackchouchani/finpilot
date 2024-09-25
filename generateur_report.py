@@ -251,7 +251,7 @@ def generate_report(data):
     start_time = time.time()
     
     portfolio = data['portfolio']
-    end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    end_date = datetime.now().strftime('%Y-%m-%d')
 
     # Définir start_date à un an avant end_date
     start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=365)).strftime('%Y-%m-%d')
@@ -584,14 +584,15 @@ def generate_stock_performance_comparison(portfolio_data, weights, start_date, e
     """
     elements = []
 
-    start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
-
     stock_performance = {}
     for symbol, data in portfolio_data.items():
+        # Convertir l'index en datetime sans fuseau horaire si nécessaire
+        if data.index.tzinfo is not None:
+            data.index = data.index.tz_localize(None)
+        
         # S'assurer que les dates sont dans la plage des données disponibles
-        adjusted_start_date = max(start_date, data.index[0])
-        adjusted_end_date = min(end_date, data.index[-1])
+        adjusted_start_date = max(start_date, data.index[0].strftime('%Y-%m-%d'))
+        adjusted_end_date = min(end_date, data.index[-1].strftime('%Y-%m-%d'))
         
         if adjusted_start_date >= adjusted_end_date:
             print(f"Avertissement : Données insuffisantes pour {symbol}")
@@ -1554,11 +1555,11 @@ def calculate_stock_performance(portfolio_data, start_date, end_date):
     performance = {}
     for symbol, data in portfolio_data.items():
         # Convertir l'index en datetime naïf si nécessaire
-        data.index = data.index.tz_localize(None)
+        data.index = data.index
         
         # Assurez-vous que start_date et end_date sont des objets datetime naïfs
-        start_date = pd.Timestamp(start_date).tz_localize(None)
-        end_date = pd.Timestamp(end_date).tz_localize(None)
+        start_date = pd.Timestamp(start_date)
+        end_date = pd.Timestamp(end_date)
         
         try:
             start_price = data.loc[start_date:].iloc[0]

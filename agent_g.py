@@ -171,15 +171,15 @@ Points clés à retenir:
 4. L'exposition aux marchés développés est de {market_exposure['Développé']:.2%}, {"ce qui est conforme" if market_exposure['Développé'] >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
 5. La volatilité du portefeuille est {"conforme" if volatility != 'Non disponible' and volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
 """
-# Dans la méthode generate_report
-    recommendations = self.generate_recommendations(violations, sector_exposure, warnings, market_exposure, volatility)
+        # Dans la méthode generate_report
+        recommendations = self.generate_recommendations(violations, sector_exposure, warnings, market_exposure, volatility)
 
-    rapport += "Recommandations:\n"
-    for i, recommendation in enumerate(recommendations, 1):
-        rapport += f"{i}. {recommendation}\n"
+        rapport += "Recommandations:\n"
+        for i, recommendation in enumerate(recommendations, 1):
+            rapport += f"{i}. {recommendation}\n"
 
-    rapport += """
-    Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
-    """
+        rapport += """
+        Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
+        """
 
 compliance_agent = ComplianceAgent()

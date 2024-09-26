@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 class SentimentAnalysisAgent:
     def __init__(self):
-        self.news_api_key = "c6cc145ad227419c88756838786b70d1"
+        self.news_api_key = "d3f7b02481f44c549997455125444661"
         self.stop_words = set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'])
 
     def get_news(self, query, days=7):

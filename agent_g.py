@@ -97,6 +97,28 @@ class ComplianceAgent:
         rapport = self.generate_report(violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict)
         return rapport
 
+    def generate_recommendations(self, violations, sector_exposure, warnings, market_exposure, volatility):
+    recommendations = []
+
+    if violations:
+        recommendations.append(f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}.")
+    else:
+        recommendations.append("Maintenir la conformité actuelle du portefeuille.")
+
+    if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure):
+        recommendations.append("Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue.")
+
+    if any("ESG" in w for w in warnings):
+        recommendations.append("Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables.")
+
+    if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"]:
+        recommendations.append("Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille.")
+
+    if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"]:
+        recommendations.append("Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation.")
+
+    return recommendations
+
     def generate_report(self, violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict):
         rapport = f"""
 Analyse de conformité avancée
@@ -148,18 +170,16 @@ Points clés à retenir:
 3. L'exposition sectorielle la plus élevée est dans {max(sector_exposure, key=sector_exposure.get)} à {max(sector_exposure.values()):.2%}.
 4. L'exposition aux marchés développés est de {market_exposure['Développé']:.2%}, {"ce qui est conforme" if market_exposure['Développé'] >= self.regulations["min_developed_markets_exposure"] else "ce qui est inférieur"} aux recommandations.
 5. La volatilité du portefeuille est {"conforme" if volatility != 'Non disponible' and volatility <= self.regulations["max_volatility"] else "supérieure"} aux limites recommandées.
-
-Recommandations:
-1. {f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}." if violations else "Maintenir la conformité actuelle du portefeuille."}
-2. {"Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue." if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure) else ""}
-3. {"Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables." if any("ESG" in w for w in warnings) else ""}
-4. {"Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille." if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"] else ""}
-5. {"Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation." if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"] else ""}
-
-Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
-
-*Cette analyse a été générée automatiquement. Veuillez l'utiliser avec discernement.*
 """
-        return rapport
+# Dans la méthode generate_report
+    recommendations = self.generate_recommendations(violations, sector_exposure, warnings, market_exposure, volatility)
+
+    rapport += "Recommandations:\n"
+    for i, recommendation in enumerate(recommendations, 1):
+        rapport += f"{i}. {recommendation}\n"
+
+    rapport += """
+    Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
+    """
 
 compliance_agent = ComplianceAgent()

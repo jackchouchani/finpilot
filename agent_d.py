@@ -74,6 +74,21 @@ Cette nouvelle répartition pourrait vous offrir :
 🔑 Points clés à considérer :
 {self._generate_key_points(current_weights, optimized_weights)}
 
+📘 Méthode d'optimisation utilisée :
+Cette optimisation est basée sur la théorie moderne du portefeuille de Markowitz et utilise la méthode d'optimisation du ratio de Sharpe. Voici les principales étapes :
+
+1. Collecte des données historiques sur 5 ans pour chaque action du portefeuille.
+2. Calcul des rendements quotidiens et de la matrice de covariance.
+3. Utilisation de l'algorithme d'optimisation SLSQP (Sequential Least Squares Programming) pour trouver les poids optimaux qui maximisent le ratio de Sharpe.
+4. Application de contraintes : la somme des poids doit être égale à 100% et aucun poids négatif n'est autorisé (pas de vente à découvert).
+
+Cette approche vise à trouver le meilleur compromis entre rendement et risque, en maximisant le rendement ajusté au risque mesuré par le ratio de Sharpe.
+
+⚠️ Limites de l'analyse :
+- L'optimisation se base sur des données historiques et suppose que les tendances passées se poursuivront, ce qui n'est pas toujours le cas.
+- Elle suppose une distribution normale des rendements, ce qui peut ne pas refléter la réalité du marché, surtout en périodes de crise.
+- Les coûts de transaction et les implications fiscales ne sont pas pris en compte dans ce modèle.
+
 N'oubliez pas que cette analyse est basée sur des données historiques et des modèles mathématiques. Elle ne garantit pas les performances futures. Il est toujours recommandé de diversifier et d'ajuster votre stratégie en fonction de votre situation personnelle et de vos objectifs à long terme.
 
 Que pensez-vous de ces suggestions ? Souhaitez-vous que nous discutions plus en détail de certains aspects spécifiques de cette analyse ?"""

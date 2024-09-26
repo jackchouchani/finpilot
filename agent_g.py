@@ -98,26 +98,26 @@ class ComplianceAgent:
         return rapport
 
     def generate_recommendations(self, violations, sector_exposure, warnings, market_exposure, volatility):
-    recommendations = []
+        recommendations = []
 
-    if violations:
-        recommendations.append(f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}.")
-    else:
-        recommendations.append("Maintenir la conformité actuelle du portefeuille.")
+        if violations:
+            recommendations.append(f"Adresser immédiatement les violations en ajustant les positions dans {', '.join([v.split()[3] for v in violations if 'exposition' in v])}.")
+        else:
+            recommendations.append("Maintenir la conformité actuelle du portefeuille.")
 
-    if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure):
-        recommendations.append("Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue.")
+        if any(sector in self.regulations["restricted_sectors"] for sector in sector_exposure):
+            recommendations.append("Réévaluer l'exposition aux secteurs à haut risque et envisager une diversification accrue.")
 
-    if any("ESG" in w for w in warnings):
-        recommendations.append("Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables.")
+        if any("ESG" in w for w in warnings):
+            recommendations.append("Examiner les positions ayant des scores ESG faibles et envisager des alternatives plus durables.")
 
-    if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"]:
-        recommendations.append("Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille.")
+        if market_exposure['Développé'] < self.regulations["min_developed_markets_exposure"]:
+            recommendations.append("Considérer une augmentation de l'exposition aux marchés développés pour améliorer la stabilité du portefeuille.")
 
-    if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"]:
-        recommendations.append("Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation.")
+        if volatility != 'Non disponible' and volatility > self.regulations["max_volatility"]:
+            recommendations.append("Envisager des stratégies de réduction de la volatilité, comme l'ajout d'actifs à faible corrélation.")
 
-    return recommendations
+        return recommendations
 
     def generate_report(self, violations, warnings, sector_exposure, market_exposure, volatility, portfolio_dict):
         rapport = f"""
@@ -179,7 +179,8 @@ Points clés à retenir:
             rapport += f"{i}. {recommendation}\n"
 
         rapport += """
-        Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
-        """
+Les gestionnaires de portefeuille devraient utiliser ces informations pour ajuster la composition du portefeuille afin d'assurer la conformité réglementaire et d'optimiser le profil risque/rendement en fonction des objectifs d'investissement.
+"""
+        return rapport
 
 compliance_agent = ComplianceAgent()
